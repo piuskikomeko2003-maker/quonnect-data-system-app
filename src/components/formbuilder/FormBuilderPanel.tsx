@@ -23,7 +23,11 @@ import {
   HelpCircle,
   Sliders,
   Sparkles,
-  GitCommit
+  GitCommit,
+  Eye,
+  RotateCcw,
+  Compass,
+  Camera
 } from 'lucide-react';
 
 interface Form {
@@ -155,6 +159,10 @@ export const FormBuilderPanel: React.FC = () => {
   const [logicValue, setLogicValue] = useState('');
   const [isSavingLogic, setIsSavingLogic] = useState(false);
 
+  // Form Preview states
+  const [isPreviewOpen, setIsPreviewOpen] = useState(false);
+  const [previewAnswers, setPreviewAnswers] = useState<Record<string, any>>({});
+
   // Toast notifications state
   const [toasts, setToasts] = useState<Toast[]>([]);
 
@@ -282,6 +290,8 @@ export const FormBuilderPanel: React.FC = () => {
       setEditingQuestionId(null);
       setIsLogicModalOpen(false);
       setLogicSourceQuestion(null);
+      setIsPreviewOpen(false);
+      setPreviewAnswers({});
     } else {
       setSections([]);
       setQuestions([]);
@@ -853,6 +863,91 @@ export const FormBuilderPanel: React.FC = () => {
     }
   };
 
+  // Form Preview Simulator Evaluation Logic
+  const checkRuleCondition = (sourceQId: string, operator: string, compVal: string) => {
+    const rawAnswer = previewAnswers[sourceQId];
+    const answer = rawAnswer !== undefined && rawAnswer !== null ? String(rawAnswer) : '';
+    
+    const cleanAnswer = answer.toString().toLowerCase().trim();
+    const cleanCompVal = compVal.toString().toLowerCase().trim();
+
+    switch (operator) {
+      case 'eq':
+        return cleanAnswer === cleanCompVal;
+      case 'neq':
+        return cleanAnswer !== cleanCompVal;
+      case 'gt':
+        return Number(answer) > Number(compVal);
+      case 'lt':
+        return Number(answer) < Number(compVal);
+      default:
+        return false;
+    }
+  };
+
+  const isSectionVisible = (sectionId: string) => {
+    const rules = sectionRules.filter(r => r.target_section_id === sectionId);
+    if (rules.length === 0) return true;
+
+    const showRules = rules.filter(r => r.action === 'show');
+    const hideRules = rules.filter(r => r.action === 'hide');
+
+    // If any hide rule evaluates to true, section is hidden
+    const anyHideTriggered = hideRules.some(r => checkRuleCondition(r.source_question_id, r.operator, r.comparison_value));
+    if (anyHideTriggered) return false;
+
+    // If there are show rules, at least one must evaluate to true, otherwise default to hidden
+    if (showRules.length > 0) {
+      const anyShowTriggered = showRules.some(r => checkRuleCondition(r.source_question_id, r.operator, r.comparison_value));
+      return anyShowTriggered;
+    }
+
+    return true;
+  };
+
+  const isQuestionVisible = (q: SurveyQuestion) => {
+    // 1. Check parent section visibility first
+    if (!isSectionVisible(q.section_id)) return false;
+
+    // 2. Check question logic rules
+    const rules = questionRules.filter(r => r.target_question_id === q.id);
+    if (rules.length === 0) return true;
+
+    const showRules = rules.filter(r => r.action === 'show');
+    const hideRules = rules.filter(r => r.action === 'hide');
+
+    // If any hide rule is met, it is hidden
+    const anyHideTriggered = hideRules.some(r => checkRuleCondition(r.source_question_id, r.operator, r.comparison_value));
+    if (anyHideTriggered) return false;
+
+    // If show rules exist, at least one must be met, otherwise default is hidden
+    if (showRules.length > 0) {
+      const anyShowTriggered = showRules.some(r => checkRuleCondition(r.source_question_id, r.operator, r.comparison_value));
+      return anyShowTriggered;
+    }
+
+    return true;
+  };
+
+  const handlePreviewAnswerChange = (qId: string, val: any) => {
+    setPreviewAnswers(prev => ({ ...prev, [qId]: val }));
+  };
+
+  const handlePreviewMultiSelectChange = (qId: string, option: string, checked: boolean) => {
+    const currentList = previewAnswers[qId] || [];
+    let updated;
+    if (checked) {
+      updated = [...currentList, option];
+    } else {
+      updated = currentList.filter((item: string) => item !== option);
+    }
+    setPreviewAnswers(prev => ({ ...prev, [qId]: updated }));
+  };
+
+  const handleResetPreview = () => {
+    setPreviewAnswers({});
+  };
+
   const selectedForm = forms.find(f => f.id === selectedFormId);
 
   return (
@@ -968,6 +1063,16 @@ export const FormBuilderPanel: React.FC = () => {
                   <p className="text-[10px] text-text-secondary mt-0.5">{selectedForm.description || "No description provided."}</p>
                 </div>
                 <div className="flex items-center gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setIsPreviewOpen(true)}
+                    className="text-[11px]"
+                    disabled={questions.length === 0}
+                  >
+                    <Eye className="w-3.5 h-3.5 text-text-secondary mr-1" />
+                    <span>Preview Form</span>
+                  </Button>
                   <Button
                     variant="secondary"
                     size="sm"
@@ -1691,6 +1796,237 @@ export const FormBuilderPanel: React.FC = () => {
                 onClick={() => setIsLogicModalOpen(false)}
               >
                 Dismiss
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Live Form Simulator Preview Modal Overlay */}
+      {isPreviewOpen && selectedForm && (
+        <div className="fixed inset-0 bg-black/65 backdrop-blur-xs flex items-center justify-center p-4 z-[9000] select-none text-left">
+          <div className="bg-bg-surface border border-border rounded-xl max-w-2xl w-full p-5 shadow-modal animate-scale-up max-h-[92vh] flex flex-col overflow-hidden text-xs">
+            <div className="flex justify-between items-center border-b border-border pb-3 shrink-0">
+              <div>
+                <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider flex items-center gap-2">
+                  <Sparkles className="w-4.5 h-4.5 text-green" />
+                  <span>Form Simulator: {selectedForm.name}</span>
+                </h3>
+                <p className="text-[10px] text-text-secondary mt-0.5">Live rendering of skip logic and validations.</p>
+              </div>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={handleResetPreview}
+                  className="px-2.5 py-1 rounded bg-bg-elevated border border-border-light hover:border-green-soft text-text-secondary hover:text-green flex items-center gap-1 cursor-pointer"
+                  title="Reset all inputs"
+                >
+                  <RotateCcw className="w-3 h-3" />
+                  <span>Reset Form</span>
+                </button>
+                <button 
+                  onClick={() => setIsPreviewOpen(false)}
+                  className="text-text-secondary hover:text-text-primary cursor-pointer p-0.5"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {/* Preview Form Content */}
+            <div className="flex-1 overflow-y-auto p-4 space-y-6">
+              {sections.length === 0 ? (
+                <div className="text-center py-20 text-text-tertiary">
+                  <FolderOpen className="w-12 h-12 mx-auto mb-2 opacity-50" />
+                  <p className="font-bold">No form sections to preview.</p>
+                </div>
+              ) : (
+                sections
+                  .filter(sec => isSectionVisible(sec.id))
+                  .map((sec, secIdx) => {
+                    const sectionQuestions = questions
+                      .filter(q => q.section_id === sec.id && isQuestionVisible(q))
+                      .sort((a, b) => a.sort_order - b.sort_order);
+
+                    if (sectionQuestions.length === 0) {
+                      return null; // Skip rendering section if all questions are skipped
+                    }
+
+                    return (
+                      <div key={sec.id} className="space-y-3.5 border-l-2 border-green/30 pl-4 py-1">
+                        <div>
+                          <Badge variant="success" size="sm" className="font-bold uppercase text-[9px] mb-1">
+                            Section: {sec.name}
+                          </Badge>
+                          {sec.description && (
+                            <p className="text-[10px] text-text-secondary">{sec.description}</p>
+                          )}
+                        </div>
+
+                        <div className="space-y-4">
+                          {sectionQuestions.map((q) => {
+                            const val = previewAnswers[q.id];
+                            return (
+                              <div key={q.id} className="bg-bg-elevated/20 border border-border/40 rounded-lg p-3.5 space-y-2 select-none">
+                                <label className="block text-xs font-bold text-text-primary leading-normal">
+                                  {q.question_text}
+                                  {q.is_required && <span className="text-red ml-0.5 font-bold">*</span>}
+                                </label>
+
+                                {/* Conditional Render based on question type */}
+                                {q.question_type === 'text' && (
+                                  <input
+                                    type="text"
+                                    value={val || ''}
+                                    onChange={(e) => handlePreviewAnswerChange(q.id, e.target.value)}
+                                    placeholder="Enter text answer..."
+                                    className="w-full bg-bg-input border border-border-light rounded-md px-3 py-2 text-xs text-text-primary outline-none focus:border-green"
+                                  />
+                                )}
+
+                                {q.question_type === 'number' && (
+                                  <input
+                                    type="number"
+                                    value={val || ''}
+                                    onChange={(e) => handlePreviewAnswerChange(q.id, e.target.value)}
+                                    placeholder="Enter numeric value..."
+                                    className="w-full bg-bg-input border border-border-light rounded-md px-3 py-2 text-xs text-text-primary outline-none focus:border-green"
+                                  />
+                                )}
+
+                                {q.question_type === 'boolean' && (
+                                  <div className="flex gap-4 items-center py-0.5">
+                                    <label className="flex items-center gap-1.5 cursor-pointer">
+                                      <input
+                                        type="radio"
+                                        name={`bool_${q.id}`}
+                                        value="Yes"
+                                        checked={val === 'Yes'}
+                                        onChange={() => handlePreviewAnswerChange(q.id, 'Yes')}
+                                        className="w-4 h-4 text-green focus:ring-0 cursor-pointer"
+                                      />
+                                      <span>Yes</span>
+                                    </label>
+                                    <label className="flex items-center gap-1.5 cursor-pointer">
+                                      <input
+                                        type="radio"
+                                        name={`bool_${q.id}`}
+                                        value="No"
+                                        checked={val === 'No'}
+                                        onChange={() => handlePreviewAnswerChange(q.id, 'No')}
+                                        className="w-4 h-4 text-green focus:ring-0 cursor-pointer"
+                                      />
+                                      <span>No</span>
+                                    </label>
+                                  </div>
+                                )}
+
+                                {q.question_type === 'select' && (
+                                  <select
+                                    value={val || ''}
+                                    onChange={(e) => handlePreviewAnswerChange(q.id, e.target.value)}
+                                    className="w-full bg-bg-input border border-border-light rounded-md px-3 py-2 text-xs text-text-primary outline-none focus:border-green"
+                                  >
+                                    <option value="">Select Option...</option>
+                                    {q.options && q.options.map((opt, oIdx) => (
+                                      <option key={oIdx} value={opt}>{opt}</option>
+                                    ))}
+                                  </select>
+                                )}
+
+                                {q.question_type === 'multi_select' && (
+                                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 py-1 select-none">
+                                    {q.options && q.options.map((opt, oIdx) => {
+                                      const checked = (val || []).includes(opt);
+                                      return (
+                                        <label key={oIdx} className="flex items-center gap-2 cursor-pointer">
+                                          <input
+                                            type="checkbox"
+                                            checked={checked}
+                                            onChange={(e) => handlePreviewMultiSelectChange(q.id, opt, e.target.checked)}
+                                            className="w-4 h-4 rounded border border-border text-green focus:ring-0 cursor-pointer"
+                                          />
+                                          <span>{opt}</span>
+                                        </label>
+                                      );
+                                    })}
+                                  </div>
+                                )}
+
+                                {q.question_type === 'date' && (
+                                  <input
+                                    type="date"
+                                    value={val || ''}
+                                    onChange={(e) => handlePreviewAnswerChange(q.id, e.target.value)}
+                                    className="w-full bg-bg-input border border-border-light rounded-md px-3 py-2 text-xs text-text-primary outline-none focus:border-green"
+                                  />
+                                )}
+
+                                {q.question_type === 'time' && (
+                                  <input
+                                    type="time"
+                                    value={val || ''}
+                                    onChange={(e) => handlePreviewAnswerChange(q.id, e.target.value)}
+                                    className="w-full bg-bg-input border border-border-light rounded-md px-3 py-2 text-xs text-text-primary outline-none focus:border-green"
+                                  />
+                                )}
+
+                                {q.question_type === 'gps' && (
+                                  <div className="flex gap-2">
+                                    <input
+                                      type="text"
+                                      readOnly
+                                      value={val ? `Lat: ${val.lat}, Lng: ${val.lng}` : ''}
+                                      placeholder="GPS Coordinates (Click Get GPS)"
+                                      className="flex-1 bg-bg-input border border-border-light rounded-md px-3 py-2 text-xs text-text-primary outline-none font-mono"
+                                    />
+                                    <button
+                                      type="button"
+                                      onClick={() => handlePreviewAnswerChange(q.id, { lat: (0.3476 + Math.random()*0.01).toFixed(4), lng: (32.5825 + Math.random()*0.01).toFixed(4) })}
+                                      className="px-3 py-2 bg-bg-elevated border border-border-light rounded-md text-text-secondary hover:text-green flex items-center gap-1 cursor-pointer"
+                                    >
+                                      <Compass className="w-3.5 h-3.5" />
+                                      <span>Get GPS</span>
+                                    </button>
+                                  </div>
+                                )}
+
+                                {q.question_type === 'photo' && (
+                                  <div className="flex gap-3 items-center select-none">
+                                    <div className="w-12 h-12 rounded bg-bg-elevated border border-border-light flex items-center justify-center text-text-tertiary">
+                                      <Camera className="w-5 h-5" />
+                                    </div>
+                                    <input
+                                      type="file"
+                                      accept="image/*"
+                                      disabled
+                                      className="text-xs text-text-secondary"
+                                    />
+                                  </div>
+                                )}
+
+                                {q.question_type === 'note' && (
+                                  <div className="bg-green-soft/10 border-l-2 border-green p-2 text-[10px] text-text-secondary leading-relaxed">
+                                    Note: Display message above. No input response required.
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })
+              )}
+            </div>
+
+            <div className="flex justify-end border-t border-border/60 pt-3.5 shrink-0 select-none">
+              <Button 
+                type="button" 
+                variant="secondary" 
+                size="sm" 
+                onClick={() => setIsPreviewOpen(false)}
+              >
+                Close Simulator
               </Button>
             </div>
           </div>
