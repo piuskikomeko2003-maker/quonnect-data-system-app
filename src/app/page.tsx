@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useLiveMetrics } from '@/hooks/useLiveMetrics';
+import { useRegion } from '@/context/RegionContext';
 import { AdminShell, Market } from '@/components/layout/AdminShell';
 import { OverviewCards, OverviewData } from '@/components/dashboard/OverviewCards';
 import { LiveCounter } from '@/components/dashboard/LiveCounter';
@@ -40,7 +41,10 @@ import {
   Info,
   X,
   Store,
-  Calendar
+  Calendar,
+  Map,
+  ChevronRight,
+  Loader2
 } from 'lucide-react';
 
 // ==========================================
@@ -97,6 +101,32 @@ const getVendorDetailData = (vendor: any) => {
 
 export default function Home() {
   const [mounted, setMounted] = useState(false);
+  const { activeRegion, activeEdition, regions: ctxRegions, switchRegion, loadingRegions } = useRegion();
+
+  const handleCreateRegionFromName = async (name: string) => {
+    try {
+      const supabase = createClient();
+      if (!supabase) return;
+      const slug = name.toLowerCase().trim().replace(/[^a-z0-9 -]/g, '').replace(/\s+/g, '-');
+      const { data, error: rErr } = await supabase
+        .from('regions')
+        .insert([{ name, slug, is_active: true }])
+        .select()
+        .single();
+      if (rErr) throw rErr;
+      alert(`Region "${name}" created successfully!`);
+      if (data) {
+        switchRegion({
+          id: data.id,
+          name: data.name,
+          slug: data.slug,
+          is_active: data.is_active
+        });
+      }
+    } catch (e: any) {
+      alert(`Error creating region: ${e.message}`);
+    }
+  };
   
   // Navigation States
   const [activeNav, setActiveNav] = useState('overview');
@@ -1322,6 +1352,65 @@ export default function Home() {
       total: totalUniqueVendorsCount
     }
   };
+
+  if (!activeRegion) {
+    return (
+      <div className="flex min-h-screen bg-bg items-center justify-center p-6 text-left select-none">
+        <div className="max-w-md w-full bg-bg-surface border border-border rounded-xl p-6 shadow-modal space-y-6">
+          <div className="text-center space-y-2">
+            <div className="w-12 h-12 rounded-full bg-green-muted text-green flex items-center justify-center mx-auto">
+              <Map className="w-6 h-6" />
+            </div>
+            <h2 className="text-lg font-bold text-text-primary uppercase tracking-wider">Select Workspace Region</h2>
+            <p className="text-xs text-text-secondary">Choose a region to scope your data session and operational activities.</p>
+          </div>
+
+          <div className="space-y-2.5">
+            {ctxRegions.length === 0 ? (
+              <div className="text-center py-6">
+                {loadingRegions ? (
+                  <div className="flex items-center gap-2 justify-center text-text-tertiary">
+                    <Loader2 className="w-5 h-5 animate-spin text-green" />
+                    <span>Loading operational regions...</span>
+                  </div>
+                ) : (
+                  <p className="text-xs text-text-tertiary">No active operational regions found. Please create one below.</p>
+                )}
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 gap-2.5 max-h-[220px] overflow-y-auto pr-1">
+                {ctxRegions.map((reg) => (
+                  <button
+                    key={reg.id}
+                    onClick={() => switchRegion(reg)}
+                    className="flex items-center justify-between p-3.5 bg-bg-elevated border border-border hover:border-green hover:bg-green-soft/10 text-xs font-bold text-text-primary rounded-lg transition-all text-left cursor-pointer"
+                  >
+                    <span>{reg.name} Region</span>
+                    <ChevronRight className="w-4 h-4 text-text-tertiary" />
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <div className="border-t border-border/40 pt-4 text-center">
+            <button
+              onClick={() => {
+                const name = window.prompt("Enter new region name:");
+                if (name && name.trim()) {
+                  handleCreateRegionFromName(name.trim());
+                }
+              }}
+              className="text-xs font-bold text-green hover:underline flex items-center justify-center gap-1.5 mx-auto cursor-pointer"
+            >
+              <Plus className="w-4 h-4" />
+              <span>Create New Region</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <AdminShell
