@@ -1,65 +1,2283 @@
-import Image from "next/image";
+'use client';
+
+import React, { useState, useEffect } from 'react';
+import { createClient } from '@/lib/supabase/client';
+import { useLiveMetrics } from '@/hooks/useLiveMetrics';
+import { AdminShell, Market } from '@/components/layout/AdminShell';
+import { OverviewCards, OverviewData } from '@/components/dashboard/OverviewCards';
+import { LiveCounter } from '@/components/dashboard/LiveCounter';
+import { AlertBanner } from '@/components/dashboard/AlertBanner';
+import { FilterBar, FilterState } from '@/components/dashboard/FilterBar';
+import { VendorTable, Vendor } from '@/components/vendors/VendorTable';
+import { VendorDetailPanel } from '@/components/vendors/VendorDetailPanel';
+import { QuickEntryPanel } from '@/components/forms/QuickEntryPanel';
+import { WalkinFormValues } from '@/components/forms/WalkinForm';
+import { FormBuilderShell } from '@/components/formbuilder/FormBuilderShell';
+import { FormBuilderPanel } from '@/components/formbuilder/FormBuilderPanel';
+import { FormCard } from '@/components/formbuilder/FormCard';
+import { FormPreview } from '@/components/formbuilder/FormPreview';
+import { Question, FormTemplate } from '@/components/formbuilder/types';
+import { Button } from '@/components/ui/Button';
+import { Badge } from '@/components/ui/Badge';
+import { 
+  Users, 
+  Footprints, 
+  Database, 
+  ClipboardList, 
+  Zap, 
+  AlertTriangle, 
+  FileText, 
+  Link as LinkIcon, 
+  Check, 
+  Plus, 
+  TrendingUp, 
+  BarChart3, 
+  Tag, 
+  Heart, 
+  HelpCircle,
+  Copy,
+  Info,
+  X,
+  Store,
+  Calendar
+} from 'lucide-react';
+
+// ==========================================
+// 1. PROJECT BUSINESS CONSTANTS
+// ==========================================
+
+const BUSINESS_TYPES = ['Food', 'Fashion', 'Crafts', 'Beauty', 'Electronics', 'Agriculture'];
+
+
+const getVendorDetailData = (vendor: any) => {
+  if (!vendor) return undefined;
+  return {
+    id: vendor.id,
+    name: vendor.name,
+    phone: vendor.phone,
+    status: vendor.status,
+    avatarInitials: vendor.name.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase(),
+    attendanceHistory: [
+      {
+        editionId: 'may-2026',
+        editionName: 'Kampala May 2026',
+        paid: true,
+        dataCollected: vendor.attendanceCount > 0,
+        sequenceNumber: vendor.attendanceCount
+      },
+      ...(vendor.attendanceCount > 1 ? [
+        {
+          editionId: 'april-2026',
+          editionName: 'Kampala April 2026',
+          paid: true,
+          dataCollected: vendor.attendanceCount > 1,
+          sequenceNumber: vendor.attendanceCount - 1
+        }
+      ] : [])
+    ],
+    editionAttributes: [
+      {
+        editionId: 'may-2026',
+        editionName: 'Kampala May 2026',
+        attributes: [
+          { key: 'employee_count', label: 'Employee Count', value: vendor.employeeCount || '0', source: 'verified' as const },
+          { key: 'new_hires_this_year', label: 'New Hires This Year', value: vendor.newHiresThisYear || '0', source: 'verified' as const },
+          { key: 'business_type', label: 'Business Classification', value: vendor.businessType || 'N/A', source: 'verified' as const },
+          { key: 'sells_own_products', label: 'Sells Own Products?', value: vendor.sellsOwnProducts || 'No', source: 'self-reported' as const },
+          { key: 'export_ready', label: 'Export Ready?', value: vendor.exportReady || 'No', source: 'self-reported' as const },
+          { key: 'impact_rating', label: 'Program Impact Rating', value: vendor.impactRating ? `${vendor.impactRating}/5` : 'N/A', source: 'self-reported' as const },
+          { key: 'business_growth_narrative', label: 'Business Growth Narrative', value: vendor.businessGrowthNarrative || 'No story provided.', source: 'self-reported' as const }
+        ]
+      }
+    ],
+    dataGaps: !vendor.employeeCount || !vendor.businessType ? ['Employee Count', 'Business Classification'] : []
+  };
+};
 
 export default function Home() {
+  const [mounted, setMounted] = useState(false);
+  
+  // Navigation States
+  const [activeNav, setActiveNav] = useState('overview');
+  
+  // Market, Edition and Region State Arrays
+  const [markets, setMarkets] = useState<Market[]>([]);
+  const [editions, setEditions] = useState<any[]>([]);
+  const [regions, setRegions] = useState<string[]>([]);
+  const [surveyResponses, setSurveyResponses] = useState<any[]>([]);
+  
+  const emptyMarket: Market = {
+    id: '',
+    name: 'No Region Selected',
+    type: 'regional',
+    vendorsCount: 0
+  };
+  
+  const [currentMarket, setCurrentMarket] = useState<Market>(emptyMarket);
+  
+  // Live session mock polling states
+  const {
+    runningCount,
+    runningWalkins,
+    isRefreshing,
+    setRunningCount,
+    setRunningWalkins,
+    refreshMetrics: handleRefreshLiveCounter,
+    incrementVendorsCount,
+    incrementWalkinsCount,
+  } = useLiveMetrics({
+    initialVendorsCount: 0,
+    initialWalkinsCount: 0,
+  });
+  
+  // Entities lists states
+  const [vendors, setVendors] = useState<any[]>([]);
+  const [walkins, setWalkins] = useState<any[]>([]);
+  const [loadingVendors, setLoadingVendors] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+
+  useEffect(() => {
+    async function fetchVendors() {
+      try {
+        const supabase = createClient();
+        if (!supabase) {
+          setError("Supabase client not initialized.");
+          setLoadingVendors(false);
+          return;
+        }
+        const { data, error } = await supabase
+          .from('vendors')
+          .select(`
+            id,
+            business_name,
+            contact_name,
+            phone,
+            email,
+            category,
+            is_active,
+            created_at
+          `)
+          .eq('is_active', true)
+          .order('created_at', { ascending: false });
+
+        if (error) {
+          throw error;
+        }
+
+        const mappedVendors = (data || []).map((v: any) => {
+          return {
+            id: v.id,
+            name: v.contact_name || 'Anonymous',
+            phone: v.phone || '',
+            businessName: v.business_name || '',
+            gender: 'Female',
+            status: v.is_active ? ('active' as const) : ('new' as const),
+            region: 'Kampala',
+            attendanceCount: 1,
+            lastSeen: 'May 2026',
+            age: 28,
+            employeeCount: '',
+            newHiresThisYear: '',
+            businessType: v.category || 'Fashion',
+            sellsOwnProducts: 'Yes',
+            exportReady: 'No',
+            impactRating: 4,
+            businessGrowthNarrative: '',
+            dob: '',
+            amountPaid: '0',
+            email: v.email || ''
+          };
+        });
+
+        setVendors(mappedVendors);
+        setRunningCount(mappedVendors.length);
+        setError(null);
+      } catch (err: any) {
+        console.error("Supabase error fetching vendors:", err);
+        setVendors([]);
+        setError(err.message || String(err));
+      } finally {
+        setLoadingVendors(false);
+      }
+    }
+
+    async function fetchWalkins() {
+      try {
+        const supabase = createClient();
+        if (!supabase) return;
+        const { data, error } = await supabase
+          .from('walkins')
+          .select('*')
+          .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        const mappedWalkins = (data || []).map((w: any) => {
+          return {
+            id: w.id,
+            name: w.full_name || 'Anonymous Visitor',
+            phone: w.phone || '',
+            gender: w.gender || 'Female',
+            age: w.age || 25,
+            howHeard: w.how_heard || 'Passing By',
+            date: w.created_at ? new Date(w.created_at).toISOString().slice(0, 16).replace('T', ' ') : '',
+            region: 'Kampala',
+            editionId: w.edition_id || ''
+          };
+        });
+
+        setWalkins(mappedWalkins);
+        setRunningWalkins(mappedWalkins.length);
+      } catch (err: any) {
+        console.error("Supabase error fetching walkins:", err);
+        setWalkins([]);
+      }
+    }
+
+    async function fetchSurveyResponses() {
+      try {
+        const supabase = createClient();
+        if (!supabase) return;
+        const { data, error } = await supabase
+          .from('survey_responses')
+          .select(`
+            id,
+            submitted_at,
+            source,
+            surveyed_by,
+            import_batch,
+            vendor_id,
+            vendors (
+              id,
+              business_name,
+              contact_name,
+              phone,
+              category
+            ),
+            market_days (
+              id,
+              name,
+              regions (
+                id,
+                name
+              )
+            )
+          `)
+          .order('submitted_at', { ascending: false });
+
+        if (error) {
+          console.error("Supabase error:", error.message, error.code, error.details);
+          setSurveyResponses([]);
+          return;
+        }
+
+        const resolvedData = data ?? [];
+        setSurveyResponses(resolvedData);
+        
+        const activities = resolvedData.map((sr: any) => {
+          const v = sr.vendors || {};
+          const md = sr.market_days || {};
+          return {
+            id: sr.id,
+            type: 'collection' as const,
+            name: v.contact_name || 'Anonymous',
+            phone: v.phone || undefined,
+            detail: `Collected: ${v.business_name || 'General Info'} • ${md.name || 'Event'}`,
+            timestamp: sr.submitted_at ? new Date(sr.submitted_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''
+          };
+        });
+        setRecentActivities(activities);
+      } catch (err: any) {
+        console.error("Supabase error fetching responses:", err?.message, err?.code, err?.details, JSON.stringify(err));
+        setSurveyResponses([]);
+      }
+    }
+
+    async function fetchRegions() {
+      try {
+        const supabase = createClient();
+        if (!supabase) return;
+        const { data, error } = await supabase
+          .from('regions')
+          .select('id, name, slug');
+        if (error) throw error;
+        if (data && data.length > 0) {
+          const names = data.map((r: any) => r.name);
+          setRegions(names);
+          
+          const dbMarkets = data.map((r: any, idx: number) => ({
+            id: r.slug || r.name.toLowerCase(),
+            name: `${r.name} Regional Market`,
+            type: (idx === 0 ? 'flagship' : idx === 1 ? 'regional' : 'pilot') as any,
+            vendorsCount: 0
+          }));
+          setMarkets(dbMarkets);
+          if (dbMarkets.length > 0) {
+            setCurrentMarket(dbMarkets[0]);
+          }
+        }
+      } catch (err: any) {
+        console.error("Failed to fetch regions from Supabase:", err);
+      }
+    }
+
+    async function fetchMarketDays() {
+      try {
+        const supabase = createClient();
+        if (!supabase) return;
+        const { data, error } = await supabase
+          .from('market_days')
+          .select('id, name, status');
+
+        if (error) throw error;
+
+        if (data) {
+          const mappedEditions = data.map((md: any) => ({
+            id: md.id,
+            name: md.name
+          }));
+          setEditions(mappedEditions);
+          if (mappedEditions.length > 0) {
+            setQuickEntryEdition(mappedEditions[0].id);
+          }
+        }
+      } catch (err: any) {
+        console.error("Failed to fetch market days:", err);
+      }
+    }
+
+    async function fetchFormsAndQuestions() {
+      try {
+        const supabase = createClient();
+        if (!supabase) return;
+
+        const { data: formsData, error: formsError } = await supabase
+          .from('forms')
+          .select('id, name, is_active, created_at');
+
+        if (formsError) throw formsError;
+
+        if (formsData) {
+          const mappedTemplates = formsData.map((f: any) => ({
+            id: f.id,
+            name: f.name,
+            status: f.is_active ? ('active' as const) : ('draft' as const),
+            questionCount: 0,
+            lastEdited: f.created_at ? new Date(f.created_at).toISOString().split('T')[0] : ''
+          }));
+
+          const { data: questionsData, error: questionsError } = await supabase
+            .from('survey_questions')
+            .select(`
+              id,
+              form_id,
+              question_text,
+              question_type,
+              is_required,
+              csv_column
+            `);
+
+          if (questionsError) throw questionsError;
+
+          if (questionsData) {
+            const templatesWithCount = mappedTemplates.map((t: any) => {
+              const qCount = questionsData.filter((q: any) => q.form_id === t.id).length;
+              return { ...t, questionCount: qCount };
+            });
+            setFormTemplates(templatesWithCount);
+
+            const questionsMap: Record<string, Question[]> = {};
+            for (const t of templatesWithCount) {
+              const qs = questionsData
+                .filter((q: any) => q.form_id === t.id)
+                .map((q: any) => ({
+                  id: q.id,
+                  text: q.question_text,
+                  type: q.question_type === 'select' ? 'dropdown' : q.question_type,
+                  required: q.is_required,
+                  helpText: '',
+                  options: q.question_type === 'select' 
+                    ? (q.csv_column === 'gender' ? ['Female', 'Male', 'Other'] : ['Food', 'Fashion', 'Crafts', 'Beauty', 'Electronics', 'Agriculture'])
+                    : undefined
+                }));
+              questionsMap[t.id] = qs;
+            }
+            setFormQuestions(questionsMap);
+          }
+        }
+      } catch (err: any) {
+        console.error("Failed to fetch forms and questions:", err);
+      }
+    }
+
+    let vendorsChannel: any;
+    let regionsChannel: any;
+    let walkinsChannel: any;
+    let responsesChannel: any;
+
+    if (mounted) {
+      fetchVendors();
+      fetchWalkins();
+      fetchSurveyResponses();
+      fetchRegions();
+      fetchMarketDays();
+      fetchFormsAndQuestions();
+
+      const supabase = createClient();
+      if (supabase) {
+        vendorsChannel = supabase
+          .channel('public-vendors-realtime')
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'vendors' },
+            (payload) => {
+              console.log('Realtime update: vendors table', payload);
+              fetchVendors();
+            }
+          )
+          .subscribe();
+
+        regionsChannel = supabase
+          .channel('public-regions-realtime')
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'regions' },
+            (payload) => {
+              console.log('Realtime update: regions table', payload);
+              fetchRegions();
+            }
+          )
+          .subscribe();
+
+        walkinsChannel = supabase
+          .channel('public-walkins-realtime')
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'walkins' },
+            (payload) => {
+              console.log('Realtime update: walkins table', payload);
+              fetchWalkins();
+            }
+          )
+          .subscribe();
+
+        responsesChannel = supabase
+          .channel('public-responses-realtime')
+          .on(
+            'postgres_changes',
+            { event: '*', schema: 'public', table: 'survey_responses' },
+            (payload) => {
+              console.log('Realtime update: survey_responses table', payload);
+              fetchSurveyResponses();
+            }
+          )
+          .subscribe();
+      }
+    }
+
+    return () => {
+      const supabase = createClient();
+      if (supabase) {
+        if (vendorsChannel) supabase.removeChannel(vendorsChannel);
+        if (regionsChannel) supabase.removeChannel(regionsChannel);
+        if (walkinsChannel) supabase.removeChannel(walkinsChannel);
+        if (responsesChannel) supabase.removeChannel(responsesChannel);
+      }
+    };
+  }, [mounted]);
+
+  // Walk-ins filtering states
+  const [walkinRegionFilter, setWalkinRegionFilter] = useState('All');
+  const [walkinEditionFilter, setWalkinEditionFilter] = useState('All');
+  const [walkinGenderFilter, setWalkinGenderFilter] = useState('All');
+  const [walkinMinAgeFilter, setWalkinMinAgeFilter] = useState<number | ''>('');
+  const [walkinMaxAgeFilter, setWalkinMaxAgeFilter] = useState<number | ''>('');
+
+  // Quick Entry dropdown selections
+  const [quickEntryRegion, setQuickEntryRegion] = useState('');
+  const [quickEntryEdition, setQuickEntryEdition] = useState('');
+
+  // Import/Export dropdown selections
+  const [uploadRegion, setUploadRegion] = useState('');
+  const [uploadEdition, setUploadEdition] = useState('');
+
+  // Create Market section creation states
+  const [newRegionName, setNewRegionName] = useState('');
+  
+  const [newMarketName, setNewMarketName] = useState('');
+  const [newMarketCity, setNewMarketCity] = useState('');
+  const [newMarketMaturity, setNewMarketMaturity] = useState<'flagship' | 'regional' | 'pilot'>('regional');
+  const [newMarketVendors, setNewMarketVendors] = useState('');
+
+  const [newEditionMarketId, setNewEditionMarketId] = useState('');
+  const [newEditionDate, setNewEditionDate] = useState('');
+  const [newEditionVenue, setNewEditionVenue] = useState('');
+  const [newEditionMonth, setNewEditionMonth] = useState('6');
+  const [newEditionYear, setNewEditionYear] = useState('2026');
+  
+  // Search & Filters state
+  const [filters, setFilters] = useState<FilterState>({
+    region: 'All',
+    editionId: 'All',
+    gender: 'All',
+    statuses: [],
+    minAge: '',
+    maxAge: '',
+    businessType: 'All',
+    registrationType: 'All'
+  });
+  const [vendorSearch, setVendorSearch] = useState('');
+  const [selectedVendorIds, setSelectedVendorIds] = useState<string[]>([]);
+  
+  // Drawer Panel & Modal States
+  const [selectedVendorId, setSelectedVendorId] = useState<string | null>(null);
+  const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
+  const [generatedLinkUrl, setGeneratedLinkUrl] = useState('');
+  const [generatedLinkPass, setGeneratedLinkPass] = useState('');
+  const [copiedText, setCopiedText] = useState(false);
+  
+  // Merge Proposal Queue Mock State
+  const [mergeProposals, setMergeProposals] = useState<any[]>([]);
+
+  // Form Builder States
+  const [formTemplates, setFormTemplates] = useState<FormTemplate[]>([]);
+  const [formQuestions, setFormQuestions] = useState<Record<string, Question[]>>({});
+  const [editingFormId, setEditingFormId] = useState<string | null>(null);
+  const [isSavingForm, setIsSavingForm] = useState(false);
+  const [previewFormId, setPreviewFormId] = useState<string | null>(null);
+
+  // Quick Entry Forms States
+  const [quickEntryTab, setQuickEntryTab] = useState<'paid' | 'collection' | 'walkin'>('paid');
+  const [isQuickEntryOpen, setIsQuickEntryOpen] = useState(true);
+  
+  // Form Values States
+  const [paidFormValues, setPaidFormValues] = useState({
+    phone: '',
+    name: '',
+    businessName: '',
+    email: '',
+    gender: '',
+    dob: '',
+    amountPaid: '50000'
+  });
+  const [paidLookupStatus, setPaidLookupStatus] = useState<'idle' | 'searching' | 'returning' | 'new'>('idle');
+  const [paidSuccessState, setPaidSuccessState] = useState<{ show: boolean; vendorName?: string; onAddAnother: () => void }>({
+    show: false,
+    onAddAnother: () => resetPaidForm()
+  });
+
+  const [collectionFormValues, setCollectionFormValues] = useState({
+    phone: '',
+    name: '',
+    businessName: '',
+    email: '',
+    gender: '',
+    dob: '',
+    employeeCount: '',
+    newHiresThisYear: '',
+    businessType: '',
+    sellsOwnProducts: '' as 'Yes' | 'No' | '',
+    exportReady: '' as 'Yes' | 'No' | '',
+    impactRating: 0,
+    businessGrowthNarrative: '',
+    previousEditionsCount: ''
+  });
+  const [collectionLookupStatus, setCollectionLookupStatus] = useState<'idle' | 'searching' | 'returning' | 'new'>('idle');
+  const [isCollectionPaidVendor, setIsCollectionPaidVendor] = useState<boolean | null>(null);
+  const [collectionSuccessState, setCollectionSuccessState] = useState<{ show: boolean; vendorName?: string; onAddAnother: () => void }>({
+    show: false,
+    onAddAnother: () => resetCollectionForm()
+  });
+
+  const [walkinFormValues, setWalkinFormValues] = useState<WalkinFormValues>({
+    name: '',
+    phone: '',
+    gender: '',
+    age: '',
+    howHeard: '',
+    firstVisit: '',
+    approximateVisitCount: ''
+  });
+  const [walkinSuccessState, setWalkinSuccessState] = useState<{ show: boolean; visitorName?: string; onAddAnother: () => void }>({
+    show: false,
+    onAddAnother: () => resetWalkinForm()
+  });
+
+  const [recentActivities, setRecentActivities] = useState<Array<{
+    id: string;
+    type: 'paid' | 'collection' | 'walkin';
+    name: string;
+    phone?: string;
+    detail: string;
+    timestamp: string;
+  }>>([]);
+
+  // Ensure DOM is fully mounted
+  useEffect(() => {
+    setMounted(true);
+  }, []);
+
+  // Calculate duplicate merge proposals dynamically from live vendors
+  useEffect(() => {
+    const proposals: any[] = [];
+    const seenPhones: Record<string, any> = {};
+    vendors.forEach((v) => {
+      if (v.phone) {
+        if (seenPhones[v.phone]) {
+          proposals.push({
+            id: `mp-${v.id}-${seenPhones[v.phone].id}`,
+            sourceVendor: v,
+            targetVendorId: seenPhones[v.phone].id,
+            reason: 'phone_match',
+            createdAt: new Date(v.created_at || Date.now()).toISOString().slice(0, 16).replace('T', ' ')
+          });
+        } else {
+          seenPhones[v.phone] = v;
+        }
+      }
+    });
+    setMergeProposals(proposals);
+  }, [vendors]);
+
+  if (!mounted || loadingVendors) {
+    return (
+      <div className="min-h-screen bg-[#0d1117] flex flex-col items-center justify-center space-y-4 select-none">
+        <div className="relative w-12 h-12">
+          <div className="absolute inset-0 rounded-full border-4 border-[#21262d]"></div>
+          <div className="absolute inset-0 rounded-full border-4 border-t-[#2ea043] border-r-transparent border-b-transparent border-l-transparent animate-spin"></div>
+        </div>
+        <div className="text-center">
+          <h2 className="text-xs font-bold text-[#c9d1d9] uppercase tracking-wider">Synchronizing System Data</h2>
+          <p className="text-[10px] text-[#8b949e] mt-1">Connecting to secure operations environment...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // ==========================================
+  // 2. HELPER FUNCTIONS & ACTIONS
+  // ==========================================
+
+  const resetPaidForm = () => {
+    setPaidFormValues({
+      phone: '',
+      name: '',
+      businessName: '',
+      email: '',
+      gender: '',
+      dob: '',
+      amountPaid: '50000'
+    });
+    setPaidLookupStatus('idle');
+    setPaidSuccessState(prev => ({ ...prev, show: false }));
+  };
+
+  const resetCollectionForm = () => {
+    setCollectionFormValues({
+      phone: '',
+      name: '',
+      businessName: '',
+      email: '',
+      gender: '',
+      dob: '',
+      employeeCount: '',
+      newHiresThisYear: '',
+      businessType: '',
+      sellsOwnProducts: '',
+      exportReady: '',
+      impactRating: 0,
+      businessGrowthNarrative: '',
+      previousEditionsCount: ''
+    });
+    setCollectionLookupStatus('idle');
+    setIsCollectionPaidVendor(null);
+    setCollectionSuccessState(prev => ({ ...prev, show: false }));
+  };
+
+  const resetWalkinForm = () => {
+    setWalkinFormValues({
+      name: '',
+      phone: '',
+      gender: '',
+      age: '',
+      howHeard: '',
+      firstVisit: '',
+      approximateVisitCount: ''
+    });
+    setWalkinSuccessState(prev => ({ ...prev, show: false }));
+  };
+
+  // Live lookup on phone keyup
+  const handlePaidPhoneLookup = async (phone: string) => {
+    setPaidLookupStatus('searching');
+    try {
+      const supabase = createClient();
+      if (!supabase) return;
+      
+      const { data, error } = await supabase
+        .from('vendors')
+        .select('*')
+        .eq('phone', phone)
+        .limit(1);
+        
+      if (error) throw error;
+      
+      if (data && data.length > 0) {
+        const v = data[0];
+        setPaidLookupStatus('returning');
+        setPaidFormValues(prev => ({
+          ...prev,
+          name: v.contact_name || '',
+          businessName: v.business_name || '',
+          gender: 'Female',
+          email: v.email || '',
+          dob: ''
+        }));
+      } else {
+        setPaidLookupStatus('new');
+      }
+    } catch (err) {
+      console.error("Lookup error:", err);
+      setPaidLookupStatus('new');
+    }
+  };
+
+  const handleCollectionPhoneLookup = async (phone: string) => {
+    setCollectionLookupStatus('searching');
+    try {
+      const supabase = createClient();
+      if (!supabase) return;
+      
+      const { data: vendorData, error: vError } = await supabase
+        .from('vendors')
+        .select('*')
+        .eq('phone', phone)
+        .limit(1);
+        
+      if (vError) throw vError;
+      
+      if (vendorData && vendorData.length > 0) {
+        const v = vendorData[0];
+        setCollectionLookupStatus('returning');
+        setIsCollectionPaidVendor(true);
+        
+        const { data: responseData } = await supabase
+          .from('survey_responses')
+          .select(`
+            id,
+            survey_answers (
+              answer_value,
+              survey_questions ( csv_column )
+            )
+          `)
+          .eq('vendor_id', v.id)
+          .order('submitted_at', { ascending: false })
+          .limit(1);
+          
+        const answers = responseData?.[0]?.survey_answers || [];
+        const getAnswer = (col: string) => {
+          return answers.find((a: any) => a.survey_questions?.csv_column === col)?.answer_value || '';
+        };
+
+        setCollectionFormValues(prev => ({
+          ...prev,
+          name: v.contact_name || '',
+          businessName: v.business_name || '',
+          gender: 'Female',
+          email: v.email || '',
+          dob: '',
+          employeeCount: getAnswer('employee_count'),
+          newHiresThisYear: getAnswer('new_hires_this_year'),
+          businessType: v.category || getAnswer('business_type') || '',
+          sellsOwnProducts: (getAnswer('sells_own_products') || '') as any,
+          exportReady: (getAnswer('export_ready') || '') as any,
+          impactRating: Number(getAnswer('impact_rating')) || 0,
+          businessGrowthNarrative: getAnswer('business_growth_narrative') || '',
+          previousEditionsCount: '1'
+        }));
+      } else {
+        setCollectionLookupStatus('new');
+        setIsCollectionPaidVendor(false);
+      }
+    } catch (err) {
+      console.error("Lookup error:", err);
+      setCollectionLookupStatus('new');
+    }
+  };
+
+  // Form Submissions
+  const handlePaidSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!paidFormValues.phone || !paidFormValues.name) return;
+
+    try {
+      const supabase = createClient();
+      if (!supabase) throw new Error("Supabase client is not initialized.");
+
+      // Check if vendor already exists
+      const { data: existing, error: findError } = await supabase
+        .from('vendors')
+        .select('id')
+        .eq('phone', paidFormValues.phone)
+        .limit(1);
+
+      if (findError) throw findError;
+
+      if (existing && existing.length > 0) {
+        const { error: updateError } = await supabase
+          .from('vendors')
+          .update({
+            business_name: paidFormValues.businessName,
+            contact_name: paidFormValues.name,
+            email: paidFormValues.email,
+            category: 'Fashion',
+            is_active: true
+          })
+          .eq('id', existing[0].id);
+
+        if (updateError) throw updateError;
+        console.log("Updated existing vendor:", existing[0].id);
+      } else {
+        const { error: insertError } = await supabase
+          .from('vendors')
+          .insert({
+            business_name: paidFormValues.businessName,
+            contact_name: paidFormValues.name,
+            phone: paidFormValues.phone,
+            email: paidFormValues.email,
+            category: 'Fashion',
+            is_active: true
+          });
+
+        if (insertError) throw insertError;
+        console.log("Inserted new vendor");
+      }
+
+      const timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      setRecentActivities(prev => [{
+        id: Math.random().toString(36).substring(7),
+        type: 'paid',
+        name: paidFormValues.name,
+        phone: paidFormValues.phone,
+        detail: paidFormValues.businessName ? `${paidFormValues.businessName} • UGX ${Number(paidFormValues.amountPaid).toLocaleString()}` : `UGX ${Number(paidFormValues.amountPaid).toLocaleString()}`,
+        timestamp: timeString
+      }, ...prev]);
+
+      setPaidSuccessState({
+        show: true,
+        vendorName: paidFormValues.name,
+        onAddAnother: () => resetPaidForm()
+      });
+    } catch (err: any) {
+      console.error("Supabase error saving vendor:", err);
+      alert("Error saving vendor: " + (err.message || err));
+    }
+  };
+
+  const handleCollectionSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!collectionFormValues.phone || !collectionFormValues.name) return;
+
+    try {
+      const supabase = createClient();
+      if (!supabase) throw new Error("Supabase client is not initialized.");
+
+      const { data: vendorData, error: vError } = await supabase
+        .from('vendors')
+        .select('id')
+        .eq('phone', collectionFormValues.phone)
+        .limit(1);
+
+      if (vError) throw vError;
+
+      if (!vendorData || vendorData.length === 0) {
+        alert('Paid registration not found. Please register this vendor using the Paid Vendor form first.');
+        return;
+      }
+
+      const vendorId = vendorData[0].id;
+
+      const { data: formData, error: fError } = await supabase
+        .from('forms')
+        .select('id')
+        .eq('name', 'Vendor Data Collection Survey')
+        .limit(1);
+
+      if (fError) throw fError;
+      if (!formData || formData.length === 0) {
+        throw new Error("Survey Form definition not found in database.");
+      }
+
+      const formId = formData[0].id;
+
+      const { data: resData, error: resError } = await supabase
+        .from('survey_responses')
+        .insert({
+          form_id: formId,
+          context_type: 'market_day',
+          context_id: quickEntryEdition || null,
+          vendor_id: vendorId,
+          source: 'manual',
+          submitted_at: new Date().toISOString()
+        })
+        .select();
+
+      if (resError) throw resError;
+      if (!resData || resData.length === 0) {
+        throw new Error("Failed to insert survey response.");
+      }
+
+      const responseId = resData[0].id;
+
+      const { data: questions, error: qError } = await supabase
+        .from('survey_questions')
+        .select('id, csv_column');
+
+      if (qError) throw qError;
+
+      const answersToInsert = [];
+      const fieldMappings = {
+        name: collectionFormValues.name,
+        phone: collectionFormValues.phone,
+        business_name: collectionFormValues.businessName,
+        gender: collectionFormValues.gender,
+        age: collectionFormValues.dob ? String(2026 - new Date(collectionFormValues.dob).getFullYear()) : '',
+        employee_count: collectionFormValues.employeeCount,
+        new_hires_this_year: collectionFormValues.newHiresThisYear,
+        business_type: collectionFormValues.businessType,
+        sells_own_products: collectionFormValues.sellsOwnProducts,
+        export_ready: collectionFormValues.exportReady,
+        impact_rating: String(collectionFormValues.impactRating),
+        business_growth_narrative: collectionFormValues.businessGrowthNarrative
+      };
+
+      for (const key of Object.keys(fieldMappings)) {
+        const val = fieldMappings[key as keyof typeof fieldMappings];
+        if (val !== undefined && val !== null && val !== '') {
+          const qId = questions?.find((q: any) => q.csv_column === key)?.id;
+          if (qId) {
+            answersToInsert.push({
+              response_id: responseId,
+              question_id: qId,
+              answer_value: String(val)
+            });
+          }
+        }
+      }
+
+      if (answersToInsert.length > 0) {
+        const { error: ansError } = await supabase.from('survey_answers').insert(answersToInsert);
+        if (ansError) throw ansError;
+      }
+
+      console.log("Survey response submitted successfully.");
+
+      setCollectionSuccessState({
+        show: true,
+        vendorName: collectionFormValues.name,
+        onAddAnother: () => resetCollectionForm()
+      });
+    } catch (err: any) {
+      console.error("Supabase error submitting survey:", err);
+      alert("Error submitting survey: " + (err.message || err));
+    }
+  };
+
+  const handleWalkinSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    try {
+      const supabase = createClient();
+      if (!supabase) throw new Error("Supabase client is not initialized.");
+
+      const { data, error } = await supabase
+        .from('walkins')
+        .insert({
+          full_name: walkinFormValues.name || 'Anonymous Visitor',
+          phone: walkinFormValues.phone || '',
+          gender: walkinFormValues.gender || 'Female',
+          age: walkinFormValues.age ? parseInt(walkinFormValues.age) : 25,
+          how_heard: walkinFormValues.howHeard || 'Passing By',
+          first_visit: walkinFormValues.firstVisit === 'Yes',
+          edition_id: quickEntryEdition || null
+        })
+        .select();
+
+      if (error) throw error;
+
+      console.log("Walk-in inserted successfully:", data);
+
+      setWalkinSuccessState({
+        show: true,
+        visitorName: walkinFormValues.name || 'Anonymous Visitor',
+        onAddAnother: () => resetWalkinForm()
+      });
+    } catch (err: any) {
+      console.error("Supabase error inserting walk-in:", err);
+      alert("Error adding walk-in: " + (err.message || err));
+    }
+  };
+
+
+  const handleCreateRegion = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newRegionName.trim()) return;
+    if (regions.includes(newRegionName.trim())) {
+      alert('Region already exists!');
+      return;
+    }
+    try {
+      const supabase = createClient();
+      if (!supabase) throw new Error("Supabase client is not initialized.");
+      
+      const { error } = await supabase
+        .from('regions')
+        .insert({
+          name: newRegionName.trim(),
+          slug: newRegionName.trim().toLowerCase()
+        });
+        
+      if (error) throw error;
+      
+      setNewRegionName('');
+      alert('Region created successfully!');
+    } catch (err: any) {
+      console.error("Error creating region:", err);
+      alert("Error creating region: " + (err.message || err));
+    }
+  };
+
+  const handleCreateMarket = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newMarketName.trim()) return;
+    try {
+      const supabase = createClient();
+      if (!supabase) throw new Error("Supabase client is not initialized.");
+      
+      const { error } = await supabase
+        .from('regions')
+        .insert({
+          name: newMarketName.trim(),
+          slug: newMarketName.trim().toLowerCase().replace(/\s+/g, '-')
+        });
+        
+      if (error) throw error;
+      
+      setNewMarketName('');
+      setNewMarketCity('');
+      setNewMarketVendors('');
+      alert('Market created successfully!');
+    } catch (err: any) {
+      console.error("Error creating market:", err);
+      alert("Error creating market: " + (err.message || err));
+    }
+  };
+
+  const handleCreateEdition = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newEditionMarketId || !newEditionDate.trim() || !newEditionVenue.trim()) return;
+    try {
+      const supabase = createClient();
+      if (!supabase) throw new Error("Supabase client is not initialized.");
+      
+      const { data: regionData, error: regError } = await supabase
+        .from('regions')
+        .select('id, name')
+        .eq('slug', newEditionMarketId)
+        .limit(1);
+        
+      if (regError) throw regError;
+      if (!regionData || regionData.length === 0) {
+        throw new Error("Region not found for market " + newEditionMarketId);
+      }
+      
+      const regionId = regionData[0].id;
+      const regionName = regionData[0].name;
+      const dateStr = `${newEditionYear}-${newEditionMonth.padStart(2, '0')}-01`;
+
+      const { error: insertError } = await supabase
+        .from('market_days')
+        .insert({
+          name: `${regionName} ${newEditionDate}`,
+          region_id: regionId,
+          event_date: dateStr,
+          status: 'completed'
+        });
+
+      if (insertError) throw insertError;
+      
+      setNewEditionDate('');
+      setNewEditionVenue('');
+      alert('Upcoming Edition created successfully!');
+    } catch (err: any) {
+      console.error("Error creating edition:", err);
+      alert("Error creating edition: " + (err.message || err));
+    }
+  };
+
+
+
+  const handleApproveMerge = async (proposalId: string, source: any, targetId: string) => {
+    try {
+      const supabase = createClient();
+      if (!supabase) return;
+      
+      // Update target vendor to active/loyal
+      const { error: updateError } = await supabase
+        .from('vendors')
+        .update({ is_active: true })
+        .eq('id', targetId);
+        
+      if (updateError) throw updateError;
+      
+      // Delete source duplicate vendor
+      const { error: deleteError } = await supabase
+        .from('vendors')
+        .delete()
+        .eq('id', source.id);
+        
+      if (deleteError) throw deleteError;
+      
+      alert('Merge approved and duplicate record removed!');
+    } catch (err: any) {
+      console.error("Merge error:", err);
+      alert("Error merging profiles: " + (err.message || err));
+    }
+  };
+
+  const handleRejectMerge = (proposalId: string) => {
+    setMergeProposals(prev => prev.filter(p => p.id !== proposalId));
+  };
+
+  // Link Generator
+  const handleGenerateLink = (formId: string) => {
+    const template = formTemplates.find(t => t.id === formId);
+    if (template) {
+      const token = Math.random().toString(36).substring(2, 10);
+      setGeneratedLinkUrl(`https://quonnect.org/forms/${token}`);
+      setGeneratedLinkPass('kampala2026market');
+      setIsLinkModalOpen(true);
+    }
+  };
+
+  const handleCopyLink = () => {
+    navigator.clipboard.writeText(generatedLinkUrl);
+    setCopiedText(true);
+    setTimeout(() => setCopiedText(false), 2000);
+  };
+
+  // Form Builder saves
+  const handleSaveQuestions = (questions: Question[]) => {
+    if (!editingFormId) return;
+    
+    setIsSavingForm(true);
+    setTimeout(() => {
+      // Update questions
+      setFormQuestions(prev => ({
+        ...prev,
+        [editingFormId]: questions
+      }));
+      
+      // Update template questionCount
+      setFormTemplates(prev => prev.map(t => {
+        if (t.id === editingFormId) {
+          return {
+            ...t,
+            questionCount: questions.length,
+            lastEdited: new Date().toISOString().split('T')[0]
+          };
+        }
+        return t;
+      }));
+      
+      setIsSavingForm(false);
+      setEditingFormId(null);
+    }, 800);
+  };
+
+  // Convert currently selected vendor to rich format
+  const activeVendorDetail = getVendorDetailData(vendors.find(v => v.id === selectedVendorId));
+
+  // ==========================================
+  // 3. STATS COMPUTATION FOR DASHBOARD
+  // ==========================================
+
+  // Filter vendors based on user controls
+  const filteredVendors = vendors.filter(v => {
+    // Search filter
+    if (vendorSearch) {
+      const term = vendorSearch.toLowerCase();
+      const matchesSearch = 
+        v.name.toLowerCase().includes(term) ||
+        v.phone.includes(term) ||
+        v.businessName.toLowerCase().includes(term);
+      if (!matchesSearch) return false;
+    }
+
+    // Region filter
+    if (filters.region !== 'All' && v.region !== filters.region) {
+      return false;
+    }
+
+    // Gender filter
+    if (filters.gender !== 'All' && v.gender !== filters.gender) {
+      return false;
+    }
+
+    // Business classification filter
+    if (filters.businessType !== 'All' && v.businessType !== filters.businessType) {
+      return false;
+    }
+
+    // Status filter (multi-select)
+    if (filters.statuses.length > 0 && !filters.statuses.includes(v.status.charAt(0).toUpperCase() + v.status.slice(1))) {
+      return false;
+    }
+
+    // Age filters
+    if (filters.minAge !== '' && v.age < filters.minAge) return false;
+    if (filters.maxAge !== '' && v.age > filters.maxAge) return false;
+
+    // Registration type filters (Paid / Collection status)
+    if (filters.registrationType === 'Paid') {
+      const amt = Number(v.amountPaid) || 0;
+      if (amt <= 0) return false;
+    } else if (filters.registrationType === 'Collected') {
+      if (!v.employeeCount && !v.businessGrowthNarrative) return false;
+    }
+
+    return true;
+  });
+
+  // Overview Stats Calculation
+  const totalUniqueVendorsCount = vendors.length;
+  const activeVendorsList = vendors.filter(v => v.status === 'active' || v.status === 'loyal');
+  
+  const femaleVendorsCount = vendors.filter(v => v.gender === 'Female').length;
+  const womenOwnedPctVal = totalUniqueVendorsCount > 0 
+    ? Math.round((femaleVendorsCount / totalUniqueVendorsCount) * 100)
+    : 0;
+
+  const dataCollectedListCount = vendors.filter(v => v.employeeCount && v.businessType).length;
+  const dataCollectedPctVal = totalUniqueVendorsCount > 0
+    ? Math.round((dataCollectedListCount / totalUniqueVendorsCount) * 100)
+    : 0;
+
+  // Ages average calculation
+  const totalVendorAge = vendors.reduce((acc, v) => acc + v.age, 0);
+  const avgVendorAgeVal = totalUniqueVendorsCount > 0 ? Math.round(totalVendorAge / totalUniqueVendorsCount) : 0;
+
+  const totalWalkinAge = walkins.reduce((acc, w) => acc + w.age, 0);
+  const avgWalkinAgeVal = walkins.length > 0 ? Math.round(totalWalkinAge / walkins.length) : 0;
+
+  // Age distributions helpers
+  const getAgeDistribution = (list: any[]) => {
+    const total = list.length;
+    if (total === 0) return { '18-24': 0, '25-29': 0, '30-35': 0, '36+': 0 };
+    
+    const d1 = list.filter(x => x.age >= 18 && x.age <= 24).length;
+    const d2 = list.filter(x => x.age >= 25 && x.age <= 29).length;
+    const d3 = list.filter(x => x.age >= 30 && x.age <= 35).length;
+    const d4 = list.filter(x => x.age >= 36).length;
+
+    return {
+      '18-24': Math.round((d1 / total) * 100),
+      '25-29': Math.round((d2 / total) * 100),
+      '30-35': Math.round((d3 / total) * 100),
+      '36+': Math.round((d4 / total) * 100)
+    };
+  };
+
+  const overviewData: OverviewData = {
+    totalVendors: {
+      value: totalUniqueVendorsCount,
+      change: 12,
+      changeText: '+12% from last edition'
+    },
+    walkinCustomers: {
+      value: runningWalkins * 14, // Scale up mock representation
+      changeText: 'Healthy visitor traffic flow',
+      isChangePositive: true
+    },
+    avgVendorAge: {
+      value: avgVendorAgeVal,
+      distribution: getAgeDistribution(vendors)
+    },
+    avgWalkinAge: {
+      value: avgWalkinAgeVal,
+      distribution: getAgeDistribution(walkins)
+    },
+    returnRate: {
+      value: 84
+    },
+    womenOwnedPct: {
+      value: womenOwnedPctVal,
+      target: 80
+    },
+    dataCollected: {
+      value: dataCollectedPctVal,
+      collected: dataCollectedListCount,
+      total: totalUniqueVendorsCount
+    }
+  };
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
+    <AdminShell
+      currentMarket={currentMarket}
+      markets={markets}
+      onMarketChange={(id) => setCurrentMarket(markets.find(m => m.id === id) || markets[0])}
+      activeNav={activeNav}
+      onNavChange={(navId) => {
+        setActiveNav(navId);
+      }}
+      user={{
+        name: 'Devosh Kamp',
+        role: 'System Administrator',
+        avatarInitials: 'DK'
+      }}
+      vendorAlertCount={mergeProposals.length}
+    >
+      {/* ==========================================
+          ROUTE RENDERING
+          ========================================== */}
+        <>
+          {/* 1. OVERVIEW SCREEN */}
+          {activeNav === 'overview' && (
+            <div className="space-y-6 animate-fade-in text-left">
+              {/* Top Banner Row */}
+              <div className="flex justify-between items-center select-none">
+                <div>
+                  <h1 className="text-xl font-bold tracking-tight text-text-primary">Operational Overview</h1>
+                  <p className="text-xs text-text-secondary mt-0.5">Real-time indicators and metrics for {currentMarket.name}.</p>
+                </div>
+              </div>
+
+              {/* Live Status Counter Component */}
+              <LiveCounter
+                isActiveEdition={currentMarket.id === 'kampala'}
+                paidVendorsCount={runningCount}
+                dataCollectedCount={dataCollectedListCount}
+                totalPaidVendorsCount={totalUniqueVendorsCount}
+                walkinsCount={runningWalkins}
+                onRefresh={handleRefreshLiveCounter}
+                isRefreshing={isRefreshing}
+              />
+
+              {/* Alert Banners */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                 {mergeProposals.length > 0 && (
+                  <AlertBanner
+                    type="warning"
+                    title="Manual Verification Required"
+                    subtitle={`Flagged duplicate warning: ${mergeProposals.length} vendor profiles share identifiers.`}
+                  />
+                )}
+                <AlertBanner
+                  type="success"
+                  title="Completed Target Milestones"
+                  subtitle="Data completeness checks for Kampala April 2026 passed auditing targets (91%)."
+                />
+              </div>
+
+              {/* Interactive Shared Filter Bar */}
+              <FilterBar
+                filters={filters}
+                onFiltersChange={(updates) => setFilters(prev => ({ ...prev, ...updates }))}
+                editions={editions}
+                businessTypes={BUSINESS_TYPES}
+                onClearFilters={() => setFilters({
+                  region: 'All',
+                  editionId: 'may-2026',
+                  gender: 'All',
+                  statuses: [],
+                  minAge: '',
+                  maxAge: '',
+                  businessType: 'All'
+                })}
+              />
+
+              {/* Overview Metrics Cards */}
+              <OverviewCards
+                data={overviewData}
+                activeFilter={null}
+              />
+
+              {/* Render dynamic charts / graphs mock (Phase 2 preview placeholder) */}
+              <div className="w-full select-none">
+                <div className="bg-bg-surface border border-border rounded-lg p-5">
+                  <h4 className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider mb-4 flex items-center gap-1.5">
+                    <BarChart3 className="w-3.5 h-3.5 text-green" /> <span>Business Sector Breakdown</span>
+                  </h4>
+                  <div className="space-y-3 pt-2">
+                    {/* Fashion */}
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-[11px] font-bold text-text-secondary">
+                        <span>Fashion & Knitwear</span>
+                        <span>42%</span>
+                      </div>
+                      <div className="w-full h-2 bg-bg-input rounded-full overflow-hidden">
+                        <div className="h-full bg-green rounded-full" style={{ width: '42%' }} />
+                      </div>
+                    </div>
+                    {/* Beauty */}
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-[11px] font-bold text-text-secondary">
+                        <span>Cosmetics & Beauty</span>
+                        <span>24%</span>
+                      </div>
+                      <div className="w-full h-2 bg-bg-input rounded-full overflow-hidden">
+                        <div className="h-full bg-purple rounded-full" style={{ width: '24%' }} />
+                      </div>
+                    </div>
+                    {/* Food */}
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-[11px] font-bold text-text-secondary">
+                        <span>Catering & Food Processing</span>
+                        <span>18%</span>
+                      </div>
+                      <div className="w-full h-2 bg-bg-input rounded-full overflow-hidden">
+                        <div className="h-full bg-blue rounded-full" style={{ width: '18%' }} />
+                      </div>
+                    </div>
+                    {/* Crafts */}
+                    <div className="space-y-1">
+                      <div className="flex justify-between text-[11px] font-bold text-text-secondary">
+                        <span>Carvings & Handcrafts</span>
+                        <span>16%</span>
+                      </div>
+                      <div className="w-full h-2 bg-bg-input rounded-full overflow-hidden">
+                        <div className="h-full bg-amber rounded-full" style={{ width: '16%' }} />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 2. VENDORS REGISTRY SCREEN */}
+          {activeNav === 'vendors' && (
+            <div className="space-y-5 animate-fade-in text-left">
+              <div>
+                <h1 className="text-xl font-bold tracking-tight text-text-primary">Vendors Directory</h1>
+                <p className="text-xs text-text-secondary mt-0.5">Detailed database list of registered vendors.</p>
+              </div>
+
+              {/* Shared filters row */}
+              <FilterBar
+                filters={filters}
+                onFiltersChange={(updates) => setFilters(prev => ({ ...prev, ...updates }))}
+                editions={editions}
+                businessTypes={BUSINESS_TYPES}
+                onClearFilters={() => setFilters({
+                  region: 'All',
+                  editionId: 'All',
+                  gender: 'All',
+                  statuses: [],
+                  minAge: '',
+                  maxAge: '',
+                  businessType: 'All',
+                  registrationType: 'All'
+                })}
+              />
+
+              {error && (
+                <div className="bg-red-soft border border-red/20 text-red rounded-lg p-5">
+                  <div className="font-bold text-sm">Error Loading Vendors</div>
+                  <div className="text-xs mt-1">{error}</div>
+                </div>
+              )}
+
+              {loadingVendors && !error && (
+                <div className="flex flex-col items-center justify-center p-12 bg-bg-surface border border-border rounded-xl">
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green"></div>
+                  <div className="text-xs text-text-secondary mt-3">Fetching live vendor directory...</div>
+                </div>
+              )}
+
+              {!loadingVendors && !error && filteredVendors.length === 0 && (
+                <div className="bg-bg-surface border border-border rounded-xl p-12 text-center flex flex-col items-center justify-center select-none">
+                  <Store className="w-12 h-12 text-text-tertiary mb-4 stroke-[1.5] mx-auto" />
+                  <h3 className="text-sm font-bold text-text-primary mb-1">No vendors found</h3>
+                  <p className="text-xs text-text-secondary max-w-[280px] mx-auto">
+                    Register a new vendor using the Paid Vendor Registration form to see them here.
+                  </p>
+                </div>
+              )}
+
+              {/* Vendors List Table */}
+              {!loadingVendors && !error && filteredVendors.length > 0 && (
+                <VendorTable
+                  vendors={filteredVendors}
+                  selectedVendorIds={selectedVendorIds}
+                  onSelectVendor={(id, selected) => {
+                    if (selected) {
+                      setSelectedVendorIds([...selectedVendorIds, id]);
+                    } else {
+                      setSelectedVendorIds(selectedVendorIds.filter(x => x !== id));
+                    }
+                  }}
+                  onSelectAll={(selected) => {
+                    setSelectedVendorIds(selected ? filteredVendors.map(v => v.id) : []);
+                  }}
+                  onRowClick={(v) => {
+                    setSelectedVendorId(v.id);
+                    setIsDetailOpen(true);
+                  }}
+                  searchTerm={vendorSearch}
+                  onSearchChange={setVendorSearch}
+                />
+              )}
+            </div>
+          )}
+
+          {/* 3. WALK-INS LIST SCREEN */}
+          {activeNav === 'walkins' && (() => {
+            const filteredWalkins = walkins.filter(w => {
+              const walkinRegionVal = (w as any).region || 'Kampala';
+              if (walkinRegionFilter !== 'All' && walkinRegionVal !== walkinRegionFilter) return false;
+              
+              const walkinEditionVal = (w as any).editionId || 'may-2026';
+              if (walkinEditionFilter !== 'All' && walkinEditionVal !== walkinEditionFilter) return false;
+
+              if (walkinGenderFilter !== 'All' && w.gender !== walkinGenderFilter) return false;
+
+              if (walkinMinAgeFilter !== '' && w.age < walkinMinAgeFilter) return false;
+              if (walkinMaxAgeFilter !== '' && w.age > walkinMaxAgeFilter) return false;
+
+              return true;
+            });
+
+            return (
+              <div className="space-y-5 animate-fade-in text-left">
+                <div className="flex justify-between items-center">
+                  <div>
+                    <h1 className="text-xl font-bold tracking-tight text-text-primary">Walk-in Traffic Logs</h1>
+                    <p className="text-xs text-text-secondary mt-0.5">Logs of customer walk-ins entered during market days.</p>
+                  </div>
+                  <Button 
+                    variant="primary" 
+                    size="sm"
+                    onClick={() => {
+                      setActiveNav('quick-entry');
+                      setQuickEntryTab('walkin');
+                    }}
+                  >
+                    <Plus className="w-4 h-4 text-black" />
+                    <span>Register Walk-in Guest</span>
+                  </Button>
+                </div>
+
+                {/* Walk-ins Filter Bar */}
+                <div className="bg-bg-surface border border-border rounded-lg p-4 flex flex-wrap gap-4 items-end text-xs select-none">
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider block">Region</label>
+                    <select 
+                      value={walkinRegionFilter} 
+                      onChange={(e) => setWalkinRegionFilter(e.target.value)}
+                      className="bg-bg-elevated border border-border-light text-text-primary text-xs rounded-md px-3 py-2 cursor-pointer outline-none focus:border-green appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%209l3%203%203-3%22%20stroke%3D%22%238b949e%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[right_10px_center] bg-no-repeat pr-8 min-w-[120px]"
+                    >
+                      <option value="All">All Regions</option>
+                      {regions.map(r => <option key={r} value={r}>{r}</option>)}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider block">Edition</label>
+                    <select 
+                      value={walkinEditionFilter} 
+                      onChange={(e) => setWalkinEditionFilter(e.target.value)}
+                      className="bg-bg-elevated border border-border-light text-text-primary text-xs rounded-md px-3 py-2 cursor-pointer outline-none focus:border-green appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%209l3%203%203-3%22%20stroke%3D%22%238b949e%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[right_10px_center] bg-no-repeat pr-8 min-w-[140px]"
+                    >
+                      <option value="All">All Editions</option>
+                      {editions.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider block">Gender</label>
+                    <select 
+                      value={walkinGenderFilter} 
+                      onChange={(e) => setWalkinGenderFilter(e.target.value)}
+                      className="bg-bg-elevated border border-border-light text-text-primary text-xs rounded-md px-3 py-2 cursor-pointer outline-none focus:border-green appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%209l3%203%203-3%22%20stroke%3D%22%238b949e%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[right_10px_center] bg-no-repeat pr-8 min-w-[120px]"
+                    >
+                      <option value="All">All Genders</option>
+                      <option value="Female">Female</option>
+                      <option value="Male">Male</option>
+                      <option value="Other">Other</option>
+                    </select>
+                  </div>
+
+                  <div className="space-y-1">
+                    <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider block">Age Range</label>
+                    <div className="flex items-center gap-2">
+                      <input 
+                        type="number" 
+                        placeholder="Min" 
+                        value={walkinMinAgeFilter}
+                        onChange={(e) => setWalkinMinAgeFilter(e.target.value ? parseInt(e.target.value) : '')}
+                        className="w-16 bg-bg-elevated border border-border-light rounded-md px-2.5 py-1.5 text-text-primary text-xs outline-none focus:border-green"
+                      />
+                      <span className="text-text-tertiary font-bold">—</span>
+                      <input 
+                        type="number" 
+                        placeholder="Max" 
+                        value={walkinMaxAgeFilter}
+                        onChange={(e) => setWalkinMaxAgeFilter(e.target.value ? parseInt(e.target.value) : '')}
+                        className="w-16 bg-bg-elevated border border-border-light rounded-md px-2.5 py-1.5 text-text-primary text-xs outline-none focus:border-green"
+                      />
+                    </div>
+                  </div>
+
+                  {(walkinRegionFilter !== 'All' || walkinEditionFilter !== 'All' || walkinGenderFilter !== 'All' || walkinMinAgeFilter !== '' || walkinMaxAgeFilter !== '') && (
+                    <button 
+                      onClick={() => {
+                        setWalkinRegionFilter('All');
+                        setWalkinEditionFilter('All');
+                        setWalkinGenderFilter('All');
+                        setWalkinMinAgeFilter('');
+                        setWalkinMaxAgeFilter('');
+                      }}
+                      className="text-text-secondary hover:text-red transition-colors font-semibold py-2 flex items-center gap-1 cursor-pointer"
+                    >
+                      <X className="w-3.5 h-3.5" />
+                      <span>Clear Filters</span>
+                    </button>
+                  )}
+                </div>
+
+                <div className="bg-bg-surface border border-border rounded-lg overflow-hidden">
+                  <table className="w-full border-collapse text-left text-xs">
+                    <thead>
+                      <tr className="bg-bg-elevated border-b border-border">
+                        <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider">Name & Phone</th>
+                        <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider text-center">Gender</th>
+                        <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider text-center">Age</th>
+                        <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider">How Heard</th>
+                        <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider">Time Recorded</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-border/40 text-xs">
+                      {filteredWalkins.length === 0 ? (
+                        <tr>
+                          <td colSpan={5} className="p-8 text-center text-text-tertiary font-medium">
+                            No walk-in logs found. Try registering a new walk-in guest above.
+                          </td>
+                        </tr>
+                      ) : (
+                        filteredWalkins.map((w) => (
+                          <tr key={w.id} className="hover:bg-green-soft/10">
+                            <td className="p-3.5">
+                              <span className="block font-bold text-text-primary">{w.name}</span>
+                              {w.phone && <span className="block text-[10px] text-text-secondary mt-0.5">{w.phone}</span>}
+                            </td>
+                            <td className="p-3.5 text-center font-semibold text-text-secondary">{w.gender}</td>
+                            <td className="p-3.5 text-center">
+                              <Badge variant="neutral" size="sm" className="font-bold">{w.age}</Badge>
+                            </td>
+                            <td className="p-3.5 text-text-secondary font-semibold">{w.howHeard}</td>
+                            <td className="p-3.5 text-text-secondary font-medium">{w.date}</td>
+                          </tr>
+                        ))
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            );
+          })()}
+
+          {/* 4. QUICK ENTRY PANEL */}
+          {activeNav === 'quick-entry' && (
+            <div className="space-y-5 animate-fade-in text-left max-w-2xl mx-auto">
+              <div>
+                <h1 className="text-xl font-bold tracking-tight text-text-primary">Quick Entry Panel</h1>
+                <p className="text-xs text-text-secondary mt-0.5">Admin-side data entry forms for fast registration workflows.</p>
+              </div>
+
+              {/* Added Edition and Region selectors */}
+              <div className="bg-bg-surface border border-border rounded-lg p-4 flex gap-4 select-none">
+                <div className="flex-1 space-y-1">
+                  <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider block">Target Region</label>
+                  <select 
+                    value={quickEntryRegion} 
+                    onChange={(e) => setQuickEntryRegion(e.target.value)}
+                    className="w-full bg-bg-elevated border border-border-light text-text-primary text-xs rounded-md px-3 py-2 cursor-pointer outline-none focus:border-green appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%209l3%203%203-3%22%20stroke%3D%22%238b949e%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[right_10px_center] bg-no-repeat pr-8"
+                  >
+                    {regions.map(r => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                </div>
+                <div className="flex-1 space-y-1">
+                  <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider block">Target Edition</label>
+                  <select 
+                    value={quickEntryEdition} 
+                    onChange={(e) => setQuickEntryEdition(e.target.value)}
+                    className="w-full bg-bg-elevated border border-border-light text-text-primary text-xs rounded-md px-3 py-2 cursor-pointer outline-none focus:border-green appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%209l3%203%203-3%22%20stroke%3D%22%238b949e%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[right_10px_center] bg-no-repeat pr-8"
+                  >
+                    {editions.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              <QuickEntryPanel
+                activeTab={quickEntryTab}
+                onTabChange={setQuickEntryTab}
+                isOpen={isQuickEntryOpen}
+                onToggleCollapse={() => setIsQuickEntryOpen(!isQuickEntryOpen)}
+                paidVendorFormProps={{
+                  values: paidFormValues,
+                  onChange: (updates) => setPaidFormValues(prev => ({ ...prev, ...updates })),
+                  onSubmit: handlePaidSubmit,
+                  lookupStatus: paidLookupStatus,
+                  onPhoneLookup: handlePaidPhoneLookup,
+                  successState: paidSuccessState,
+                  runningCount: runningCount
+                }}
+                fieldCollectionFormProps={{
+                  values: collectionFormValues,
+                  onChange: (updates) => setCollectionFormValues(prev => ({ ...prev, ...updates })),
+                  onSubmit: handleCollectionSubmit,
+                  lookupStatus: collectionLookupStatus,
+                  onPhoneLookup: handleCollectionPhoneLookup,
+                  isPaidVendor: isCollectionPaidVendor,
+                  successState: collectionSuccessState,
+                  runningCount: dataCollectedListCount
+                }}
+                walkinFormProps={{
+                  values: walkinFormValues,
+                  onChange: (updates) => setWalkinFormValues(prev => ({ ...prev, ...updates })),
+                  onSubmit: handleWalkinSubmit,
+                  successState: walkinSuccessState,
+                  runningCount: runningWalkins
+                }}
+              />
+
+              {/* Live Session Activity Feed */}
+              <div className="bg-bg-surface border border-border rounded-lg overflow-hidden mt-6 animate-fade-in select-none">
+                <div className="p-4 bg-bg-elevated/40 border-b border-border flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <span className="relative flex h-2 w-2">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-green"></span>
+                    </span>
+                    <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider">Live Session Entries</h3>
+                  </div>
+                  {recentActivities.length > 0 && (
+                    <button 
+                      onClick={() => setRecentActivities([])}
+                      className="text-[10px] font-bold text-red hover:underline cursor-pointer transition-all"
+                    >
+                      Clear Log
+                    </button>
+                  )}
+                </div>
+                
+                <div className="p-4 max-h-[380px] overflow-y-auto space-y-2.5">
+                  {recentActivities.length === 0 ? (
+                    <div className="text-center py-8 border border-dashed border-border rounded-md bg-bg-surface/10">
+                      <p className="text-xs text-text-secondary">No entries recorded this session yet.</p>
+                      <p className="text-[10px] text-text-tertiary mt-1">Newly submitted registrations will appear here in real-time.</p>
+                    </div>
+                  ) : (
+                    recentActivities.map((activity) => {
+                      const getIcon = () => {
+                        switch (activity.type) {
+                          case 'paid': return <Users className="w-4 h-4 text-green" />;
+                          case 'collection': return <Database className="w-4 h-4 text-blue" />;
+                          case 'walkin': return <Footprints className="w-4 h-4 text-purple" />;
+                        }
+                      };
+                      const getBadgeColor = () => {
+                        switch (activity.type) {
+                          case 'paid': return 'bg-green-muted text-green border-green/20';
+                          case 'collection': return 'bg-blue-muted text-blue border-blue/20';
+                          case 'walkin': return 'bg-purple-muted text-purple border-purple/20';
+                        }
+                      };
+                      const getLabel = () => {
+                        switch (activity.type) {
+                          case 'paid': return 'Paid Vendor';
+                          case 'collection': return 'Collection';
+                          case 'walkin': return 'Walk-in';
+                        }
+                      };
+
+                      return (
+                        <div 
+                          key={activity.id} 
+                          className="flex items-center justify-between p-3 rounded-lg border border-border-light bg-bg-elevated/40 hover:bg-bg-elevated/70 transition-all duration-200"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="p-2 rounded-md bg-bg-surface border border-border-light flex items-center justify-center">
+                              {getIcon()}
+                            </div>
+                            <div className="space-y-0.5">
+                              <div className="flex items-center gap-2">
+                                <span className="font-semibold text-text-primary text-xs">{activity.name}</span>
+                                <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${getBadgeColor()}`}>
+                                  {getLabel()}
+                                </span>
+                              </div>
+                              <div className="text-[10px] text-text-secondary flex items-center gap-1.5">
+                                <span>{activity.detail}</span>
+                                {activity.phone && (
+                                  <>
+                                    <span className="text-text-tertiary">•</span>
+                                    <span>{activity.phone}</span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="text-right">
+                            <span className="text-[10px] font-mono font-medium text-text-tertiary">{activity.timestamp}</span>
+                          </div>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+
+
+          {/* IMPORT/EXPORT PANEL */}
+          {activeNav === 'import-export' && (
+            <div className="space-y-6 animate-fade-in text-left">
+              <div className="flex justify-between items-center flex-wrap gap-4">
+                <div>
+                  <h1 className="text-xl font-bold tracking-tight text-text-primary">Data Import & Export Pipeline</h1>
+                  <p className="text-xs text-text-secondary mt-0.5">Upload external CSV records or extract compiled event data sheets.</p>
+                </div>
+              </div>
+
+              {/* Region and Edition dropdown selectors */}
+              <div className="bg-bg-surface border border-border rounded-lg p-4 flex gap-4 max-w-xl select-none">
+                <div className="flex-1 space-y-1">
+                  <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider block">Region</label>
+                  <select 
+                    value={uploadRegion} 
+                    onChange={(e) => setUploadRegion(e.target.value)}
+                    className="w-full bg-bg-elevated border border-border-light text-text-primary text-xs rounded-md px-3 py-2 cursor-pointer outline-none focus:border-green appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%209l3%203%203-3%22%20stroke%3D%22%238b949e%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[right_10px_center] bg-no-repeat pr-8"
+                  >
+                    {regions.map(r => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                </div>
+                <div className="flex-1 space-y-1">
+                  <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider block">Edition</label>
+                  <select 
+                    value={uploadEdition} 
+                    onChange={(e) => setUploadEdition(e.target.value)}
+                    className="w-full bg-bg-elevated border border-border-light text-text-primary text-xs rounded-md px-3 py-2 cursor-pointer outline-none focus:border-green appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%209l3%203%203-3%22%20stroke%3D%22%238b949e%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[right_10px_center] bg-no-repeat pr-8"
+                  >
+                    {editions.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                  </select>
+                </div>
+              </div>
+
+              {/* Upload Cards Grid */}
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-5 select-none">
+                {/* Card 1: Confirmed list */}
+                <div className="bg-bg-surface border border-border rounded-xl p-5 flex flex-col justify-between">
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-10 h-10 rounded-full bg-green-muted text-green flex items-center justify-center">
+                        <Users className="w-5 h-5 animate-pulse" />
+                      </div>
+                      <h3 className="font-bold text-sm text-text-primary">Upload Confirmed Vendors List</h3>
+                    </div>
+                    <p className="text-xs text-text-secondary leading-relaxed">
+                      CSV spreadsheet with vendor names and phone numbers who have completed payments for this edition.
+                    </p>
+                    <div className="inline-block bg-bg-elevated border border-border-light rounded px-2.5 py-1 text-[10px] text-text-secondary font-mono">
+                      name · phone · paid_status
+                    </div>
+                  </div>
+                  <div className="pt-5">
+                    <Button variant="primary" fullWidth onClick={() => alert('Confirmed vendors CSV import triggered.')}>
+                      <span>Upload CSV</span>
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Card 2: Kobo data */}
+                <div className="bg-bg-surface border border-border rounded-xl p-5 flex flex-col justify-between">
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-10 h-10 rounded-full bg-blue-muted text-blue flex items-center justify-center">
+                        <Database className="w-5 h-5 animate-pulse" />
+                      </div>
+                      <h3 className="font-bold text-sm text-text-primary">Upload Collected Data (Kobo / CSV)</h3>
+                    </div>
+                    <p className="text-xs text-text-secondary leading-relaxed">
+                      Historical demographics survey or direct Kobo export sheets from past market activities.
+                    </p>
+                    <div className="inline-block bg-bg-elevated border border-border-light rounded px-2.5 py-1 text-[10px] text-text-secondary font-mono">
+                      name · phone · category · employees
+                    </div>
+                  </div>
+                  <div className="pt-5">
+                    <Button variant="primary" fullWidth onClick={() => alert('Collected survey data CSV import triggered.')}>
+                      <span>Upload CSV</span>
+                    </Button>
+                  </div>
+                </div>
+
+                {/* Card 3: Walk-in records */}
+                <div className="bg-bg-surface border border-border rounded-xl p-5 flex flex-col justify-between">
+                  <div className="space-y-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-10 h-10 rounded-full bg-amber-muted text-amber flex items-center justify-center">
+                        <Footprints className="w-5 h-5 animate-pulse" />
+                      </div>
+                      <h3 className="font-bold text-sm text-text-primary">Upload Walk-in Records</h3>
+                    </div>
+                    <p className="text-xs text-text-secondary leading-relaxed">
+                      Visitor log sheets compiled manually or through gate-keeping forms outside the network range.
+                    </p>
+                    <div className="inline-block bg-bg-elevated border border-border-light rounded px-2.5 py-1 text-[10px] text-text-secondary font-mono">
+                      name · phone · gender · age · category
+                    </div>
+                  </div>
+                  <div className="pt-5">
+                    <Button variant="primary" fullWidth onClick={() => alert('Walk-in logs CSV import triggered.')}>
+                      <span>Upload CSV</span>
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              {/* Recent Uploads Table */}
+              <div className="bg-bg-surface border border-border rounded-lg p-5 select-none">
+                <div className="font-bold text-xs text-text-primary mb-3">Recent Uploads Log</div>
+                <div className="text-xs text-text-secondary py-2">
+                  No recent spreadsheet uploads logged for the selected edition/region.
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* CREATE MARKET PANEL */}
+          {activeNav === 'markets' && (
+            <div className="space-y-6 animate-fade-in text-left">
+              <div>
+                <h1 className="text-xl font-bold tracking-tight text-text-primary">Create Market Day & Event Configurations</h1>
+                <p className="text-xs text-text-secondary mt-0.5">Define regional operations, local market centers, and set up future upcoming event editions.</p>
+              </div>
+
+              {/* Forms / Creation Tools row (Region, Market Day, Edition creation forms side-by-side) */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-5 select-none">
+                {/* 1. Create Region Card Form */}
+                <form onSubmit={handleCreateRegion} className="bg-bg-surface border border-border rounded-xl p-5 space-y-4 flex flex-col justify-between">
+                  <div className="space-y-3">
+                    <h3 className="font-bold text-sm text-text-primary flex items-center gap-2">
+                      <Tag className="w-4 h-4 text-green" />
+                      <span>Create Region</span>
+                    </h3>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider block">Region Name</label>
+                      <input 
+                        type="text" 
+                        placeholder="e.g. Gulu" 
+                        value={newRegionName}
+                        onChange={(e) => setNewRegionName(e.target.value)}
+                        className="w-full bg-bg-elevated border border-border-light rounded-md px-3 py-2 text-xs text-text-primary outline-none focus:border-green"
+                        required
+                      />
+                    </div>
+                  </div>
+                  <Button type="submit" variant="primary" fullWidth className="mt-4">
+                    <span>Create Region</span>
+                  </Button>
+                </form>
+
+                {/* 2. Create Market Day Card Form */}
+                <form onSubmit={handleCreateMarket} className="bg-bg-surface border border-border rounded-xl p-5 space-y-4 flex flex-col justify-between">
+                  <div className="space-y-3">
+                    <h3 className="font-bold text-sm text-text-primary flex items-center gap-2">
+                      <Store className="w-4 h-4 text-green" />
+                      <span>Create Market Day</span>
+                    </h3>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider block">Market Name</label>
+                        <input 
+                          type="text" 
+                          placeholder="e.g. Gulu Market" 
+                          value={newMarketName}
+                          onChange={(e) => setNewMarketName(e.target.value)}
+                          className="w-full bg-bg-elevated border border-border-light rounded-md px-3 py-2 text-xs text-text-primary outline-none focus:border-green"
+                          required
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider block">City</label>
+                        <input 
+                          type="text" 
+                          placeholder="e.g. Gulu" 
+                          value={newMarketCity}
+                          onChange={(e) => setNewMarketCity(e.target.value)}
+                          className="w-full bg-bg-elevated border border-border-light rounded-md px-3 py-2 text-xs text-text-primary outline-none focus:border-green"
+                          required
+                        />
+                      </div>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider block">Maturity Type</label>
+                        <select 
+                          value={newMarketMaturity}
+                          onChange={(e) => setNewMarketMaturity(e.target.value as any)}
+                          className="w-full bg-bg-elevated border border-border-light rounded-md px-3 py-2 text-xs text-text-primary outline-none focus:border-green cursor-pointer"
+                        >
+                          <option value="flagship">Flagship</option>
+                          <option value="regional">Regional</option>
+                          <option value="pilot">Pilot</option>
+                        </select>
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider block">Base Vendors</label>
+                        <input 
+                          type="number" 
+                          placeholder="e.g. 50" 
+                          value={newMarketVendors}
+                          onChange={(e) => setNewMarketVendors(e.target.value)}
+                          className="w-full bg-bg-elevated border border-border-light rounded-md px-3 py-2 text-xs text-text-primary outline-none focus:border-green"
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <Button type="submit" variant="primary" fullWidth className="mt-4">
+                    <span>Create Market Day</span>
+                  </Button>
+                </form>
+
+                {/* 3. Create Upcoming Edition Card Form */}
+                <form onSubmit={handleCreateEdition} className="bg-bg-surface border border-border rounded-xl p-5 space-y-4 flex flex-col justify-between">
+                  <div className="space-y-3">
+                    <h3 className="font-bold text-sm text-text-primary flex items-center gap-2">
+                      <Calendar className="w-4 h-4 text-green" />
+                      <span>Create Upcoming Edition</span>
+                    </h3>
+                    <div className="space-y-1">
+                      <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider block">Select Market Day</label>
+                      <select 
+                        value={newEditionMarketId}
+                        onChange={(e) => setNewEditionMarketId(e.target.value)}
+                        className="w-full bg-bg-elevated border border-border-light rounded-md px-3 py-2 text-xs text-text-primary outline-none focus:border-green cursor-pointer"
+                        required
+                      >
+                        <option value="">Choose market day...</option>
+                        {markets.map(m => <option key={m.id} value={m.id}>{m.name}</option>)}
+                      </select>
+                    </div>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider block">Date</label>
+                        <input 
+                          type="text" 
+                          placeholder="e.g. Jun 15, 2026" 
+                          value={newEditionDate}
+                          onChange={(e) => setNewEditionDate(e.target.value)}
+                          className="w-full bg-bg-elevated border border-border-light rounded-md px-3 py-2 text-xs text-text-primary outline-none focus:border-green"
+                          required
+                        />
+                      </div>
+                      <div className="space-y-1">
+                        <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider block">Venue/Location</label>
+                        <input 
+                          type="text" 
+                          placeholder="e.g. Gulu Hall" 
+                          value={newEditionVenue}
+                          onChange={(e) => setNewEditionVenue(e.target.value)}
+                          className="w-full bg-bg-elevated border border-border-light rounded-md px-3 py-2 text-xs text-text-primary outline-none focus:border-green"
+                          required
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  <Button type="submit" variant="primary" fullWidth className="mt-4">
+                    <span>Create Edition</span>
+                  </Button>
+                </form>
+              </div>
+
+              {/* Markets Listing Section */}
+              <div className="space-y-4 select-none">
+                <h3 className="text-xs font-bold text-text-tertiary uppercase tracking-wider">Active Regional Market Days</h3>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-5">
+                  {markets.map((m) => (
+                    <div 
+                      key={m.id} 
+                      onClick={() => {
+                        setCurrentMarket(m);
+                        setActiveNav('overview');
+                      }}
+                      className="bg-bg-surface border border-border rounded-xl p-5 space-y-4 cursor-pointer hover:border-green hover:translate-x-0.5 transition-all"
+                    >
+                      <div className="flex items-center gap-3">
+                        <div className="w-11 h-11 rounded-full bg-green-muted text-green flex items-center justify-center shrink-0">
+                          <Store className="w-5 h-5 animate-pulse" />
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <span className="block font-bold text-sm text-text-primary truncate">{m.name}</span>
+                          <span className="block text-[11px] text-text-tertiary truncate">{m.id === 'kampala' ? 'Kampala, Uganda' : m.id === 'jinja' ? 'Jinja, Uganda' : 'Mbarara, Uganda'}</span>
+                        </div>
+                        <Badge variant={m.type === 'flagship' ? 'success' : m.type === 'regional' ? 'info' : 'warning'} size="sm" className="uppercase font-bold shrink-0">
+                          {m.type}
+                        </Badge>
+                      </div>
+
+                      <div className="flex gap-5 text-xs text-text-secondary border-t border-border/40 pt-3">
+                        <div>
+                          <strong className="text-text-primary text-sm font-black">{m.vendorsCount}</strong>
+                          <span className="block text-[10px] text-text-tertiary">Vendors</span>
+                        </div>
+                        <div>
+                          <strong className="text-text-primary text-sm font-black">{m.id === 'kampala' ? 3 : 1}</strong>
+                          <span className="block text-[10px] text-text-tertiary">Editions</span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* 6. FORM TEMPLATE LIST / FORM BUILDER MANAGEMENT SCREEN */}
+          {activeNav === 'formbuilder' && (
+            <FormBuilderPanel />
+          )}
+
+          {/* 7. OTHER SYSTEM PLACES (PLACEHOLDERS) */}
+          {!['overview', 'vendors', 'walkins', 'quick-entry', 'formbuilder', 'import-export', 'markets'].includes(activeNav) && (
+            <div className="py-24 text-center border border-dashed border-border rounded-lg select-none text-left animate-fade-in">
+              <ClipboardList className="w-12 h-12 text-green mx-auto mb-3 opacity-80" />
+              <h3 className="text-sm font-bold text-text-primary">Module Under Implementation</h3>
+              <p className="text-xs text-text-secondary max-w-sm mx-auto mt-2">
+                The <span className="text-green font-semibold">"{activeNav}"</span> screen has scaffolding definitions ready and is scheduled for implementation in the next milestone phase.
+              </p>
+              <div className="mt-5 flex justify-center gap-2.5">
+                <Button variant="secondary" onClick={() => setActiveNav('overview')}>
+                  Return to Dashboard
+                </Button>
+              </div>
+            </div>
+          )}
+        </>
+
+      {/* ==========================================
+          MODALS & DRAWERS OVERLAYS
+          ========================================== */}
+
+      {/* Vendor Detail Drawer Panel */}
+      <VendorDetailPanel
+        isOpen={isDetailOpen}
+        onClose={() => {
+          setIsDetailOpen(false);
+          setSelectedVendorId(null);
+        }}
+        vendor={activeVendorDetail}
+        onEdit={(id) => {
+          alert(`Editing profile details for vendor ID: ${id}`);
+        }}
+        onFlagMerge={(id) => {
+          const vendorObj = vendors.find(v => v.id === id);
+          if (vendorObj) {
+            const newProposal = {
+              id: 'mp_' + Math.random().toString(36).substring(7),
+              sourceVendor: {
+                id: vendorObj.id,
+                name: vendorObj.name,
+                phone: vendorObj.phone,
+                businessName: vendorObj.businessName,
+                gender: vendorObj.gender,
+                status: vendorObj.status,
+                region: vendorObj.region,
+                attendanceCount: vendorObj.attendanceCount,
+                lastSeen: vendorObj.lastSeen
+              },
+              targetVendorId: vendors.find(v => v.id !== id)?.id || id,
+              reason: 'admin_manual',
+              createdAt: new Date().toISOString().replace('T', ' ').substring(0, 16)
+            };
+            setMergeProposals([newProposal, ...mergeProposals]);
+            alert('Vendor flagged. Proposal added to Data Audit review queue.');
+            setIsDetailOpen(false);
+          }
+        }}
+      />
+
+      {/* Generated link Modal Overlay */}
+      {isLinkModalOpen && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-[9000] select-none text-left">
+          <div className="bg-bg-surface border border-border rounded-lg max-w-md w-full p-5 shadow-modal animate-scale-up space-y-4.5">
+            <div className="flex items-center gap-2.5">
+              <div className="w-10 h-10 bg-green-muted text-green rounded-full flex items-center justify-center">
+                <LinkIcon className="w-5 h-5 text-green" />
+              </div>
+              <div>
+                <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider">Collection Link Created</h3>
+                <span className="text-[10px] text-text-tertiary font-semibold uppercase mt-0.5">Secure Form Distribution</span>
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <p className="text-xs text-text-secondary leading-normal">
+                Share this secure URL with field data collectors. Session keys will automatically clear on tab close.
+              </p>
+
+              {/* URL Link Input copy box */}
+              <div className="space-y-1">
+                <span className="text-[10px] text-text-tertiary uppercase font-bold">Secure Form Address</span>
+                <div className="flex gap-2">
+                  <input
+                    type="text"
+                    value={generatedLinkUrl}
+                    readOnly
+                    className="flex-1 bg-bg-input border border-border-light rounded-md px-3 py-1.5 text-xs text-green outline-none font-mono"
+                  />
+                  <button
+                    type="button"
+                    onClick={handleCopyLink}
+                    className="p-2 bg-bg-elevated border border-border-light rounded-md text-text-secondary hover:text-green cursor-pointer"
+                  >
+                    {copiedText ? <Check className="w-4 h-4 text-green" /> : <Copy className="w-4 h-4" />}
+                  </button>
+                </div>
+              </div>
+
+              {/* Password credentials */}
+              <div className="bg-bg-input border border-border/40 rounded p-3 text-xs select-none">
+                <div className="flex justify-between items-center">
+                  <span className="text-text-secondary font-semibold">Event Password:</span>
+                  <code className="text-green font-bold bg-green-soft px-2 py-0.5 rounded font-mono text-[11px]">{generatedLinkPass}</code>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex justify-end pt-2 border-t border-border/60">
+              <Button variant="primary" size="sm" onClick={() => setIsLinkModalOpen(false)}>
+                <span>Dismiss</span>
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Interactive Form Simulator Modal */}
+      {previewFormId && (
+        <FormPreview
+          isOpen={!!previewFormId}
+          onClose={() => setPreviewFormId(null)}
+          formName={formTemplates.find(t => t.id === previewFormId)?.name || ''}
+          questions={formQuestions[previewFormId] || []}
         />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
-        </div>
-      </main>
-    </div>
+      )}
+    </AdminShell>
   );
 }
