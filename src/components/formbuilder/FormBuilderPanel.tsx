@@ -22,7 +22,8 @@ import {
   FolderOpen,
   HelpCircle,
   Sliders,
-  Sparkles
+  Sparkles,
+  GitCommit
 } from 'lucide-react';
 
 interface Form {
@@ -53,6 +54,26 @@ interface SurveyQuestion {
   options: string[] | null;
 }
 
+interface QuestionLogic {
+  id: string;
+  source_question_id: string;
+  operator: string;
+  comparison_value: string;
+  action: string;
+  target_question_id: string;
+  sort_order: number;
+}
+
+interface SectionLogic {
+  id: string;
+  source_question_id: string;
+  operator: string;
+  comparison_value: string;
+  action: string;
+  target_section_id: string;
+  sort_order: number;
+}
+
 interface Toast {
   id: string;
   message: string;
@@ -70,6 +91,13 @@ const QUESTION_TYPES = [
   { value: 'gps', label: 'GPS Coordinates' },
   { value: 'photo', label: 'Photo Upload' },
   { value: 'note', label: 'Display-only Note' }
+];
+
+const LOGIC_OPERATORS = [
+  { value: 'eq', label: 'equals' },
+  { value: 'neq', label: 'does not equal' },
+  { value: 'gt', label: 'is greater than' },
+  { value: 'lt', label: 'is less than' }
 ];
 
 export const FormBuilderPanel: React.FC = () => {
@@ -112,6 +140,20 @@ export const FormBuilderPanel: React.FC = () => {
   const [csvColumn, setCsvColumn] = useState('');
   const [questionOptions, setQuestionOptions] = useState<string[]>([]);
   const [isSavingQuestion, setIsSavingQuestion] = useState(false);
+
+  // Skip Logic states
+  const [questionRules, setQuestionRules] = useState<QuestionLogic[]>([]);
+  const [sectionRules, setSectionRules] = useState<SectionLogic[]>([]);
+  const [isLogicModalOpen, setIsLogicModalOpen] = useState(false);
+  const [logicSourceQuestion, setLogicSourceQuestion] = useState<SurveyQuestion | null>(null);
+  
+  // New skip rule builder states
+  const [logicAction, setLogicAction] = useState('show');
+  const [logicTargetType, setLogicTargetType] = useState('question'); // 'question' | 'section'
+  const [logicTargetId, setLogicTargetId] = useState('');
+  const [logicOperator, setLogicOperator] = useState('eq');
+  const [logicValue, setLogicValue] = useState('');
+  const [isSavingLogic, setIsSavingLogic] = useState(false);
 
   // Toast notifications state
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -180,9 +222,49 @@ export const FormBuilderPanel: React.FC = () => {
 
       if (error) throw error;
       setQuestions(data || []);
+      
+      // Also fetch logic rules using helper
+      if (data && data.length > 0) {
+        fetchLogic(data.map((q: any) => q.id));
+      } else {
+        setQuestionRules([]);
+        setSectionRules([]);
+      }
     } catch (err: any) {
       console.error("Error fetching questions:", err);
       addToast(err.message || "Failed to load questions.", "error");
+    }
+  };
+
+  const fetchLogic = async (questionIds: string[]) => {
+    if (questionIds.length === 0) {
+      setQuestionRules([]);
+      setSectionRules([]);
+      return;
+    }
+    try {
+      const supabase = createClient();
+      if (!supabase) return;
+
+      const { data: qData, error: qErr } = await supabase
+        .from('question_logic')
+        .select('*')
+        .in('source_question_id', questionIds);
+
+      if (qErr) throw qErr;
+
+      const { data: sData, error: sErr } = await supabase
+        .from('section_logic')
+        .select('*')
+        .in('source_question_id', questionIds);
+
+      if (sErr) throw sErr;
+
+      setQuestionRules(qData || []);
+      setSectionRules(sData || []);
+    } catch (err: any) {
+      console.error("Error fetching logic rules:", err);
+      addToast(err.message || "Failed to load skip logic rules.", "error");
     }
   };
 
@@ -198,9 +280,13 @@ export const FormBuilderPanel: React.FC = () => {
       setEditingSectionId(null);
       setIsQuestionModalOpen(false);
       setEditingQuestionId(null);
+      setIsLogicModalOpen(false);
+      setLogicSourceQuestion(null);
     } else {
       setSections([]);
       setQuestions([]);
+      setQuestionRules([]);
+      setSectionRules([]);
     }
   }, [selectedFormId]);
 
@@ -628,6 +714,145 @@ export const FormBuilderPanel: React.FC = () => {
     setQuestionOptions(updated);
   };
 
+  // Skip Logic functions
+  const handleOpenSkipLogic = (question: SurveyQuestion) => {
+    setLogicSourceQuestion(question);
+    setLogicAction('show');
+    setLogicTargetType('question');
+    setLogicOperator('eq');
+    setLogicValue('');
+    
+    // Set initial target to the first available target depending on target type
+    const possibleTargets = questions.filter(q => q.id !== question.id);
+    if (possibleTargets.length > 0) {
+      setLogicTargetId(possibleTargets[0].id);
+    } else {
+      setLogicTargetId('');
+    }
+    
+    setIsLogicModalOpen(true);
+  };
+
+  const handleSaveSkipRule = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedFormId || !logicSourceQuestion || !logicTargetId) {
+      addToast("Required skip logic fields are missing.", "error");
+      return;
+    }
+
+    setIsSavingLogic(true);
+    try {
+      const supabase = createClient();
+      if (!supabase) throw new Error("Supabase client not available");
+
+      if (logicTargetType === 'question') {
+        const existingRules = questionRules.filter(r => r.source_question_id === logicSourceQuestion.id);
+        const nextSort = existingRules.length > 0
+          ? Math.max(...existingRules.map(r => r.sort_order)) + 1
+          : 1;
+
+        const { error } = await supabase
+          .from('question_logic')
+          .insert([{
+            source_question_id: logicSourceQuestion.id,
+            target_question_id: logicTargetId,
+            action: logicAction,
+            operator: logicOperator,
+            comparison_value: logicValue.trim(),
+            sort_order: nextSort
+          }]);
+
+        if (error) throw error;
+      } else {
+        const existingRules = sectionRules.filter(r => r.source_question_id === logicSourceQuestion.id);
+        const nextSort = existingRules.length > 0
+          ? Math.max(...existingRules.map(r => r.sort_order)) + 1
+          : 1;
+
+        const { error } = await supabase
+          .from('section_logic')
+          .insert([{
+            source_question_id: logicSourceQuestion.id,
+            target_section_id: logicTargetId,
+            action: logicAction,
+            operator: logicOperator,
+            comparison_value: logicValue.trim(),
+            sort_order: nextSort
+          }]);
+
+        if (error) throw error;
+      }
+
+      addToast("Skip logic rule added successfully!", "success");
+      setLogicValue('');
+      fetchQuestions(selectedFormId);
+    } catch (err: any) {
+      console.error("Error saving skip logic rule:", err);
+      addToast(err.message || "Failed to save skip logic rule.", "error");
+    } finally {
+      setIsSavingLogic(false);
+    }
+  };
+
+  const handleDeleteQuestionRule = async (ruleId: string) => {
+    const confirmed = window.confirm("Are you sure you want to delete this question logic rule?");
+    if (!confirmed) return;
+
+    try {
+      const supabase = createClient();
+      if (!supabase) throw new Error("Supabase client not available");
+
+      const { error } = await supabase
+        .from('question_logic')
+        .delete()
+        .eq('id', ruleId);
+
+      if (error) throw error;
+
+      addToast("Skip logic rule deleted.", "success");
+      if (selectedFormId) fetchQuestions(selectedFormId);
+    } catch (err: any) {
+      console.error("Error deleting rule:", err);
+      addToast(err.message || "Failed to delete skip rule.", "error");
+    }
+  };
+
+  const handleDeleteSectionRule = async (ruleId: string) => {
+    const confirmed = window.confirm("Are you sure you want to delete this section logic rule?");
+    if (!confirmed) return;
+
+    try {
+      const supabase = createClient();
+      if (!supabase) throw new Error("Supabase client not available");
+
+      const { error } = await supabase
+        .from('section_logic')
+        .delete()
+        .eq('id', ruleId);
+
+      if (error) throw error;
+
+      addToast("Skip logic rule deleted.", "success");
+      if (selectedFormId) fetchQuestions(selectedFormId);
+    } catch (err: any) {
+      console.error("Error deleting rule:", err);
+      addToast(err.message || "Failed to delete skip rule.", "error");
+    }
+  };
+
+  const getRuleDescription = (rule: any, isSectionTarget: boolean) => {
+    const actionText = rule.action === 'show' ? 'Show' : 'Hide';
+    const operatorLabel = LOGIC_OPERATORS.find(op => op.value === rule.operator)?.label || rule.operator;
+    
+    if (isSectionTarget) {
+      const targetSec = sections.find(s => s.id === rule.target_section_id);
+      return `${actionText} section "${targetSec?.name || 'Unknown'}" when value ${operatorLabel} "${rule.comparison_value}"`;
+    } else {
+      const targetQ = questions.find(q => q.id === rule.target_question_id);
+      return `${actionText} question "${targetQ?.question_text || 'Unknown'}" when value ${operatorLabel} "${rule.comparison_value}"`;
+    }
+  };
+
   const selectedForm = forms.find(f => f.id === selectedFormId);
 
   return (
@@ -901,7 +1126,7 @@ export const FormBuilderPanel: React.FC = () => {
                                   onClick={() => handleReorderSection(sectionIdx, 'up')}
                                   disabled={sectionIdx === 0}
                                   className={`p-1 rounded border border-border-light bg-bg-elevated text-text-secondary hover:text-text-primary cursor-pointer ${sectionIdx === 0 ? 'opacity-30 cursor-not-allowed' : ''}`}
-                                  title="Move Up"
+                                  title="Move Section Up"
                                 >
                                   <ArrowUp className="w-3.5 h-3.5" />
                                 </button>
@@ -909,7 +1134,7 @@ export const FormBuilderPanel: React.FC = () => {
                                   onClick={() => handleReorderSection(sectionIdx, 'down')}
                                   disabled={sectionIdx === sections.length - 1}
                                   className={`p-1 rounded border border-border-light bg-bg-elevated text-text-secondary hover:text-text-primary cursor-pointer ${sectionIdx === sections.length - 1 ? 'opacity-30 cursor-not-allowed' : ''}`}
-                                  title="Move Down"
+                                  title="Move Section Down"
                                 >
                                   <ArrowDown className="w-3.5 h-3.5" />
                                 </button>
@@ -948,71 +1173,90 @@ export const FormBuilderPanel: React.FC = () => {
                               No questions in this section yet. Click "+ Add Question" to get started.
                             </div>
                           ) : (
-                            sectionQuestions.map((q, qIdx) => (
-                              <div 
-                                key={q.id} 
-                                onClick={() => handleOpenEditQuestion(q)}
-                                className="p-3.5 hover:bg-bg-elevated/25 transition-all cursor-pointer flex items-center justify-between gap-4 group"
-                              >
-                                <div className="min-w-0 flex-1 flex items-start gap-3">
-                                  <div className="w-5 h-5 rounded bg-bg-hover text-text-secondary flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">
-                                    {qIdx + 1}
-                                  </div>
-                                  <div className="min-w-0 flex-1">
-                                    <div className="flex items-center flex-wrap gap-2">
-                                      <span className="font-bold text-text-primary leading-normal">
-                                        {q.question_text}
-                                        {q.is_required && <span className="text-red ml-0.5 font-normal">*</span>}
-                                      </span>
-                                      <Badge variant="info" className="font-mono text-[9px] lowercase px-1.5 py-0">
-                                        {q.question_type}
-                                      </Badge>
-                                    </div>
-                                    <div className="flex items-center gap-3 mt-1.5 select-none text-[9px] text-text-tertiary">
-                                      <span className="font-mono font-semibold bg-bg-hover px-1.5 py-0.5 rounded text-green">
-                                        csv: {q.csv_column}
-                                      </span>
-                                      {q.options && q.options.length > 0 && (
-                                        <span>• {q.options.length} Answer Choices</span>
-                                      )}
-                                    </div>
-                                  </div>
-                                </div>
+                            sectionQuestions.map((q, qIdx) => {
+                              const qLogicRules = questionRules.filter(r => r.source_question_id === q.id);
+                              const sLogicRules = sectionRules.filter(r => r.source_question_id === q.id);
+                              const totalRules = qLogicRules.length + sLogicRules.length;
 
-                                <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all select-none shrink-0" onClick={e => e.stopPropagation()}>
-                                  <button
-                                    onClick={() => handleReorderQuestion(section.id, qIdx, 'up')}
-                                    disabled={qIdx === 0}
-                                    className={`p-1 rounded border border-border-light bg-bg-elevated text-text-secondary hover:text-text-primary cursor-pointer ${qIdx === 0 ? 'opacity-30 cursor-not-allowed' : ''}`}
-                                    title="Move Question Up"
-                                  >
-                                    <ArrowUp className="w-3 h-3" />
-                                  </button>
-                                  <button
-                                    onClick={() => handleReorderQuestion(section.id, qIdx, 'down')}
-                                    disabled={qIdx === sectionQuestions.length - 1}
-                                    className={`p-1 rounded border border-border-light bg-bg-elevated text-text-secondary hover:text-text-primary cursor-pointer ${qIdx === sectionQuestions.length - 1 ? 'opacity-30 cursor-not-allowed' : ''}`}
-                                    title="Move Question Down"
-                                  >
-                                    <ArrowDown className="w-3 h-3" />
-                                  </button>
-                                  <button
-                                    onClick={() => handleOpenEditQuestion(q)}
-                                    className="p-1 rounded border border-border-light bg-bg-elevated text-text-secondary hover:text-text-primary cursor-pointer"
-                                    title="Edit Question"
-                                  >
-                                    <Edit2 className="w-3 h-3" />
-                                  </button>
-                                  <button
-                                    onClick={() => handleDeleteQuestion(q.id, q.question_text)}
-                                    className="p-1 rounded border border-border-light bg-bg-elevated hover:bg-red-soft/20 text-text-secondary hover:text-red cursor-pointer"
-                                    title="Delete Question"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
+                              return (
+                                <div 
+                                  key={q.id} 
+                                  onClick={() => handleOpenEditQuestion(q)}
+                                  className="p-3.5 hover:bg-bg-elevated/25 transition-all cursor-pointer flex items-center justify-between gap-4 group"
+                                >
+                                  <div className="min-w-0 flex-1 flex items-start gap-3">
+                                    <div className="w-5 h-5 rounded bg-bg-hover text-text-secondary flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">
+                                      {qIdx + 1}
+                                    </div>
+                                    <div className="min-w-0 flex-1">
+                                      <div className="flex items-center flex-wrap gap-2">
+                                        <span className="font-bold text-text-primary leading-normal">
+                                          {q.question_text}
+                                          {q.is_required && <span className="text-red ml-0.5 font-normal">*</span>}
+                                        </span>
+                                        <Badge variant="info" className="font-mono text-[9px] lowercase px-1.5 py-0">
+                                          {q.question_type}
+                                        </Badge>
+                                        {totalRules > 0 && (
+                                          <Badge variant="success" className="font-mono text-[9px] px-1.5 py-0 flex items-center gap-1">
+                                            <Sliders className="w-2.5 h-2.5" />
+                                            <span>{totalRules} logic {totalRules === 1 ? 'rule' : 'rules'}</span>
+                                          </Badge>
+                                        )}
+                                      </div>
+                                      <div className="flex items-center gap-3 mt-1.5 select-none text-[9px] text-text-tertiary">
+                                        <span className="font-mono font-semibold bg-bg-hover px-1.5 py-0.5 rounded text-green">
+                                          csv: {q.csv_column}
+                                        </span>
+                                        {q.options && q.options.length > 0 && (
+                                          <span>• {q.options.length} Answer Choices</span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-all select-none shrink-0" onClick={e => e.stopPropagation()}>
+                                    <button
+                                      onClick={() => handleReorderQuestion(section.id, qIdx, 'up')}
+                                      disabled={qIdx === 0}
+                                      className={`p-1 rounded border border-border-light bg-bg-elevated text-text-secondary hover:text-text-primary cursor-pointer ${qIdx === 0 ? 'opacity-30 cursor-not-allowed' : ''}`}
+                                      title="Move Question Up"
+                                    >
+                                      <ArrowUp className="w-3 h-3" />
+                                    </button>
+                                    <button
+                                      onClick={() => handleReorderQuestion(section.id, qIdx, 'down')}
+                                      disabled={qIdx === sectionQuestions.length - 1}
+                                      className={`p-1 rounded border border-border-light bg-bg-elevated text-text-secondary hover:text-text-primary cursor-pointer ${qIdx === sectionQuestions.length - 1 ? 'opacity-30 cursor-not-allowed' : ''}`}
+                                      title="Move Question Down"
+                                    >
+                                      <ArrowDown className="w-3 h-3" />
+                                    </button>
+                                    <button
+                                      onClick={() => handleOpenSkipLogic(q)}
+                                      className="p-1 rounded border border-border-light bg-bg-elevated hover:bg-green-soft/20 text-text-secondary hover:text-green cursor-pointer"
+                                      title="Skip Logic Rules"
+                                    >
+                                      <Sliders className="w-3.5 h-3.5" />
+                                    </button>
+                                    <button
+                                      onClick={() => handleOpenEditQuestion(q)}
+                                      className="p-1 rounded border border-border-light bg-bg-elevated text-text-secondary hover:text-text-primary cursor-pointer"
+                                      title="Edit Question"
+                                    >
+                                      <Edit2 className="w-3 h-3" />
+                                    </button>
+                                    <button
+                                      onClick={() => handleDeleteQuestion(q.id, q.question_text)}
+                                      className="p-1 rounded border border-border-light bg-bg-elevated hover:bg-red-soft/20 text-text-secondary hover:text-red cursor-pointer"
+                                      title="Delete Question"
+                                    >
+                                      <Trash2 className="w-3.5 h-3.5" />
+                                    </button>
+                                  </div>
                                 </div>
-                              </div>
-                            ))
+                              );
+                            })
                           )}
                         </div>
                       </div>
@@ -1249,6 +1493,206 @@ export const FormBuilderPanel: React.FC = () => {
                 </Button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Skip Logic Modal Overlay */}
+      {isLogicModalOpen && logicSourceQuestion && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-[9000] select-none text-left">
+          <div className="bg-bg-surface border border-border rounded-lg max-w-xl w-full p-5 shadow-modal animate-scale-up space-y-4.5 max-h-[90vh] overflow-y-auto">
+            <div className="flex justify-between items-center border-b border-border pb-3">
+              <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider flex items-center gap-2">
+                <Sliders className="w-4.5 h-4.5 text-green" />
+                <span>Skip Logic Rules</span>
+              </h3>
+              <button 
+                onClick={() => setIsLogicModalOpen(false)}
+                className="text-text-secondary hover:text-text-primary cursor-pointer"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+
+            {/* Source question label */}
+            <div className="p-3 bg-bg-elevated/40 border border-border/60 rounded-lg space-y-1">
+              <span className="text-[9px] font-bold text-text-tertiary uppercase tracking-wider">Source Trigger Question</span>
+              <p className="text-xs font-bold text-text-primary leading-normal">{logicSourceQuestion.question_text}</p>
+            </div>
+
+            {/* Add skip logic rule form */}
+            <form onSubmit={handleSaveSkipRule} className="p-4 bg-bg-elevated/20 border border-border/80 rounded-xl space-y-3.5">
+              <span className="text-[10px] font-bold text-text-primary uppercase tracking-wider block border-b border-border/30 pb-1.5">
+                Create Skip Condition
+              </span>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold text-text-tertiary uppercase tracking-wider">Action</label>
+                  <select
+                    value={logicAction}
+                    onChange={(e) => setLogicAction(e.target.value)}
+                    className="w-full bg-bg-input border border-border-light rounded-md px-3 py-1.5 text-xs text-text-primary outline-none focus:border-green"
+                  >
+                    <option value="show">Show</option>
+                    <option value="hide">Hide</option>
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold text-text-tertiary uppercase tracking-wider">Target Type</label>
+                  <select
+                    value={logicTargetType}
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      setLogicTargetType(val);
+                      if (val === 'question') {
+                        const targetQs = questions.filter(q => q.id !== logicSourceQuestion.id);
+                        setLogicTargetId(targetQs.length > 0 ? targetQs[0].id : '');
+                      } else {
+                        setLogicTargetId(sections.length > 0 ? sections[0].id : '');
+                      }
+                    }}
+                    className="w-full bg-bg-input border border-border-light rounded-md px-3 py-1.5 text-xs text-text-primary outline-none focus:border-green"
+                  >
+                    <option value="question">Question</option>
+                    <option value="section">Section</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+                <div className="space-y-1">
+                  <label className="text-[9px] font-bold text-text-tertiary uppercase tracking-wider">Target Element</label>
+                  <select
+                    value={logicTargetId}
+                    onChange={(e) => setLogicTargetId(e.target.value)}
+                    className="w-full bg-bg-input border border-border-light rounded-md px-3 py-1.5 text-xs text-text-primary outline-none focus:border-green font-semibold"
+                    required
+                  >
+                    <option value="" disabled>Select Target...</option>
+                    {logicTargetType === 'question' ? (
+                      questions
+                        .filter(q => q.id !== logicSourceQuestion.id)
+                        .map(q => (
+                          <option key={q.id} value={q.id}>{q.question_text}</option>
+                        ))
+                    ) : (
+                      sections.map(s => (
+                        <option key={s.id} value={s.id}>{s.name}</option>
+                      ))
+                    )}
+                  </select>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-bold text-text-tertiary uppercase tracking-wider">Condition</label>
+                    <select
+                      value={logicOperator}
+                      onChange={(e) => setLogicOperator(e.target.value)}
+                      className="w-full bg-bg-input border border-border-light rounded-md px-3 py-1.5 text-xs text-text-primary outline-none focus:border-green"
+                    >
+                      {LOGIC_OPERATORS.map(op => (
+                        <option key={op.value} value={op.value}>{op.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div className="space-y-1">
+                    <label className="text-[9px] font-bold text-text-tertiary uppercase tracking-wider">Value</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Yes"
+                      value={logicValue}
+                      onChange={(e) => setLogicValue(e.target.value)}
+                      className="w-full bg-bg-input border border-border-light rounded-md px-3 py-1.5 text-xs text-text-primary outline-none focus:border-green"
+                      required
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end pt-1">
+                <Button 
+                  type="submit" 
+                  variant="primary" 
+                  size="sm"
+                  disabled={isSavingLogic || !logicTargetId}
+                  className="font-bold px-4"
+                >
+                  <Plus className="w-3.5 h-3.5 text-black mr-1" />
+                  <span>{isSavingLogic ? 'Saving...' : 'Add Skip Rule'}</span>
+                </Button>
+              </div>
+            </form>
+
+            {/* List of existing logic rules */}
+            <div className="space-y-2 select-none">
+              <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider block">Active Rules Triggered by this Question</span>
+              <div className="divide-y divide-border/40 border border-border/60 rounded-xl overflow-hidden bg-bg-surface/50 max-h-[220px] overflow-y-auto">
+                {questionRules.filter(r => r.source_question_id === logicSourceQuestion.id).length === 0 &&
+                 sectionRules.filter(r => r.source_question_id === logicSourceQuestion.id).length === 0 ? (
+                  <p className="text-[10px] text-text-tertiary text-center py-6">No logic rules created for this question yet.</p>
+                ) : (
+                  <>
+                    {/* Question targeted rules */}
+                    {questionRules
+                      .filter(r => r.source_question_id === logicSourceQuestion.id)
+                      .map((rule) => (
+                        <div key={rule.id} className="p-3 hover:bg-bg-elevated/20 flex items-center justify-between gap-3 text-xs">
+                          <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                            <GitCommit className="w-4 h-4 text-green shrink-0 mt-0.5" />
+                            <span className="text-text-secondary leading-normal min-w-0 flex-1">
+                              {getRuleDescription(rule, false)}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteQuestionRule(rule.id)}
+                            className="p-1 rounded bg-bg-elevated hover:bg-red-soft/20 text-text-secondary hover:text-red border border-border-light cursor-pointer shrink-0"
+                            title="Delete Skip Rule"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+
+                    {/* Section targeted rules */}
+                    {sectionRules
+                      .filter(r => r.source_question_id === logicSourceQuestion.id)
+                      .map((rule) => (
+                        <div key={rule.id} className="p-3 hover:bg-bg-elevated/20 flex items-center justify-between gap-3 text-xs">
+                          <div className="flex items-start gap-2.5 min-w-0 flex-1">
+                            <FolderOpen className="w-4 h-4 text-green shrink-0 mt-0.5" />
+                            <span className="text-text-secondary leading-normal min-w-0 flex-1">
+                              {getRuleDescription(rule, true)}
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteSectionRule(rule.id)}
+                            className="p-1 rounded bg-bg-elevated hover:bg-red-soft/20 text-text-secondary hover:text-red border border-border-light cursor-pointer shrink-0"
+                            title="Delete Skip Rule"
+                          >
+                            <Trash2 className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                  </>
+                )}
+              </div>
+            </div>
+
+            <div className="flex justify-end border-t border-border/60 pt-3.5 select-none">
+              <Button 
+                type="button" 
+                variant="secondary" 
+                size="sm" 
+                onClick={() => setIsLogicModalOpen(false)}
+              >
+                Dismiss
+              </Button>
+            </div>
           </div>
         </div>
       )}
