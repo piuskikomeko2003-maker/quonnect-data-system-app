@@ -177,26 +177,56 @@ export default function Home() {
           setLoadingVendors(false);
           return;
         }
-        const { data, error } = await supabase
-          .from('vendors')
+
+        if (!activeRegion) {
+          setVendors([]);
+          setRunningCount(0);
+          setLoadingVendors(false);
+          return;
+        }
+
+        let query = supabase
+          .from('survey_responses')
           .select(`
-            id,
-            business_name,
-            contact_name,
-            phone,
-            email,
-            category,
-            is_active,
-            created_at
+            vendor_id,
+            vendors (
+              id,
+              business_name,
+              contact_name,
+              phone,
+              email,
+              category,
+              is_active,
+              created_at
+            ),
+            market_days!inner (
+              id,
+              region_id
+            )
           `)
-          .eq('is_active', true)
-          .order('created_at', { ascending: false });
+          .eq('market_days.region_id', activeRegion.id);
+
+        if (activeEdition) {
+          query = query.eq('market_day_id', activeEdition.id);
+        }
+
+        const { data, error } = await query;
 
         if (error) {
           throw error;
         }
 
-        const mappedVendors = (data || []).map((v: any) => {
+        const uniqueVendors: any[] = [];
+        const seenIds = new Set();
+        (data || []).forEach((row: any) => {
+          const v = row.vendors;
+          if (v && !seenIds.has(v.id)) {
+            seenIds.add(v.id);
+            uniqueVendors.push(v);
+          }
+        });
+
+        const mappedVendors = uniqueVendors.map((v: any) => {
           return {
             id: v.id,
             name: v.contact_name || 'Anonymous',
@@ -204,9 +234,9 @@ export default function Home() {
             businessName: v.business_name || '',
             gender: 'Female',
             status: v.is_active ? ('active' as const) : ('new' as const),
-            region: 'Kampala',
+            region: activeRegion.name,
             attendanceCount: 1,
-            lastSeen: 'May 2026',
+            lastSeen: activeEdition ? activeEdition.name : 'May 2026',
             age: 28,
             employeeCount: '',
             newHiresThisYear: '',
@@ -237,24 +267,47 @@ export default function Home() {
       try {
         const supabase = createClient();
         if (!supabase) return;
-        const { data, error } = await supabase
+
+        if (!activeRegion) {
+          setWalkins([]);
+          setRunningWalkins(0);
+          return;
+        }
+
+        let query = supabase
           .from('walkins')
-          .select('*')
-          .order('created_at', { ascending: false });
+          .select(`
+            *,
+            market_days!inner (
+              region_id
+            )
+          `)
+          .eq('market_days.region_id', activeRegion.id);
+
+        if (activeEdition) {
+          query = query.eq('market_day_id', activeEdition.id);
+        }
+
+        const { data, error } = await query;
 
         if (error) throw error;
 
         const mappedWalkins = (data || []).map((w: any) => {
+          let parsedNotes: any = {};
+          try {
+            if (w.notes) parsedNotes = JSON.parse(w.notes);
+          } catch (e) {}
+
           return {
             id: w.id,
-            name: w.full_name || 'Anonymous Visitor',
-            phone: w.phone || '',
-            gender: w.gender || 'Female',
-            age: w.age || 25,
-            howHeard: w.how_heard || 'Passing By',
-            date: w.created_at ? new Date(w.created_at).toISOString().slice(0, 16).replace('T', ' ') : '',
-            region: 'Kampala',
-            editionId: w.edition_id || ''
+            name: parsedNotes.name || w.recorded_by || 'Anonymous Visitor',
+            phone: parsedNotes.phone || '',
+            gender: parsedNotes.gender || 'Female',
+            age: parsedNotes.age || 25,
+            howHeard: parsedNotes.how_heard || 'Passing By',
+            date: w.recorded_at ? new Date(w.recorded_at).toISOString().slice(0, 16).replace('T', ' ') : '',
+            region: activeRegion.name,
+            editionId: w.market_day_id || ''
           };
         });
 
@@ -270,7 +323,13 @@ export default function Home() {
       try {
         const supabase = createClient();
         if (!supabase) return;
-        const { data, error } = await supabase
+
+        if (!activeRegion) {
+          setSurveyResponses([]);
+          return;
+        }
+
+        let query = supabase
           .from('survey_responses')
           .select(`
             id,
@@ -286,16 +345,23 @@ export default function Home() {
               phone,
               category
             ),
-            market_days (
+            market_days!inner (
               id,
               name,
+              region_id,
               regions (
                 id,
                 name
               )
             )
           `)
-          .order('submitted_at', { ascending: false });
+          .eq('market_days.region_id', activeRegion.id);
+
+        if (activeEdition) {
+          query = query.eq('market_day_id', activeEdition.id);
+        }
+
+        const { data, error } = await query.order('submitted_at', { ascending: false });
 
         if (error) {
           console.error("Supabase error:", error.message, error.code, error.details);
@@ -516,7 +582,7 @@ export default function Home() {
         if (responsesChannel) supabase.removeChannel(responsesChannel);
       }
     };
-  }, [mounted]);
+  }, [mounted, activeRegion?.id, activeEdition?.id]);
 
   // Walk-ins filtering states
   const [walkinRegionFilter, setWalkinRegionFilter] = useState('All');
@@ -1018,6 +1084,11 @@ export default function Home() {
 
   const handleWalkinSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!activeEdition) {
+      alert("Please select or create an active event edition first!");
+      return;
+    }
+
     try {
       const supabase = createClient();
       if (!supabase) throw new Error("Supabase client is not initialized.");
@@ -1025,13 +1096,17 @@ export default function Home() {
       const { data, error } = await supabase
         .from('walkins')
         .insert({
-          full_name: walkinFormValues.name || 'Anonymous Visitor',
-          phone: walkinFormValues.phone || '',
-          gender: walkinFormValues.gender || 'Female',
-          age: walkinFormValues.age ? parseInt(walkinFormValues.age) : 25,
-          how_heard: walkinFormValues.howHeard || 'Passing By',
-          first_visit: walkinFormValues.firstVisit === 'Yes',
-          edition_id: quickEntryEdition || null
+          market_day_id: activeEdition.id,
+          count: 1,
+          recorded_by: walkinFormValues.name || 'Anonymous Visitor',
+          notes: JSON.stringify({
+            name: walkinFormValues.name || 'Anonymous Visitor',
+            phone: walkinFormValues.phone || '',
+            gender: walkinFormValues.gender || 'Female',
+            age: walkinFormValues.age ? parseInt(walkinFormValues.age) : 25,
+            how_heard: walkinFormValues.howHeard || 'Passing By',
+            first_visit: walkinFormValues.firstVisit === 'Yes'
+          })
         })
         .select();
 
@@ -1044,6 +1119,8 @@ export default function Home() {
         visitorName: walkinFormValues.name || 'Anonymous Visitor',
         onAddAnother: () => resetWalkinForm()
       });
+      // Trigger local fetch
+      fetchWalkins();
     } catch (err: any) {
       console.error("Supabase error inserting walk-in:", err);
       alert("Error adding walk-in: " + (err.message || err));
