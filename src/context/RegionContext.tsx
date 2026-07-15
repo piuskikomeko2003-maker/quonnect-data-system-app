@@ -8,6 +8,7 @@ export interface Region {
   name: string;
   slug: string;
   is_active: boolean;
+  market_days?: { count: number }[];
 }
 
 export interface Edition {
@@ -45,7 +46,7 @@ export const RegionProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
       const { data: rData, error: rErr } = await supabase
         .from('regions')
-        .select('*')
+        .select('*, market_days(count)')
         .order('name');
 
       if (rErr) throw rErr;
