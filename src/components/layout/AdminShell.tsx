@@ -13,7 +13,11 @@ import {
   MapPin,
   Calendar,
   X,
-  PlusCircle
+  PlusCircle,
+  UploadCloud,
+  Store,
+  CheckCircle2,
+  AlertCircle
 } from 'lucide-react';
 import { Badge } from '../ui/Badge';
 import { useRegion, Region, Edition } from '@/context/RegionContext';
@@ -58,6 +62,15 @@ export const AdminShell: React.FC<AdminShellProps> = ({
   const [newRegionName, setNewRegionName] = useState('');
   const [newRegionSlug, setNewRegionSlug] = useState('');
   const [isCreating, setIsCreating] = useState(false);
+  const [toasts, setToasts] = useState<Array<{ id: number; message: string; type: 'success' | 'error' }>>([]);
+
+  const addToast = (message: string, type: 'success' | 'error' = 'success') => {
+    const id = Date.now();
+    setToasts(prev => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 4000);
+  };
 
   const navigationSections = [
     {
@@ -72,7 +85,7 @@ export const AdminShell: React.FC<AdminShellProps> = ({
         },
         { id: 'walkins', name: 'Walk-ins', icon: <Footprints className="w-5 h-5" /> },
         { id: 'quick-entry', name: 'Quick Entry', icon: <Zap className="w-5 h-5" /> },
-        { id: 'import-export', name: 'Import/Export', icon: <UploadCloud className="w-5 h-5" /> }, // wait, UploadCloud was not in imports, let's use ClipboardList or generic icon to be safe, wait, UploadCloud wasn't in our import lists but let's check
+        { id: 'import-export', name: 'Import/Export', icon: <UploadCloud className="w-5 h-5" /> },
       ]
     },
     {
@@ -85,16 +98,13 @@ export const AdminShell: React.FC<AdminShellProps> = ({
     }
   ];
 
-  // Wait! Lucide icon fallback for UploadCloud/Store:
-  // Let's make sure Store and UploadCloud (or alternative) is imported.
-  // We imported Building2, Store etc.
   const getNavIcon = (id: string) => {
     switch (id) {
       case 'overview': return <LayoutDashboard className="w-5 h-5" />;
       case 'vendors': return <Users className="w-5 h-5" />;
       case 'walkins': return <Footprints className="w-5 h-5" />;
       case 'quick-entry': return <Zap className="w-5 h-5" />;
-      case 'import-export': return <Building2 className="w-5 h-5" />; // fallback
+      case 'import-export': return <UploadCloud className="w-5 h-5" />;
       case 'formbuilder': return <ClipboardList className="w-5 h-5" />;
       case 'markets': return <Store className="w-5 h-5" />;
       case 'settings': return <Settings className="w-5 h-5" />;
@@ -138,7 +148,7 @@ export const AdminShell: React.FC<AdminShellProps> = ({
 
       if (error) throw error;
 
-      alert(`Region "${data.name}" created!`);
+      addToast(`Region "${data.name}" created!`, 'success');
       setNewRegionName('');
       setNewRegionSlug('');
       setIsCreateModalOpen(false);
@@ -154,7 +164,7 @@ export const AdminShell: React.FC<AdminShellProps> = ({
       }
     } catch (err: any) {
       console.error(err);
-      alert(`Failed to create region: ${err.message}`);
+      addToast(`Failed to create region: ${err.message}`, 'error');
     } finally {
       setIsCreating(false);
     }
@@ -179,63 +189,76 @@ export const AdminShell: React.FC<AdminShellProps> = ({
         </div>
 
         {/* WORKSPACE SELECTION BLOCK (Region and Edition) */}
-        {activeRegion && (
-          <div className={`p-3 border-b border-border space-y-2 select-none ${isMobileMenuOpen ? 'block' : 'hidden md:block'}`}>
-            
-            {/* Region Switcher Button */}
-            <div className="relative">
-              <button 
-                onClick={() => {
-                  setIsRegionDropdownOpen(!isRegionDropdownOpen);
-                  setIsEditionDropdownOpen(false);
-                }}
-                className="flex items-center gap-2.5 w-full p-2.5 bg-bg-elevated border border-border hover:border-green hover:bg-green-soft/10 text-text-primary cursor-pointer transition-all text-left rounded-lg"
-              >
-                <div className="w-7 h-7 rounded-full bg-green-muted flex items-center justify-center text-green shrink-0">
-                  <MapPin className="w-4 h-4" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <span className="block text-[11px] font-bold text-text-primary truncate">{activeRegion.name} Region</span>
-                  <small className="block text-[9px] text-text-tertiary truncate">Switch region workspace</small>
-                </div>
-                <ChevronDown className="w-3.5 h-3.5 text-text-tertiary shrink-0" />
-              </button>
+        <div className={`p-3 border-b border-border space-y-2 select-none ${isMobileMenuOpen ? 'block' : 'hidden md:block'}`}>
+          
+          {/* Region Switcher Button */}
+          <div className="relative">
+            <button 
+              onClick={() => {
+                setIsRegionDropdownOpen(!isRegionDropdownOpen);
+                setIsEditionDropdownOpen(false);
+              }}
+              className="flex items-center gap-2.5 w-full p-2.5 bg-bg-elevated border border-border hover:border-green hover:bg-green-soft/10 text-text-primary cursor-pointer transition-all text-left rounded-lg"
+            >
+              <div className="w-7 h-7 rounded-full bg-green-muted flex items-center justify-center text-green shrink-0">
+                <MapPin className="w-4 h-4" />
+              </div>
+              <div className="flex-1 min-w-0">
+                <span className="block text-[11px] font-bold text-text-primary truncate">
+                  {activeRegion ? activeRegion.name : 'Select Region'}
+                </span>
+                <small className="block text-[9px] text-text-tertiary truncate">
+                  {activeRegion && activeEdition ? activeEdition.name : (activeRegion ? 'Switch region workspace' : 'Click to select region')}
+                </small>
+              </div>
+              <ChevronDown className="w-3.5 h-3.5 text-text-tertiary shrink-0" />
+            </button>
 
-              {/* Region dropdown overlay */}
-              {isRegionDropdownOpen && (
-                <div className="absolute left-0 right-0 mt-1 bg-bg-surface border border-border rounded-lg shadow-lg z-[999] py-1">
-                  <div className="max-h-[200px] overflow-y-auto divide-y divide-border/20">
-                    {regions.map((r) => (
+            {/* Region dropdown overlay */}
+            {isRegionDropdownOpen && (
+              <div className="absolute left-0 right-0 mt-1 bg-bg-surface border border-border rounded-lg shadow-lg z-[999] py-1">
+                <div className="max-h-[200px] overflow-y-auto divide-y divide-border/20">
+                  {regions.map((r) => {
+                    const count = (r as any).market_days?.[0]?.count ?? 0;
+                    const isActive = activeRegion?.id === r.id;
+                    return (
                       <button
                         key={r.id}
                         onClick={() => {
                           switchRegion(r);
                           setIsRegionDropdownOpen(false);
                         }}
-                        className={`flex items-center justify-between w-full px-4 py-2 hover:bg-bg-hover text-left text-xs ${activeRegion.id === r.id ? 'bg-green-soft text-green font-bold' : 'text-text-secondary'}`}
+                        className={`flex items-center justify-between w-full px-4 py-2 hover:bg-bg-hover text-left text-xs ${isActive ? 'bg-green-soft text-green font-bold' : 'text-text-secondary'}`}
                       >
-                        <span className="truncate">{r.name}</span>
-                        {activeRegion.id === r.id && <Badge variant="success" size="sm">Active</Badge>}
+                        <div className="min-w-0 flex-1">
+                          <span className="block truncate font-semibold">{r.name}</span>
+                          <span className="block text-[9px] text-text-tertiary truncate mt-0.5">
+                            {count} {count === 1 ? 'Market Day' : 'Market Days'}
+                          </span>
+                        </div>
+                        {isActive && <Badge variant="success" size="sm">Active</Badge>}
                       </button>
-                    ))}
-                  </div>
-                  <div className="p-2 border-t border-border bg-bg-elevated/40">
-                    <button
-                      onClick={() => {
-                        setIsCreateModalOpen(true);
-                        setIsRegionDropdownOpen(false);
-                      }}
-                      className="w-full py-1 text-center text-[10px] font-bold text-green hover:underline flex items-center justify-center gap-1 cursor-pointer"
-                    >
-                      <PlusCircle className="w-3.5 h-3.5" />
-                      <span>Create New Region</span>
-                    </button>
-                  </div>
+                    );
+                  })}
                 </div>
-              )}
-            </div>
+                <div className="p-2 border-t border-border bg-bg-elevated/40">
+                  <button
+                    onClick={() => {
+                      setIsCreateModalOpen(true);
+                      setIsRegionDropdownOpen(false);
+                    }}
+                    className="w-full py-1 text-center text-[10px] font-bold text-green hover:underline flex items-center justify-center gap-1 cursor-pointer"
+                  >
+                    <PlusCircle className="w-3.5 h-3.5" />
+                    <span>Create New Region</span>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
 
-            {/* Edition Switcher Button */}
+          {/* Edition Switcher Button */}
+          {activeRegion && (
             <div className="relative">
               <button 
                 onClick={() => {
@@ -288,9 +311,8 @@ export const AdminShell: React.FC<AdminShellProps> = ({
                 </div>
               )}
             </div>
-
-          </div>
-        )}
+          )}
+        </div>
 
         {/* Sidebar Nav list */}
         <nav className="flex-1 overflow-y-auto py-4">
@@ -374,12 +396,49 @@ export const AdminShell: React.FC<AdminShellProps> = ({
                   </Badge>
                 </>
               )}
-              {activeEdition && (
+              {activeRegion && (
                 <>
                   <span className="text-text-tertiary">/</span>
-                  <Badge variant="success" size="sm">
-                    {activeEdition.name} Event
-                  </Badge>
+                  <div className="relative">
+                    <button 
+                      onClick={() => {
+                        setIsEditionDropdownOpen(!isEditionDropdownOpen);
+                        setIsRegionDropdownOpen(false);
+                      }}
+                      className="flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold text-text-primary bg-bg-elevated hover:bg-bg-hover border border-border rounded cursor-pointer transition-all"
+                    >
+                      <Calendar className="w-3.5 h-3.5 text-green" />
+                      <span>{activeEdition ? activeEdition.name : 'Select Event...'}</span>
+                      <ChevronDown className="w-3 h-3 text-text-tertiary shrink-0" />
+                    </button>
+
+                    {isEditionDropdownOpen && (
+                      <div className="absolute left-0 mt-1 w-56 bg-bg-surface border border-border rounded-lg shadow-lg z-[9999] py-1">
+                        <div className="max-h-[200px] overflow-y-auto divide-y divide-border/20 text-left">
+                          {editions.length === 0 ? (
+                            <p className="text-[10px] text-text-tertiary text-center py-4">No events found in this region.</p>
+                          ) : (
+                            editions.map((e) => (
+                              <button
+                                key={e.id}
+                                onClick={() => {
+                                  setActiveEdition(e);
+                                  setIsEditionDropdownOpen(false);
+                                }}
+                                className={`flex items-center justify-between w-full px-3 py-2 hover:bg-bg-hover text-left text-xs ${activeEdition?.id === e.id ? 'bg-green-soft text-green font-bold' : 'text-text-secondary'}`}
+                              >
+                                <div className="min-w-0 flex-1">
+                                  <span className="block truncate font-semibold">{e.name}</span>
+                                  <span className="block text-[9px] text-text-tertiary truncate mt-0.5">{e.venue || 'No venue'}</span>
+                                </div>
+                                {activeEdition?.id === e.id && <Badge variant="success" size="sm">Selected</Badge>}
+                              </button>
+                            ))
+                          )}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </>
               )}
             </div>
@@ -459,6 +518,32 @@ export const AdminShell: React.FC<AdminShellProps> = ({
           </div>
         </div>
       )}
+      {/* Toast container */}
+      <div className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-2 max-w-sm pointer-events-none">
+        {toasts.map((toast) => (
+          <div
+            key={toast.id}
+            className={`flex items-center gap-3 p-3.5 rounded-lg shadow-lg text-xs font-semibold text-white pointer-events-auto border ${
+              toast.type === 'success' 
+                ? 'bg-green-soft border-green text-green' 
+                : 'bg-red-soft border-red text-red'
+            }`}
+          >
+            {toast.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 text-green shrink-0" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-red shrink-0" />
+            )}
+            <span className="flex-1">{toast.message}</span>
+            <button 
+              onClick={() => setToasts((prev) => prev.filter((t) => t.id !== toast.id))}
+              className="text-text-secondary hover:text-text-primary p-0.5"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        ))}
+      </div>
     </div>
   );
 };
