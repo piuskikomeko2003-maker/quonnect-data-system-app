@@ -176,7 +176,7 @@ export const MarketConfigurationPanel: React.FC = () => {
               name: row.edition || 'Untitled Edition',
               date: row.event_date || '',
               venue: row.notes || '',
-              is_active: row.status === 'active'
+              is_active: row.status === 'upcoming' || row.status === 'ongoing' || row.status === 'active'
             }))
             .sort((a: Edition, b: Edition) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
@@ -441,9 +441,9 @@ export const MarketConfigurationPanel: React.FC = () => {
       const supabase = createClient();
       if (!supabase) throw new Error("Supabase client not available");
 
-      const slug = slugify(`${selectedMarketName}-${newEditionName}`);
+      const slug = slugify(`${selectedMarketName}-${newEditionName}-${Date.now()}`);
 
-      const { error } = await supabase
+      const { data, error } = await supabase
         .from('market_days')
         .insert([{
           region_id: selectedRegion.id,
@@ -452,10 +452,15 @@ export const MarketConfigurationPanel: React.FC = () => {
           event_date: newEditionDate,
           edition: newEditionName.trim(),
           notes: newEditionVenue.trim(),
-          status: newEditionIsActive ? 'active' : 'inactive'
-        }]);
+          status: newEditionIsActive ? 'upcoming' : 'completed'
+        }])
+        .select()
+        .single();
 
-      if (error) throw error;
+      if (error) {
+        console.error("Supabase edition insert error:", error.message, error.code, error.details);
+        throw error;
+      }
 
       addToast(`Edition "${newEditionName}" created successfully!`, "success");
       setNewEditionName('');
@@ -464,7 +469,7 @@ export const MarketConfigurationPanel: React.FC = () => {
       setNewEditionIsActive(true);
       fetchRegionsData();
     } catch (err: any) {
-      console.error("Error creating edition:", err);
+      console.error("Error creating edition:", err?.message, err?.code, err?.details, JSON.stringify(err));
       addToast(err.message || "Failed to create edition.", "error");
     } finally {
       setIsSavingEdition(false);
@@ -488,7 +493,7 @@ export const MarketConfigurationPanel: React.FC = () => {
           edition: editEditionName.trim(),
           event_date: editEditionDate,
           notes: editEditionVenue.trim(),
-          status: editEditionIsActive ? 'active' : 'inactive'
+          status: editEditionIsActive ? 'upcoming' : 'completed'
         })
         .eq('id', id);
 
@@ -533,7 +538,7 @@ export const MarketConfigurationPanel: React.FC = () => {
       const supabase = createClient();
       if (!supabase) throw new Error("Supabase client not available");
 
-      const newStatus = !currentStatus ? 'active' : 'inactive';
+      const newStatus = !currentStatus ? 'upcoming' : 'completed';
 
       const { error } = await supabase
         .from('market_days')
