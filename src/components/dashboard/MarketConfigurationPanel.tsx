@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { useRegion } from '@/context/RegionContext';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
 import { 
@@ -55,6 +56,7 @@ interface Toast {
 }
 
 export const MarketConfigurationPanel: React.FC = () => {
+  const { activeRegion } = useRegion();
   const [regions, setRegions] = useState<Region[]>([]);
   const [loading, setLoading] = useState(true);
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -130,7 +132,7 @@ export const MarketConfigurationPanel: React.FC = () => {
       const supabase = createClient();
       if (!supabase) return;
 
-      const { data, error } = await supabase
+      let query = supabase
         .from('regions')
         .select(`
           id,
@@ -148,8 +150,13 @@ export const MarketConfigurationPanel: React.FC = () => {
             notes,
             created_at
           )
-        `)
-        .order('name');
+        `);
+
+      if (activeRegion) {
+        query = query.eq('id', activeRegion.id);
+      }
+
+      const { data, error } = await query.order('name');
 
       if (error) throw error;
 
@@ -202,7 +209,30 @@ export const MarketConfigurationPanel: React.FC = () => {
 
   useEffect(() => {
     fetchRegionsData();
-  }, []);
+  }, [activeRegion?.id]);
+
+  useEffect(() => {
+    if (activeRegion) {
+      const matchingReg = regions.find(r => r.id === activeRegion.id);
+      if (matchingReg) {
+        setSelectedRegion(matchingReg);
+      } else {
+        setSelectedRegion({
+          id: activeRegion.id,
+          name: activeRegion.name,
+          slug: activeRegion.slug,
+          is_active: true,
+          marketDays: []
+        });
+      }
+      if (currentStep === 1) {
+        setCurrentStep(2);
+      }
+    } else {
+      setSelectedRegion(null);
+      setCurrentStep(1);
+    }
+  }, [activeRegion, regions]);
 
   // Mutate Region
   const handleCreateRegion = async (e: React.FormEvent) => {
@@ -597,11 +627,13 @@ export const MarketConfigurationPanel: React.FC = () => {
           />
 
           {/* Step 1 */}
-          <div className="relative z-10 flex flex-col items-center gap-1.5 cursor-pointer" onClick={() => setCurrentStep(1)}>
-            <div className={`w-8 h-8 rounded-full border flex items-center justify-center text-xs transition-all ${getStepClass(1)}`}>
-              {currentStep > 1 ? <Check className="w-4 h-4 text-black font-black" /> : 1}
+          <div className="relative z-10 flex flex-col items-center gap-1.5 cursor-not-allowed opacity-80" title="Region is selected in the top header">
+            <div className={`w-8 h-8 rounded-full border flex items-center justify-center text-xs transition-all bg-green-soft border-green text-green`}>
+              <Check className="w-4 h-4 text-green font-black" />
             </div>
-            <span className={`text-[10px] uppercase tracking-wider font-semibold ${currentStep >= 1 ? 'text-green' : 'text-text-tertiary'}`}>Region</span>
+            <span className="text-[10px] uppercase tracking-wider font-bold text-green flex items-center gap-1">
+              Region ({activeRegion?.name || 'Active'})
+            </span>
           </div>
 
           {/* Step 2 */}

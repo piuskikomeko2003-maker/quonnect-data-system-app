@@ -10,6 +10,7 @@ export interface QuickEntryPanelProps {
   onTabChange: (tab: 'paid' | 'collection' | 'walkin') => void;
   isOpen: boolean;
   onToggleCollapse: () => void;
+  disabled?: boolean;
   
   // Forms props
   paidVendorFormProps: PaidVendorFormProps;
@@ -22,6 +23,7 @@ export const QuickEntryPanel: React.FC<QuickEntryPanelProps> = ({
   onTabChange,
   isOpen,
   onToggleCollapse,
+  disabled = false,
   paidVendorFormProps,
   fieldCollectionFormProps,
   walkinFormProps
@@ -47,34 +49,37 @@ export const QuickEntryPanel: React.FC<QuickEntryPanelProps> = ({
         {/* Navigation Tabs */}
         <div className="flex border-b border-border p-1 bg-bg-elevated/10">
           <button
-            onClick={() => onTabChange('paid')}
+            onClick={() => !disabled && onTabChange('paid')}
             className={`flex-1 py-2 text-xs font-semibold rounded-md transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
               activeTab === 'paid'
                 ? 'bg-bg-surface text-green border border-border-light shadow-card font-bold'
                 : 'text-text-secondary hover:text-text-primary'
-            }`}
+            } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+            disabled={disabled}
           >
             <Users className="w-3.5 h-3.5" />
             <span>Paid Vendor</span>
           </button>
           <button
-            onClick={() => onTabChange('collection')}
+            onClick={() => !disabled && onTabChange('collection')}
             className={`flex-1 py-2 text-xs font-semibold rounded-md transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
               activeTab === 'collection'
                 ? 'bg-bg-surface text-green border border-border-light shadow-card font-bold'
                 : 'text-text-secondary hover:text-text-primary'
-            }`}
+            } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+            disabled={disabled}
           >
             <Database className="w-3.5 h-3.5" />
             <span>Field Collection</span>
           </button>
           <button
-            onClick={() => onTabChange('walkin')}
+            onClick={() => !disabled && onTabChange('walkin')}
             className={`flex-1 py-2 text-xs font-semibold rounded-md transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
               activeTab === 'walkin'
                 ? 'bg-bg-surface text-green border border-border-light shadow-card font-bold'
                 : 'text-text-secondary hover:text-text-primary'
-            }`}
+            } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+            disabled={disabled}
           >
             <Footprints className="w-3.5 h-3.5" />
             <span>Walk-in</span>
@@ -82,7 +87,18 @@ export const QuickEntryPanel: React.FC<QuickEntryPanelProps> = ({
         </div>
 
         {/* Selected Form Content wrapper */}
-        <div className="p-5 bg-bg-surface/30">
+        <div className="p-5 bg-bg-surface/30 relative min-h-[250px]">
+          {disabled && (
+            <div className="absolute inset-0 bg-bg-surface/80 backdrop-blur-[2px] z-50 flex items-center justify-center select-none p-6">
+              <div className="bg-bg border border-border rounded-xl p-6 text-center max-w-[280px] shadow-lg animate-fade-in">
+                <ChevronDown className="w-8 h-8 text-amber mx-auto mb-3 animate-pulse rotate-180" />
+                <h4 className="text-sm font-bold text-text-primary mb-1.5">Quick Entry Locked</h4>
+                <p className="text-[11px] text-text-secondary leading-relaxed">
+                  Select an active event edition from the header/sidebar to start quick entry.
+                </p>
+              </div>
+            </div>
+          )}
           {activeTab === 'paid' && <PaidVendorForm {...paidVendorFormProps} />}
           {activeTab === 'collection' && <FieldCollectionForm {...fieldCollectionFormProps} />}
           {activeTab === 'walkin' && <WalkinForm {...walkinFormProps} />}

@@ -1,0 +1,1166 @@
+{
+  "vendors": {
+    "required": [
+      "id",
+      "business_name",
+      "is_active",
+      "created_at",
+      "updated_at"
+    ],
+    "properties": {
+      "id": {
+        "default": "gen_random_uuid()",
+        "description": "Note:\nThis is a Primary Key.<pk/>",
+        "format": "uuid",
+        "type": "string"
+      },
+      "business_name": {
+        "format": "text",
+        "type": "string"
+      },
+      "contact_name": {
+        "format": "text",
+        "type": "string"
+      },
+      "phone": {
+        "format": "text",
+        "type": "string"
+      },
+      "email": {
+        "format": "text",
+        "type": "string"
+      },
+      "category": {
+        "format": "text",
+        "type": "string"
+      },
+      "is_active": {
+        "default": true,
+        "format": "boolean",
+        "type": "boolean"
+      },
+      "created_at": {
+        "default": "now()",
+        "format": "timestamp with time zone",
+        "type": "string"
+      },
+      "updated_at": {
+        "default": "now()",
+        "format": "timestamp with time zone",
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "outreach_attendees": {
+    "required": [
+      "id",
+      "outreach_event_id",
+      "full_name",
+      "follow_up_consent",
+      "submitted_at",
+      "created_at"
+    ],
+    "properties": {
+      "id": {
+        "default": "gen_random_uuid()",
+        "description": "Note:\nThis is a Primary Key.<pk/>",
+        "format": "uuid",
+        "type": "string"
+      },
+      "outreach_event_id": {
+        "description": "Note:\nThis is a Foreign Key to `outreach_events.id`.<fk table='outreach_events' column='id'/>",
+        "format": "uuid",
+        "type": "string"
+      },
+      "full_name": {
+        "format": "text",
+        "type": "string"
+      },
+      "phone": {
+        "format": "text",
+        "type": "string"
+      },
+      "email": {
+        "format": "text",
+        "type": "string"
+      },
+      "gender": {
+        "format": "text",
+        "type": "string"
+      },
+      "age_range": {
+        "format": "text",
+        "type": "string"
+      },
+      "location": {
+        "format": "text",
+        "type": "string"
+      },
+      "follow_up_consent": {
+        "default": false,
+        "format": "boolean",
+        "type": "boolean"
+      },
+      "submitted_at": {
+        "default": "now()",
+        "format": "timestamp with time zone",
+        "type": "string"
+      },
+      "created_at": {
+        "default": "now()",
+        "format": "timestamp with time zone",
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "forms": {
+    "required": [
+      "id",
+      "name",
+      "slug",
+      "is_active",
+      "created_at",
+      "updated_at"
+    ],
+    "properties": {
+      "id": {
+        "default": "gen_random_uuid()",
+        "description": "Note:\nThis is a Primary Key.<pk/>",
+        "format": "uuid",
+        "type": "string"
+      },
+      "name": {
+        "format": "text",
+        "type": "string"
+      },
+      "slug": {
+        "format": "text",
+        "type": "string"
+      },
+      "description": {
+        "format": "text",
+        "type": "string"
+      },
+      "is_active": {
+        "default": true,
+        "format": "boolean",
+        "type": "boolean"
+      },
+      "created_at": {
+        "default": "now()",
+        "format": "timestamp with time zone",
+        "type": "string"
+      },
+      "updated_at": {
+        "default": "now()",
+        "format": "timestamp with time zone",
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "walkins": {
+    "required": [
+      "id",
+      "market_day_id",
+      "count",
+      "recorded_at"
+    ],
+    "properties": {
+      "id": {
+        "default": "gen_random_uuid()",
+        "description": "Note:\nThis is a Primary Key.<pk/>",
+        "format": "uuid",
+        "type": "string"
+      },
+      "market_day_id": {
+        "description": "Note:\nThis is a Foreign Key to `market_days.id`.<fk table='market_days' column='id'/>",
+        "format": "uuid",
+        "type": "string"
+      },
+      "count": {
+        "default": 0,
+        "format": "integer",
+        "type": "integer"
+      },
+      "recorded_at": {
+        "default": "now()",
+        "format": "timestamp with time zone",
+        "type": "string"
+      },
+      "recorded_by": {
+        "format": "text",
+        "type": "string"
+      },
+      "notes": {
+        "format": "text",
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "outreach_summary": {
+    "properties": {
+      "attendee_id": {
+        "description": "Note:\nThis is a Primary Key.<pk/>",
+        "format": "uuid",
+        "type": "string"
+      },
+      "full_name": {
+        "format": "text",
+        "type": "string"
+      },
+      "phone": {
+        "format": "text",
+        "type": "string"
+      },
+      "gender": {
+        "format": "text",
+        "type": "string"
+      },
+      "age_range": {
+        "format": "text",
+        "type": "string"
+      },
+      "location": {
+        "format": "text",
+        "type": "string"
+      },
+      "follow_up_consent": {
+        "format": "boolean",
+        "type": "boolean"
+      },
+      "region": {
+        "format": "text",
+        "type": "string"
+      },
+      "outreach_event_name": {
+        "format": "text",
+        "type": "string"
+      },
+      "event_date": {
+        "format": "date",
+        "type": "string"
+      },
+      "import_batch": {
+        "format": "text",
+        "type": "string"
+      },
+      "referral_source": {
+        "format": "text",
+        "type": "string"
+      },
+      "business_interest": {
+        "format": "text",
+        "type": "string"
+      },
+      "runs_business": {
+        "format": "text",
+        "type": "string"
+      },
+      "business_type": {
+        "format": "text",
+        "type": "string"
+      },
+      "support_needed": {
+        "format": "text",
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "csv_import_profiles": {
+    "required": [
+      "id",
+      "name",
+      "form_id",
+      "column_map",
+      "match_rules",
+      "auto_upsert_vendor",
+      "is_active",
+      "created_at",
+      "updated_at"
+    ],
+    "properties": {
+      "id": {
+        "default": "gen_random_uuid()",
+        "description": "Note:\nThis is a Primary Key.<pk/>",
+        "format": "uuid",
+        "type": "string"
+      },
+      "name": {
+        "format": "text",
+        "type": "string"
+      },
+      "form_id": {
+        "description": "Note:\nThis is a Foreign Key to `forms.id`.<fk table='forms' column='id'/>",
+        "format": "uuid",
+        "type": "string"
+      },
+      "column_map": {
+        "format": "jsonb"
+      },
+      "match_rules": {
+        "format": "jsonb"
+      },
+      "auto_upsert_vendor": {
+        "default": true,
+        "format": "boolean",
+        "type": "boolean"
+      },
+      "is_active": {
+        "default": true,
+        "format": "boolean",
+        "type": "boolean"
+      },
+      "created_at": {
+        "default": "now()",
+        "format": "timestamp with time zone",
+        "type": "string"
+      },
+      "updated_at": {
+        "default": "now()",
+        "format": "timestamp with time zone",
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "market_days": {
+    "required": [
+      "id",
+      "region_id",
+      "event_date",
+      "status",
+      "created_at",
+      "updated_at"
+    ],
+    "properties": {
+      "id": {
+        "default": "gen_random_uuid()",
+        "description": "Note:\nThis is a Primary Key.<pk/>",
+        "format": "uuid",
+        "type": "string"
+      },
+      "region_id": {
+        "description": "Note:\nThis is a Foreign Key to `regions.id`.<fk table='regions' column='id'/>",
+        "format": "uuid",
+        "type": "string"
+      },
+      "name": {
+        "format": "text",
+        "type": "string"
+      },
+      "slug": {
+        "format": "text",
+        "type": "string"
+      },
+      "event_date": {
+        "format": "date",
+        "type": "string"
+      },
+      "edition": {
+        "format": "text",
+        "type": "string"
+      },
+      "status": {
+        "default": "upcoming",
+        "format": "text",
+        "type": "string"
+      },
+      "notes": {
+        "format": "text",
+        "type": "string"
+      },
+      "created_at": {
+        "default": "now()",
+        "format": "timestamp with time zone",
+        "type": "string"
+      },
+      "updated_at": {
+        "default": "now()",
+        "format": "timestamp with time zone",
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "vendor_registrations": {
+    "required": [
+      "id",
+      "market_day_id",
+      "vendor_id",
+      "amount_paid",
+      "payment_status",
+      "created_at",
+      "updated_at"
+    ],
+    "properties": {
+      "id": {
+        "default": "gen_random_uuid()",
+        "description": "Note:\nThis is a Primary Key.<pk/>",
+        "format": "uuid",
+        "type": "string"
+      },
+      "market_day_id": {
+        "description": "Note:\nThis is a Foreign Key to `market_days.id`.<fk table='market_days' column='id'/>",
+        "format": "uuid",
+        "type": "string"
+      },
+      "vendor_id": {
+        "description": "Note:\nThis is a Foreign Key to `vendors.id`.<fk table='vendors' column='id'/>",
+        "format": "uuid",
+        "type": "string"
+      },
+      "stall_number": {
+        "format": "text",
+        "type": "string"
+      },
+      "amount_paid": {
+        "default": 0,
+        "format": "numeric",
+        "type": "number"
+      },
+      "payment_status": {
+        "default": "unpaid",
+        "format": "text",
+        "type": "string"
+      },
+      "check_in_time": {
+        "format": "timestamp with time zone",
+        "type": "string"
+      },
+      "check_out_time": {
+        "format": "timestamp with time zone",
+        "type": "string"
+      },
+      "notes": {
+        "format": "text",
+        "type": "string"
+      },
+      "created_at": {
+        "default": "now()",
+        "format": "timestamp with time zone",
+        "type": "string"
+      },
+      "updated_at": {
+        "default": "now()",
+        "format": "timestamp with time zone",
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "form_definition": {
+    "properties": {
+      "form_id": {
+        "description": "Note:\nThis is a Primary Key.<pk/>",
+        "format": "uuid",
+        "type": "string"
+      },
+      "form_name": {
+        "format": "text",
+        "type": "string"
+      },
+      "form_slug": {
+        "format": "text",
+        "type": "string"
+      },
+      "form_description": {
+        "format": "text",
+        "type": "string"
+      },
+      "form_is_active": {
+        "format": "boolean",
+        "type": "boolean"
+      },
+      "sections": {
+        "format": "jsonb"
+      }
+    },
+    "type": "object"
+  },
+  "survey_responses": {
+    "required": [
+      "id",
+      "form_id",
+      "source",
+      "submitted_at",
+      "created_at"
+    ],
+    "properties": {
+      "id": {
+        "default": "gen_random_uuid()",
+        "description": "Note:\nThis is a Primary Key.<pk/>",
+        "format": "uuid",
+        "type": "string"
+      },
+      "form_id": {
+        "description": "Note:\nThis is a Foreign Key to `forms.id`.<fk table='forms' column='id'/>",
+        "format": "uuid",
+        "type": "string"
+      },
+      "context_type": {
+        "format": "text",
+        "type": "string"
+      },
+      "context_id": {
+        "description": "Note:\nThis is a Foreign Key to `market_days.id`.<fk table='market_days' column='id'/>",
+        "format": "uuid",
+        "type": "string"
+      },
+      "vendor_id": {
+        "description": "Note:\nThis is a Foreign Key to `vendors.id`.<fk table='vendors' column='id'/>",
+        "format": "uuid",
+        "type": "string"
+      },
+      "attendee_id": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "surveyed_by": {
+        "format": "text",
+        "type": "string"
+      },
+      "source": {
+        "default": "manual",
+        "format": "text",
+        "type": "string"
+      },
+      "import_batch": {
+        "format": "text",
+        "type": "string"
+      },
+      "submitted_at": {
+        "default": "now()",
+        "format": "timestamp with time zone",
+        "type": "string"
+      },
+      "created_at": {
+        "default": "now()",
+        "format": "timestamp with time zone",
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "regions": {
+    "required": [
+      "id",
+      "name",
+      "slug",
+      "is_active",
+      "created_at",
+      "updated_at"
+    ],
+    "properties": {
+      "id": {
+        "default": "gen_random_uuid()",
+        "description": "Note:\nThis is a Primary Key.<pk/>",
+        "format": "uuid",
+        "type": "string"
+      },
+      "name": {
+        "format": "text",
+        "type": "string"
+      },
+      "slug": {
+        "format": "text",
+        "type": "string"
+      },
+      "is_active": {
+        "default": true,
+        "format": "boolean",
+        "type": "boolean"
+      },
+      "created_at": {
+        "default": "now()",
+        "format": "timestamp with time zone",
+        "type": "string"
+      },
+      "updated_at": {
+        "default": "now()",
+        "format": "timestamp with time zone",
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "form_sections": {
+    "required": [
+      "id",
+      "form_id",
+      "name",
+      "sort_order",
+      "is_active",
+      "created_at",
+      "updated_at"
+    ],
+    "properties": {
+      "id": {
+        "default": "gen_random_uuid()",
+        "description": "Note:\nThis is a Primary Key.<pk/>",
+        "format": "uuid",
+        "type": "string"
+      },
+      "form_id": {
+        "description": "Note:\nThis is a Foreign Key to `forms.id`.<fk table='forms' column='id'/>",
+        "format": "uuid",
+        "type": "string"
+      },
+      "name": {
+        "format": "text",
+        "type": "string"
+      },
+      "description": {
+        "format": "text",
+        "type": "string"
+      },
+      "sort_order": {
+        "default": 0,
+        "format": "integer",
+        "type": "integer"
+      },
+      "is_active": {
+        "default": true,
+        "format": "boolean",
+        "type": "boolean"
+      },
+      "created_at": {
+        "default": "now()",
+        "format": "timestamp with time zone",
+        "type": "string"
+      },
+      "updated_at": {
+        "default": "now()",
+        "format": "timestamp with time zone",
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "market_day_summary": {
+    "properties": {
+      "market_day_id": {
+        "description": "Note:\nThis is a Primary Key.<pk/>",
+        "format": "uuid",
+        "type": "string"
+      },
+      "region": {
+        "format": "text",
+        "type": "string"
+      },
+      "event_date": {
+        "format": "date",
+        "type": "string"
+      },
+      "edition": {
+        "format": "text",
+        "type": "string"
+      },
+      "market_day_name": {
+        "format": "text",
+        "type": "string"
+      },
+      "status": {
+        "format": "text",
+        "type": "string"
+      },
+      "total_vendors": {
+        "format": "bigint",
+        "type": "integer"
+      },
+      "total_revenue": {
+        "format": "numeric",
+        "type": "number"
+      },
+      "total_walkins": {
+        "format": "bigint",
+        "type": "integer"
+      }
+    },
+    "type": "object"
+  },
+  "outreach_events": {
+    "required": [
+      "id",
+      "region_id",
+      "name",
+      "event_date",
+      "created_at",
+      "updated_at"
+    ],
+    "properties": {
+      "id": {
+        "default": "gen_random_uuid()",
+        "description": "Note:\nThis is a Primary Key.<pk/>",
+        "format": "uuid",
+        "type": "string"
+      },
+      "region_id": {
+        "description": "Note:\nThis is a Foreign Key to `regions.id`.<fk table='regions' column='id'/>",
+        "format": "uuid",
+        "type": "string"
+      },
+      "name": {
+        "format": "text",
+        "type": "string"
+      },
+      "event_date": {
+        "format": "date",
+        "type": "string"
+      },
+      "location": {
+        "format": "text",
+        "type": "string"
+      },
+      "organiser": {
+        "format": "text",
+        "type": "string"
+      },
+      "notes": {
+        "format": "text",
+        "type": "string"
+      },
+      "created_at": {
+        "default": "now()",
+        "format": "timestamp with time zone",
+        "type": "string"
+      },
+      "updated_at": {
+        "default": "now()",
+        "format": "timestamp with time zone",
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "survey_answers": {
+    "required": [
+      "id",
+      "response_id",
+      "question_id",
+      "created_at"
+    ],
+    "properties": {
+      "id": {
+        "default": "gen_random_uuid()",
+        "description": "Note:\nThis is a Primary Key.<pk/>",
+        "format": "uuid",
+        "type": "string"
+      },
+      "response_id": {
+        "description": "Note:\nThis is a Foreign Key to `survey_responses.id`.<fk table='survey_responses' column='id'/>",
+        "format": "uuid",
+        "type": "string"
+      },
+      "question_id": {
+        "description": "Note:\nThis is a Foreign Key to `survey_questions.id`.<fk table='survey_questions' column='id'/>",
+        "format": "uuid",
+        "type": "string"
+      },
+      "answer": {
+        "format": "text",
+        "type": "string"
+      },
+      "created_at": {
+        "default": "now()",
+        "format": "timestamp with time zone",
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "survey_questions": {
+    "required": [
+      "id",
+      "form_id",
+      "question_text",
+      "question_type",
+      "is_required",
+      "sort_order",
+      "is_active",
+      "created_at",
+      "updated_at"
+    ],
+    "properties": {
+      "id": {
+        "default": "gen_random_uuid()",
+        "description": "Note:\nThis is a Primary Key.<pk/>",
+        "format": "uuid",
+        "type": "string"
+      },
+      "form_id": {
+        "description": "Note:\nThis is a Foreign Key to `forms.id`.<fk table='forms' column='id'/>",
+        "format": "uuid",
+        "type": "string"
+      },
+      "section_id": {
+        "description": "Note:\nThis is a Foreign Key to `form_sections.id`.<fk table='form_sections' column='id'/>",
+        "format": "uuid",
+        "type": "string"
+      },
+      "question_text": {
+        "format": "text",
+        "type": "string"
+      },
+      "question_type": {
+        "default": "text",
+        "format": "text",
+        "type": "string"
+      },
+      "options": {
+        "format": "jsonb"
+      },
+      "is_required": {
+        "default": false,
+        "format": "boolean",
+        "type": "boolean"
+      },
+      "sort_order": {
+        "default": 0,
+        "format": "integer",
+        "type": "integer"
+      },
+      "is_active": {
+        "default": true,
+        "format": "boolean",
+        "type": "boolean"
+      },
+      "csv_column": {
+        "format": "text",
+        "type": "string"
+      },
+      "created_at": {
+        "default": "now()",
+        "format": "timestamp with time zone",
+        "type": "string"
+      },
+      "updated_at": {
+        "default": "now()",
+        "format": "timestamp with time zone",
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "question_logic": {
+    "required": [
+      "id",
+      "source_question_id",
+      "operator",
+      "action",
+      "target_question_id",
+      "sort_order",
+      "created_at"
+    ],
+    "properties": {
+      "id": {
+        "default": "gen_random_uuid()",
+        "description": "Note:\nThis is a Primary Key.<pk/>",
+        "format": "uuid",
+        "type": "string"
+      },
+      "source_question_id": {
+        "description": "Note:\nThis is a Foreign Key to `survey_questions.id`.<fk table='survey_questions' column='id'/>",
+        "format": "uuid",
+        "type": "string"
+      },
+      "operator": {
+        "format": "text",
+        "type": "string"
+      },
+      "comparison_value": {
+        "format": "text",
+        "type": "string"
+      },
+      "action": {
+        "default": "show",
+        "format": "text",
+        "type": "string"
+      },
+      "target_question_id": {
+        "description": "Note:\nThis is a Foreign Key to `survey_questions.id`.<fk table='survey_questions' column='id'/>",
+        "format": "uuid",
+        "type": "string"
+      },
+      "sort_order": {
+        "default": 0,
+        "format": "integer",
+        "type": "integer"
+      },
+      "created_at": {
+        "default": "now()",
+        "format": "timestamp with time zone",
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "csv_import_log": {
+    "required": [
+      "id",
+      "import_batch",
+      "rows_processed",
+      "rows_inserted",
+      "rows_skipped",
+      "rows_errored",
+      "imported_at"
+    ],
+    "properties": {
+      "id": {
+        "default": "gen_random_uuid()",
+        "description": "Note:\nThis is a Primary Key.<pk/>",
+        "format": "uuid",
+        "type": "string"
+      },
+      "import_batch": {
+        "format": "text",
+        "type": "string"
+      },
+      "profile_id": {
+        "description": "Note:\nThis is a Foreign Key to `csv_import_profiles.id`.<fk table='csv_import_profiles' column='id'/>",
+        "format": "uuid",
+        "type": "string"
+      },
+      "filename": {
+        "format": "text",
+        "type": "string"
+      },
+      "form_id": {
+        "description": "Note:\nThis is a Foreign Key to `forms.id`.<fk table='forms' column='id'/>",
+        "format": "uuid",
+        "type": "string"
+      },
+      "context_type": {
+        "format": "text",
+        "type": "string"
+      },
+      "context_id": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "region_id": {
+        "description": "Note:\nThis is a Foreign Key to `regions.id`.<fk table='regions' column='id'/>",
+        "format": "uuid",
+        "type": "string"
+      },
+      "rows_processed": {
+        "default": 0,
+        "format": "integer",
+        "type": "integer"
+      },
+      "rows_inserted": {
+        "default": 0,
+        "format": "integer",
+        "type": "integer"
+      },
+      "rows_skipped": {
+        "default": 0,
+        "format": "integer",
+        "type": "integer"
+      },
+      "rows_errored": {
+        "default": 0,
+        "format": "integer",
+        "type": "integer"
+      },
+      "error_details": {
+        "format": "jsonb"
+      },
+      "imported_by": {
+        "format": "text",
+        "type": "string"
+      },
+      "imported_at": {
+        "default": "now()",
+        "format": "timestamp with time zone",
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "vendor_attendance_history": {
+    "properties": {
+      "vendor_id": {
+        "description": "Note:\nThis is a Primary Key.<pk/>",
+        "format": "uuid",
+        "type": "string"
+      },
+      "business_name": {
+        "format": "text",
+        "type": "string"
+      },
+      "contact_name": {
+        "format": "text",
+        "type": "string"
+      },
+      "category": {
+        "format": "text",
+        "type": "string"
+      },
+      "region": {
+        "format": "text",
+        "type": "string"
+      },
+      "event_date": {
+        "format": "date",
+        "type": "string"
+      },
+      "edition": {
+        "format": "text",
+        "type": "string"
+      },
+      "market_day_name": {
+        "format": "text",
+        "type": "string"
+      },
+      "amount_paid": {
+        "format": "numeric",
+        "type": "number"
+      },
+      "payment_status": {
+        "format": "text",
+        "type": "string"
+      },
+      "stall_number": {
+        "format": "text",
+        "type": "string"
+      },
+      "check_in_time": {
+        "format": "timestamp with time zone",
+        "type": "string"
+      },
+      "check_out_time": {
+        "format": "timestamp with time zone",
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "section_logic": {
+    "required": [
+      "id",
+      "source_question_id",
+      "operator",
+      "action",
+      "target_section_id",
+      "sort_order",
+      "created_at"
+    ],
+    "properties": {
+      "id": {
+        "default": "gen_random_uuid()",
+        "description": "Note:\nThis is a Primary Key.<pk/>",
+        "format": "uuid",
+        "type": "string"
+      },
+      "source_question_id": {
+        "description": "Note:\nThis is a Foreign Key to `survey_questions.id`.<fk table='survey_questions' column='id'/>",
+        "format": "uuid",
+        "type": "string"
+      },
+      "operator": {
+        "format": "text",
+        "type": "string"
+      },
+      "comparison_value": {
+        "format": "text",
+        "type": "string"
+      },
+      "action": {
+        "default": "show",
+        "format": "text",
+        "type": "string"
+      },
+      "target_section_id": {
+        "description": "Note:\nThis is a Foreign Key to `form_sections.id`.<fk table='form_sections' column='id'/>",
+        "format": "uuid",
+        "type": "string"
+      },
+      "sort_order": {
+        "default": 0,
+        "format": "integer",
+        "type": "integer"
+      },
+      "created_at": {
+        "default": "now()",
+        "format": "timestamp with time zone",
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "vendor_impact_summary": {
+    "properties": {
+      "vendor_id": {
+        "description": "Note:\nThis is a Primary Key.<pk/>",
+        "format": "uuid",
+        "type": "string"
+      },
+      "business_name": {
+        "format": "text",
+        "type": "string"
+      },
+      "region": {
+        "format": "text",
+        "type": "string"
+      },
+      "event_date": {
+        "format": "date",
+        "type": "string"
+      },
+      "edition": {
+        "format": "text",
+        "type": "string"
+      },
+      "submitted_at": {
+        "format": "timestamp with time zone",
+        "type": "string"
+      },
+      "import_batch": {
+        "format": "text",
+        "type": "string"
+      },
+      "sales_count": {
+        "format": "text",
+        "type": "string"
+      },
+      "total_revenue": {
+        "format": "text",
+        "type": "string"
+      },
+      "new_customers": {
+        "format": "text",
+        "type": "string"
+      },
+      "has_employees": {
+        "format": "text",
+        "type": "string"
+      },
+      "employee_count": {
+        "format": "text",
+        "type": "string"
+      },
+      "satisfaction_score": {
+        "format": "text",
+        "type": "string"
+      },
+      "likelihood_to_return": {
+        "format": "text",
+        "type": "string"
+      },
+      "challenges": {
+        "format": "text",
+        "type": "string"
+      },
+      "suggestions": {
+        "format": "text",
+        "type": "string"
+      }
+    },
+    "type": "object"
+  }
+}

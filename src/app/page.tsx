@@ -1,10 +1,17 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useLiveMetrics } from '@/hooks/useLiveMetrics';
 import { useRegion } from '@/context/RegionContext';
-import { AdminShell, Market } from '@/components/layout/AdminShell';
+import { AdminShell } from '@/components/layout/AdminShell';
+
+export interface Market {
+  id: string;
+  name: string;
+  type: 'flagship' | 'regional' | 'pilot';
+  vendorsCount: number;
+}
 import { OverviewCards, OverviewData } from '@/components/dashboard/OverviewCards';
 import { LiveCounter } from '@/components/dashboard/LiveCounter';
 import { AlertBanner } from '@/components/dashboard/AlertBanner';
@@ -44,7 +51,9 @@ import {
   Calendar,
   Map,
   ChevronRight,
-  Loader2
+  Loader2,
+  CheckCircle2,
+  AlertCircle
 } from 'lucide-react';
 
 // ==========================================
@@ -101,7 +110,21 @@ const getVendorDetailData = (vendor: any) => {
 
 export default function Home() {
   const [mounted, setMounted] = useState(false);
-  const { activeRegion, activeEdition, regions: ctxRegions, switchRegion, loadingRegions } = useRegion();
+  const { activeRegion, activeEdition, regions: ctxRegions, switchRegion, loadingRegions, editions: ctxEditions, setActiveEdition } = useRegion();
+
+  const [toasts, setToasts] = useState<Array<{ id: number; message: string; type: 'success' | 'error' }>>([]);
+
+  const addToast = (message: string, type: 'success' | 'error' = 'success') => {
+    const id = Date.now();
+    setToasts(prev => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setToasts(prev => prev.filter(t => t.id !== id));
+    }, 4000);
+  };
+
+  const fileInputRef1 = useRef<HTMLInputElement>(null);
+  const fileInputRef2 = useRef<HTMLInputElement>(null);
+  const fileInputRef3 = useRef<HTMLInputElement>(null);
 
   const handleCreateRegionFromName = async (name: string) => {
     try {
@@ -167,347 +190,346 @@ export default function Home() {
   const [loadingVendors, setLoadingVendors] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-
-  useEffect(() => {
-    async function fetchVendors() {
-      try {
-        const supabase = createClient();
-        if (!supabase) {
-          setError("Supabase client not initialized.");
-          setLoadingVendors(false);
-          return;
-        }
-
-        if (!activeRegion) {
-          setVendors([]);
-          setRunningCount(0);
-          setLoadingVendors(false);
-          return;
-        }
-
-        let query = supabase
-          .from('survey_responses')
-          .select(`
-            vendor_id,
-            vendors (
-              id,
-              business_name,
-              contact_name,
-              phone,
-              email,
-              category,
-              is_active,
-              created_at
-            ),
-            market_days!inner (
-              id,
-              region_id
-            )
-          `)
-          .eq('market_days.region_id', activeRegion.id);
-
-        if (activeEdition) {
-          query = query.eq('market_day_id', activeEdition.id);
-        }
-
-        const { data, error } = await query;
-
-        if (error) {
-          throw error;
-        }
-
-        const uniqueVendors: any[] = [];
-        const seenIds = new Set();
-        (data || []).forEach((row: any) => {
-          const v = row.vendors;
-          if (v && !seenIds.has(v.id)) {
-            seenIds.add(v.id);
-            uniqueVendors.push(v);
-          }
-        });
-
-        const mappedVendors = uniqueVendors.map((v: any) => {
-          return {
-            id: v.id,
-            name: v.contact_name || 'Anonymous',
-            phone: v.phone || '',
-            businessName: v.business_name || '',
-            gender: 'Female',
-            status: v.is_active ? ('active' as const) : ('new' as const),
-            region: activeRegion.name,
-            attendanceCount: 1,
-            lastSeen: activeEdition ? activeEdition.name : 'May 2026',
-            age: 28,
-            employeeCount: '',
-            newHiresThisYear: '',
-            businessType: v.category || 'Fashion',
-            sellsOwnProducts: 'Yes',
-            exportReady: 'No',
-            impactRating: 4,
-            businessGrowthNarrative: '',
-            dob: '',
-            amountPaid: '0',
-            email: v.email || ''
-          };
-        });
-
-        setVendors(mappedVendors);
-        setRunningCount(mappedVendors.length);
-        setError(null);
-      } catch (err: any) {
-        console.error("Supabase error fetching vendors:", err);
-        setVendors([]);
-        setError(err.message || String(err));
-      } finally {
+  const fetchVendors = async () => {
+    try {
+      const supabase = createClient();
+      if (!supabase) {
+        setError("Supabase client not initialized.");
         setLoadingVendors(false);
+        return;
       }
+
+      if (!activeRegion) {
+        setVendors([]);
+        setRunningCount(0);
+        setLoadingVendors(false);
+        return;
+      }
+
+      let query = supabase
+        .from('survey_responses')
+        .select(`
+          vendor_id,
+          vendors (
+            id,
+            business_name,
+            contact_name,
+            phone,
+            email,
+            category,
+            is_active,
+            created_at
+          ),
+          market_days!inner (
+            id,
+            region_id
+          )
+        `)
+        .eq('market_days.region_id', activeRegion.id);
+
+      if (activeEdition) {
+        query = query.eq('context_id', activeEdition.id);
+      }
+
+      const { data, error } = await query;
+
+      if (error) {
+        throw error;
+      }
+
+      const uniqueVendors: any[] = [];
+      const seenIds = new Set();
+      (data || []).forEach((row: any) => {
+        const v = row.vendors;
+        if (v && !seenIds.has(v.id)) {
+          seenIds.add(v.id);
+          uniqueVendors.push(v);
+        }
+      });
+
+      const mappedVendors = uniqueVendors.map((v: any) => {
+        return {
+          id: v.id,
+          name: v.contact_name || 'Anonymous',
+          phone: v.phone || '',
+          businessName: v.business_name || '',
+          gender: 'Female',
+          status: v.is_active ? ('active' as const) : ('new' as const),
+          region: activeRegion.name,
+          attendanceCount: 1,
+          lastSeen: activeEdition ? activeEdition.name : 'May 2026',
+          age: 28,
+          employeeCount: '',
+          newHiresThisYear: '',
+          businessType: v.category || 'Fashion',
+          sellsOwnProducts: 'Yes',
+          exportReady: 'No',
+          impactRating: 4,
+          businessGrowthNarrative: '',
+          dob: '',
+          amountPaid: '0',
+          email: v.email || ''
+        };
+      });
+
+      setVendors(mappedVendors);
+      setRunningCount(mappedVendors.length);
+      setError(null);
+    } catch (err: any) {
+      console.error("Supabase error fetching vendors:", err);
+      setVendors([]);
+      setError(err.message || String(err));
+    } finally {
+      setLoadingVendors(false);
     }
+  };
 
-    async function fetchWalkins() {
-      try {
-        const supabase = createClient();
-        if (!supabase) return;
+  const fetchWalkins = async () => {
+    try {
+      const supabase = createClient();
+      if (!supabase) return;
 
-        if (!activeRegion) {
-          setWalkins([]);
-          setRunningWalkins(0);
-          return;
-        }
-
-        let query = supabase
-          .from('walkins')
-          .select(`
-            *,
-            market_days!inner (
-              region_id
-            )
-          `)
-          .eq('market_days.region_id', activeRegion.id);
-
-        if (activeEdition) {
-          query = query.eq('market_day_id', activeEdition.id);
-        }
-
-        const { data, error } = await query;
-
-        if (error) throw error;
-
-        const mappedWalkins = (data || []).map((w: any) => {
-          let parsedNotes: any = {};
-          try {
-            if (w.notes) parsedNotes = JSON.parse(w.notes);
-          } catch (e) {}
-
-          return {
-            id: w.id,
-            name: parsedNotes.name || w.recorded_by || 'Anonymous Visitor',
-            phone: parsedNotes.phone || '',
-            gender: parsedNotes.gender || 'Female',
-            age: parsedNotes.age || 25,
-            howHeard: parsedNotes.how_heard || 'Passing By',
-            date: w.recorded_at ? new Date(w.recorded_at).toISOString().slice(0, 16).replace('T', ' ') : '',
-            region: activeRegion.name,
-            editionId: w.market_day_id || ''
-          };
-        });
-
-        setWalkins(mappedWalkins);
-        setRunningWalkins(mappedWalkins.length);
-      } catch (err: any) {
-        console.error("Supabase error fetching walkins:", err);
+      if (!activeRegion) {
         setWalkins([]);
+        setRunningWalkins(0);
+        return;
       }
+
+      let query = supabase
+        .from('walkins')
+        .select(`
+          *,
+          market_days!inner (
+            region_id
+          )
+        `)
+        .eq('market_days.region_id', activeRegion.id);
+
+      if (activeEdition) {
+        query = query.eq('market_day_id', activeEdition.id);
+      }
+
+      const { data, error } = await query;
+
+      if (error) throw error;
+
+      const mappedWalkins = (data || []).map((w: any) => {
+        let parsedNotes: any = {};
+        try {
+          if (w.notes) parsedNotes = JSON.parse(w.notes);
+        } catch (e) {}
+
+        return {
+          id: w.id,
+          name: parsedNotes.name || w.recorded_by || 'Anonymous Visitor',
+          phone: parsedNotes.phone || '',
+          gender: parsedNotes.gender || 'Female',
+          age: parsedNotes.age || 25,
+          howHeard: parsedNotes.how_heard || 'Passing By',
+          date: w.recorded_at ? new Date(w.recorded_at).toISOString().slice(0, 16).replace('T', ' ') : '',
+          region: activeRegion.name,
+          editionId: w.market_day_id || ''
+        };
+      });
+
+      setWalkins(mappedWalkins);
+      setRunningWalkins(mappedWalkins.length);
+    } catch (err: any) {
+      console.error("Supabase error fetching walkins:", err);
+      setWalkins([]);
     }
+  };
 
-    async function fetchSurveyResponses() {
-      try {
-        const supabase = createClient();
-        if (!supabase) return;
+  const fetchSurveyResponses = async () => {
+    try {
+      const supabase = createClient();
+      if (!supabase) return;
 
-        if (!activeRegion) {
-          setSurveyResponses([]);
-          return;
+      if (!activeRegion) {
+        setSurveyResponses([]);
+        return;
+      }
+
+      let query = supabase
+        .from('survey_responses')
+        .select(`
+          id,
+          submitted_at,
+          source,
+          surveyed_by,
+          import_batch,
+          vendor_id,
+          vendors (
+            id,
+            business_name,
+            contact_name,
+            phone,
+            category
+          ),
+          market_days!inner (
+            id,
+            name,
+            region_id,
+            regions (
+              id,
+              name
+            )
+          )
+        `)
+        .eq('market_days.region_id', activeRegion.id);
+
+      if (activeEdition) {
+        query = query.eq('context_id', activeEdition.id);
+      }
+
+      const { data, error } = await query.order('submitted_at', { ascending: false });
+
+      if (error) {
+        console.error("Supabase error:", error.message, error.code, error.details);
+        setSurveyResponses([]);
+        return;
+      }
+
+      const resolvedData = data ?? [];
+      setSurveyResponses(resolvedData);
+      
+      const activities = resolvedData.map((sr: any) => {
+        const v = sr.vendors || {};
+        const md = sr.market_days || {};
+        return {
+          id: sr.id,
+          type: 'collection' as const,
+          name: v.contact_name || 'Anonymous',
+          phone: v.phone || undefined,
+          detail: `Collected: ${v.business_name || 'General Info'} • ${md.name || 'Event'}`,
+          timestamp: sr.submitted_at ? new Date(sr.submitted_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''
+        };
+      });
+      setRecentActivities(activities);
+    } catch (err: any) {
+      console.error("Supabase error fetching responses:", err?.message, err?.code, err?.details, JSON.stringify(err));
+      setSurveyResponses([]);
+    }
+  };
+
+  const fetchRegions = async () => {
+    try {
+      const supabase = createClient();
+      if (!supabase) return;
+      const { data, error } = await supabase
+        .from('regions')
+        .select('id, name, slug');
+      if (error) throw error;
+      if (data && data.length > 0) {
+        const names = data.map((r: any) => r.name);
+        setRegions(names);
+        
+        const dbMarkets = data.map((r: any, idx: number) => ({
+          id: r.slug || r.name.toLowerCase(),
+          name: `${r.name} Regional Market`,
+          type: (idx === 0 ? 'flagship' : idx === 1 ? 'regional' : 'pilot') as any,
+          vendorsCount: 0
+        }));
+        setMarkets(dbMarkets);
+        if (dbMarkets.length > 0) {
+          setCurrentMarket(dbMarkets[0]);
         }
+      }
+    } catch (err: any) {
+      console.error("Failed to fetch regions from Supabase:", err);
+    }
+  };
 
-        let query = supabase
-          .from('survey_responses')
+  const fetchMarketDays = async () => {
+    try {
+      const supabase = createClient();
+      if (!supabase) return;
+      const { data, error } = await supabase
+        .from('market_days')
+        .select('id, name, status');
+
+      if (error) throw error;
+
+      if (data) {
+        const mappedEditions = data.map((md: any) => ({
+          id: md.id,
+          name: md.name
+        }));
+        setEditions(mappedEditions);
+        if (mappedEditions.length > 0) {
+          setQuickEntryEdition(mappedEditions[0].id);
+        }
+      }
+    } catch (err: any) {
+      console.error("Failed to fetch market days:", err);
+    }
+  };
+
+  const fetchFormsAndQuestions = async () => {
+    try {
+      const supabase = createClient();
+      if (!supabase) return;
+
+      const { data: formsData, error: formsError } = await supabase
+        .from('forms')
+        .select('id, name, is_active, created_at');
+
+      if (formsError) throw formsError;
+
+      if (formsData) {
+        const mappedTemplates = formsData.map((f: any) => ({
+          id: f.id,
+          name: f.name,
+          status: f.is_active ? ('active' as const) : ('draft' as const),
+          questionCount: 0,
+          lastEdited: f.created_at ? new Date(f.created_at).toISOString().split('T')[0] : ''
+        }));
+
+        const { data: questionsData, error: questionsError } = await supabase
+          .from('survey_questions')
           .select(`
             id,
-            submitted_at,
-            source,
-            surveyed_by,
-            import_batch,
-            vendor_id,
-            vendors (
-              id,
-              business_name,
-              contact_name,
-              phone,
-              category
-            ),
-            market_days!inner (
-              id,
-              name,
-              region_id,
-              regions (
-                id,
-                name
-              )
-            )
-          `)
-          .eq('market_days.region_id', activeRegion.id);
+            form_id,
+            question_text,
+            question_type,
+            is_required,
+            csv_column
+          `);
 
-        if (activeEdition) {
-          query = query.eq('market_day_id', activeEdition.id);
-        }
+        if (questionsError) throw questionsError;
 
-        const { data, error } = await query.order('submitted_at', { ascending: false });
+        if (questionsData) {
+          const templatesWithCount = mappedTemplates.map((t: any) => {
+            const qCount = questionsData.filter((q: any) => q.form_id === t.id).length;
+            return { ...t, questionCount: qCount };
+          });
+          setFormTemplates(templatesWithCount);
 
-        if (error) {
-          console.error("Supabase error:", error.message, error.code, error.details);
-          setSurveyResponses([]);
-          return;
-        }
-
-        const resolvedData = data ?? [];
-        setSurveyResponses(resolvedData);
-        
-        const activities = resolvedData.map((sr: any) => {
-          const v = sr.vendors || {};
-          const md = sr.market_days || {};
-          return {
-            id: sr.id,
-            type: 'collection' as const,
-            name: v.contact_name || 'Anonymous',
-            phone: v.phone || undefined,
-            detail: `Collected: ${v.business_name || 'General Info'} • ${md.name || 'Event'}`,
-            timestamp: sr.submitted_at ? new Date(sr.submitted_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : ''
-          };
-        });
-        setRecentActivities(activities);
-      } catch (err: any) {
-        console.error("Supabase error fetching responses:", err?.message, err?.code, err?.details, JSON.stringify(err));
-        setSurveyResponses([]);
-      }
-    }
-
-    async function fetchRegions() {
-      try {
-        const supabase = createClient();
-        if (!supabase) return;
-        const { data, error } = await supabase
-          .from('regions')
-          .select('id, name, slug');
-        if (error) throw error;
-        if (data && data.length > 0) {
-          const names = data.map((r: any) => r.name);
-          setRegions(names);
-          
-          const dbMarkets = data.map((r: any, idx: number) => ({
-            id: r.slug || r.name.toLowerCase(),
-            name: `${r.name} Regional Market`,
-            type: (idx === 0 ? 'flagship' : idx === 1 ? 'regional' : 'pilot') as any,
-            vendorsCount: 0
-          }));
-          setMarkets(dbMarkets);
-          if (dbMarkets.length > 0) {
-            setCurrentMarket(dbMarkets[0]);
+          const questionsMap: Record<string, Question[]> = {};
+          for (const t of templatesWithCount) {
+            const qs = questionsData
+              .filter((q: any) => q.form_id === t.id)
+              .map((q: any) => ({
+                id: q.id,
+                text: q.question_text,
+                type: q.question_type === 'select' ? 'dropdown' : q.question_type,
+                required: q.is_required,
+                helpText: '',
+                options: q.question_type === 'select' 
+                  ? (q.csv_column === 'gender' ? ['Female', 'Male', 'Other'] : ['Food', 'Fashion', 'Crafts', 'Beauty', 'Electronics', 'Agriculture'])
+                  : undefined
+              }));
+            questionsMap[t.id] = qs;
           }
+          setFormQuestions(questionsMap);
         }
-      } catch (err: any) {
-        console.error("Failed to fetch regions from Supabase:", err);
       }
+    } catch (err: any) {
+      console.error("Failed to fetch forms and questions:", err);
     }
+  };
 
-    async function fetchMarketDays() {
-      try {
-        const supabase = createClient();
-        if (!supabase) return;
-        const { data, error } = await supabase
-          .from('market_days')
-          .select('id, name, status');
-
-        if (error) throw error;
-
-        if (data) {
-          const mappedEditions = data.map((md: any) => ({
-            id: md.id,
-            name: md.name
-          }));
-          setEditions(mappedEditions);
-          if (mappedEditions.length > 0) {
-            setQuickEntryEdition(mappedEditions[0].id);
-          }
-        }
-      } catch (err: any) {
-        console.error("Failed to fetch market days:", err);
-      }
-    }
-
-    async function fetchFormsAndQuestions() {
-      try {
-        const supabase = createClient();
-        if (!supabase) return;
-
-        const { data: formsData, error: formsError } = await supabase
-          .from('forms')
-          .select('id, name, is_active, created_at');
-
-        if (formsError) throw formsError;
-
-        if (formsData) {
-          const mappedTemplates = formsData.map((f: any) => ({
-            id: f.id,
-            name: f.name,
-            status: f.is_active ? ('active' as const) : ('draft' as const),
-            questionCount: 0,
-            lastEdited: f.created_at ? new Date(f.created_at).toISOString().split('T')[0] : ''
-          }));
-
-          const { data: questionsData, error: questionsError } = await supabase
-            .from('survey_questions')
-            .select(`
-              id,
-              form_id,
-              question_text,
-              question_type,
-              is_required,
-              csv_column
-            `);
-
-          if (questionsError) throw questionsError;
-
-          if (questionsData) {
-            const templatesWithCount = mappedTemplates.map((t: any) => {
-              const qCount = questionsData.filter((q: any) => q.form_id === t.id).length;
-              return { ...t, questionCount: qCount };
-            });
-            setFormTemplates(templatesWithCount);
-
-            const questionsMap: Record<string, Question[]> = {};
-            for (const t of templatesWithCount) {
-              const qs = questionsData
-                .filter((q: any) => q.form_id === t.id)
-                .map((q: any) => ({
-                  id: q.id,
-                  text: q.question_text,
-                  type: q.question_type === 'select' ? 'dropdown' : q.question_type,
-                  required: q.is_required,
-                  helpText: '',
-                  options: q.question_type === 'select' 
-                    ? (q.csv_column === 'gender' ? ['Female', 'Male', 'Other'] : ['Food', 'Fashion', 'Crafts', 'Beauty', 'Electronics', 'Agriculture'])
-                    : undefined
-                }));
-              questionsMap[t.id] = qs;
-            }
-            setFormQuestions(questionsMap);
-          }
-        }
-      } catch (err: any) {
-        console.error("Failed to fetch forms and questions:", err);
-      }
-    }
-
+  useEffect(() => {
     let vendorsChannel: any;
     let regionsChannel: any;
     let walkinsChannel: any;
@@ -908,6 +930,10 @@ export default function Home() {
   const handlePaidSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!paidFormValues.phone || !paidFormValues.name) return;
+    if (!activeEdition) {
+      addToast("Please select an active event edition first!", "error");
+      return;
+    }
 
     try {
       const supabase = createClient();
@@ -922,7 +948,9 @@ export default function Home() {
 
       if (findError) throw findError;
 
+      let vendorId;
       if (existing && existing.length > 0) {
+        vendorId = existing[0].id;
         const { error: updateError } = await supabase
           .from('vendors')
           .update({
@@ -932,12 +960,12 @@ export default function Home() {
             category: 'Fashion',
             is_active: true
           })
-          .eq('id', existing[0].id);
+          .eq('id', vendorId);
 
         if (updateError) throw updateError;
-        console.log("Updated existing vendor:", existing[0].id);
+        console.log("Updated existing vendor:", vendorId);
       } else {
-        const { error: insertError } = await supabase
+        const { data: inserted, error: insertError } = await supabase
           .from('vendors')
           .insert({
             business_name: paidFormValues.businessName,
@@ -946,10 +974,50 @@ export default function Home() {
             email: paidFormValues.email,
             category: 'Fashion',
             is_active: true
-          });
+          })
+          .select();
 
         if (insertError) throw insertError;
-        console.log("Inserted new vendor");
+        if (!inserted || inserted.length === 0) throw new Error("Failed to insert vendor profile.");
+        vendorId = inserted[0].id;
+        console.log("Inserted new vendor:", vendorId);
+      }
+
+      // Link vendor to activeEdition by creating a survey response under "Vendor Registration Form"
+      if (activeEdition && vendorId) {
+        const { data: formData, error: fError } = await supabase
+          .from('forms')
+          .select('id')
+          .eq('slug', 'vendor_registration')
+          .limit(1);
+
+        if (fError) throw fError;
+        if (formData && formData.length > 0) {
+          const formId = formData[0].id;
+          
+          // Check if there is already a survey response for this vendor in this active edition
+          const { data: existingResponse } = await supabase
+            .from('survey_responses')
+            .select('id')
+            .eq('vendor_id', vendorId)
+            .eq('form_id', formId)
+            .eq('context_id', activeEdition.id)
+            .limit(1);
+
+          if (!existingResponse || existingResponse.length === 0) {
+            const { error: resError } = await supabase
+              .from('survey_responses')
+              .insert({
+                form_id: formId,
+                context_type: 'market_day',
+                context_id: activeEdition.id,
+                vendor_id: vendorId,
+                source: 'manual',
+                submitted_at: new Date().toISOString()
+              });
+            if (resError) throw resError;
+          }
+        }
       }
 
       const timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -967,15 +1035,21 @@ export default function Home() {
         vendorName: paidFormValues.name,
         onAddAnother: () => resetPaidForm()
       });
+
+      addToast(`Paid vendor "${paidFormValues.name}" registered successfully!`, "success");
     } catch (err: any) {
       console.error("Supabase error saving vendor:", err);
-      alert("Error saving vendor: " + (err.message || err));
+      addToast("Error saving vendor: " + (err.message || err), "error");
     }
   };
 
   const handleCollectionSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!collectionFormValues.phone || !collectionFormValues.name) return;
+    if (!activeEdition) {
+      addToast("Please select an active event edition first!", "error");
+      return;
+    }
 
     try {
       const supabase = createClient();
@@ -990,7 +1064,7 @@ export default function Home() {
       if (vError) throw vError;
 
       if (!vendorData || vendorData.length === 0) {
-        alert('Paid registration not found. Please register this vendor using the Paid Vendor form first.');
+        addToast('Paid registration not found. Please register this vendor using the Paid Vendor form first.', 'error');
         return;
       }
 
@@ -1014,7 +1088,7 @@ export default function Home() {
         .insert({
           form_id: formId,
           context_type: 'market_day',
-          context_id: quickEntryEdition || null,
+          context_id: activeEdition.id,
           vendor_id: vendorId,
           source: 'manual',
           submitted_at: new Date().toISOString()
@@ -1076,16 +1150,18 @@ export default function Home() {
         vendorName: collectionFormValues.name,
         onAddAnother: () => resetCollectionForm()
       });
+
+      addToast(`Field collection sheet for "${collectionFormValues.name}" saved!`, "success");
     } catch (err: any) {
       console.error("Supabase error submitting survey:", err);
-      alert("Error submitting survey: " + (err.message || err));
+      addToast("Error submitting survey: " + (err.message || err), "error");
     }
   };
 
   const handleWalkinSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeEdition) {
-      alert("Please select or create an active event edition first!");
+      addToast("Please select an active event edition first!", "error");
       return;
     }
 
@@ -1121,9 +1197,11 @@ export default function Home() {
       });
       // Trigger local fetch
       fetchWalkins();
+
+      addToast(`Walk-in guest logged successfully!`, "success");
     } catch (err: any) {
       console.error("Supabase error inserting walk-in:", err);
-      alert("Error adding walk-in: " + (err.message || err));
+      addToast("Error submitting walk-in: " + (err.message || err), "error");
     }
   };
 
@@ -1489,11 +1567,503 @@ export default function Home() {
     );
   }
 
+  const parseCSV = (text: string): string[][] => {
+    const lines = text.split(/\r?\n/);
+    return lines
+      .map(line => {
+        const result = [];
+        let current = '';
+        let inQuotes = false;
+        for (let i = 0; i < line.length; i++) {
+          const char = line[i];
+          if (char === '"') {
+            inQuotes = !inQuotes;
+          } else if (char === ',' && !inQuotes) {
+            result.push(current.trim());
+            current = '';
+          } else {
+            current += char;
+          }
+        }
+        result.push(current.trim());
+        return result;
+      })
+      .filter(row => row.length > 0 && row.some(cell => cell !== ''));
+  };
+
+  const downloadCSV = (csvContent: string, filename: string) => {
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.setAttribute("href", url);
+    link.setAttribute("download", filename);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const handleImportConfirmedVendors = async (file: File) => {
+    if (!activeEdition || !activeRegion) {
+      addToast("Please select an active workspace (region & edition) first!", "error");
+      return;
+    }
+
+    try {
+      const text = await file.text();
+      const rows = parseCSV(text);
+      if (rows.length === 0) {
+        addToast("CSV is empty", "error");
+        return;
+      }
+
+      // Check header
+      let startIdx = 0;
+      const firstRow = rows[0].map(c => c.toLowerCase());
+      if (firstRow.includes('name') || firstRow.includes('phone')) {
+        startIdx = 1;
+      }
+
+      const nameCol = firstRow.indexOf('name') !== -1 ? firstRow.indexOf('name') : 0;
+      const phoneCol = firstRow.indexOf('phone') !== -1 ? firstRow.indexOf('phone') : 1;
+
+      const supabase = createClient();
+      if (!supabase) throw new Error("Supabase not initialized");
+
+      // Lookup form for Vendor Registration Form
+      const { data: formData, error: fError } = await supabase
+        .from('forms')
+        .select('id')
+        .eq('slug', 'vendor_registration')
+        .limit(1);
+
+      if (fError) throw fError;
+      if (!formData || formData.length === 0) throw new Error("Vendor Registration Form not found in database.");
+      const formId = formData[0].id;
+
+      let count = 0;
+      for (let i = startIdx; i < rows.length; i++) {
+        const row = rows[i];
+        const name = row[nameCol];
+        const phone = row[phoneCol];
+        if (!phone || !name) continue;
+
+        // Check if vendor exists
+        const { data: existing } = await supabase
+          .from('vendors')
+          .select('id')
+          .eq('phone', phone)
+          .limit(1);
+
+        let vendorId;
+        if (existing && existing.length > 0) {
+          vendorId = existing[0].id;
+          await supabase
+            .from('vendors')
+            .update({ contact_name: name, is_active: true })
+            .eq('id', vendorId);
+        } else {
+          const { data: inserted } = await supabase
+            .from('vendors')
+            .insert({ contact_name: name, phone, is_active: true })
+            .select();
+          if (inserted && inserted.length > 0) {
+             vendorId = inserted[0].id;
+          }
+        }
+
+        if (vendorId) {
+          // Insert survey response if not exists
+          const { data: existingRes } = await supabase
+            .from('survey_responses')
+            .select('id')
+            .eq('vendor_id', vendorId)
+            .eq('form_id', formId)
+            .eq('context_id', activeEdition.id)
+            .limit(1);
+
+          if (!existingRes || existingRes.length === 0) {
+            await supabase
+              .from('survey_responses')
+              .insert({
+                form_id: formId,
+                context_type: 'market_day',
+                context_id: activeEdition.id,
+                vendor_id: vendorId,
+                source: 'csv_import',
+                submitted_at: new Date().toISOString()
+              });
+          }
+          count++;
+        }
+      }
+
+      addToast(`Imported ${count} vendors successfully!`, "success");
+      fetchVendors();
+    } catch (err: any) {
+      console.error(err);
+      addToast("Import failed: " + err.message, "error");
+    }
+  };
+
+  const handleImportCollectedData = async (file: File) => {
+    if (!activeEdition || !activeRegion) {
+      addToast("Please select an active workspace (region & edition) first!", "error");
+      return;
+    }
+
+    try {
+      const text = await file.text();
+      const rows = parseCSV(text);
+      if (rows.length === 0) {
+        addToast("CSV is empty", "error");
+        return;
+      }
+
+      let startIdx = 0;
+      const firstRow = rows[0].map(c => c.toLowerCase());
+      if (firstRow.includes('name') || firstRow.includes('phone') || firstRow.includes('business_name')) {
+        startIdx = 1;
+      }
+
+      const nameCol = firstRow.indexOf('name') !== -1 ? firstRow.indexOf('name') : 0;
+      const phoneCol = firstRow.indexOf('phone') !== -1 ? firstRow.indexOf('phone') : 1;
+      const bizCol = firstRow.indexOf('business_name') !== -1 ? firstRow.indexOf('business_name') : (firstRow.indexOf('business name') !== -1 ? firstRow.indexOf('business name') : 2);
+      const catCol = firstRow.indexOf('category') !== -1 ? firstRow.indexOf('category') : 3;
+      const empCol = firstRow.indexOf('employees') !== -1 ? firstRow.indexOf('employees') : (firstRow.indexOf('employee_count') !== -1 ? firstRow.indexOf('employee_count') : 4);
+
+      const supabase = createClient();
+      if (!supabase) throw new Error("Supabase not initialized");
+
+      // Fetch form Vendor Data Collection Survey
+      const { data: formData, error: fError } = await supabase
+        .from('forms')
+        .select('id')
+        .eq('name', 'Vendor Data Collection Survey')
+        .limit(1);
+
+      if (fError) throw fError;
+      if (!formData || formData.length === 0) throw new Error("Data Collection Form not found in database.");
+      const formId = formData[0].id;
+
+      const { data: questions } = await supabase
+        .from('survey_questions')
+        .select('id, csv_column');
+
+      let count = 0;
+      for (let i = startIdx; i < rows.length; i++) {
+        const row = rows[i];
+        const name = row[nameCol];
+        const phone = row[phoneCol];
+        const biz = row[bizCol] || '';
+        const cat = row[catCol] || 'Fashion';
+        const emp = row[empCol] || '';
+
+        if (!phone || !name) continue;
+
+        // Insert/update vendor
+        const { data: existing } = await supabase
+          .from('vendors')
+          .select('id')
+          .eq('phone', phone)
+          .limit(1);
+
+        let vendorId;
+        if (existing && existing.length > 0) {
+          vendorId = existing[0].id;
+          await supabase
+            .from('vendors')
+            .update({ contact_name: name, business_name: biz, category: cat, is_active: true })
+            .eq('id', vendorId);
+        } else {
+          const { data: inserted } = await supabase
+            .from('vendors')
+            .insert({ contact_name: name, phone, business_name: biz, category: cat, is_active: true })
+            .select();
+          if (inserted && inserted.length > 0) {
+            vendorId = inserted[0].id;
+          }
+        }
+
+        if (vendorId) {
+          // Insert survey response
+          const { data: resData, error: resError } = await supabase
+            .from('survey_responses')
+            .insert({
+              form_id: formId,
+              context_type: 'market_day',
+              context_id: activeEdition.id,
+              vendor_id: vendorId,
+              source: 'csv_import',
+              submitted_at: new Date().toISOString()
+            })
+            .select();
+
+          if (resError) throw resError;
+          if (resData && resData.length > 0) {
+            const responseId = resData[0].id;
+
+            // Insert answers
+            const answers = [];
+            const fieldMappings = {
+              name,
+              phone,
+              business_name: biz,
+              category: cat,
+              employee_count: emp
+            };
+
+            for (const key of Object.keys(fieldMappings)) {
+              const val = fieldMappings[key as keyof typeof fieldMappings];
+              if (val !== undefined && val !== null && val !== '') {
+                const qId = questions?.find((q: any) => q.csv_column === key)?.id;
+                if (qId) {
+                  answers.push({
+                    response_id: responseId,
+                    question_id: qId,
+                    answer_value: String(val)
+                  });
+                }
+              }
+            }
+
+            if (answers.length > 0) {
+              await supabase.from('survey_answers').insert(answers);
+            }
+          }
+          count++;
+        }
+      }
+
+      addToast(`Imported Kobo surveys for ${count} vendors successfully!`, "success");
+      fetchVendors();
+      fetchSurveyResponses();
+    } catch (err: any) {
+      console.error(err);
+      addToast("Import failed: " + err.message, "error");
+    }
+  };
+
+  const handleImportWalkins = async (file: File) => {
+    if (!activeEdition || !activeRegion) {
+      addToast("Please select an active workspace (region & edition) first!", "error");
+      return;
+    }
+
+    try {
+      const text = await file.text();
+      const rows = parseCSV(text);
+      if (rows.length === 0) {
+        addToast("CSV is empty", "error");
+        return;
+      }
+
+      let startIdx = 0;
+      const firstRow = rows[0].map(c => c.toLowerCase());
+      if (firstRow.includes('name') || firstRow.includes('phone') || firstRow.includes('gender')) {
+        startIdx = 1;
+      }
+
+      const nameCol = firstRow.indexOf('name') !== -1 ? firstRow.indexOf('name') : 0;
+      const phoneCol = firstRow.indexOf('phone') !== -1 ? firstRow.indexOf('phone') : 1;
+      const genderCol = firstRow.indexOf('gender') !== -1 ? firstRow.indexOf('gender') : 2;
+      const ageCol = firstRow.indexOf('age') !== -1 ? firstRow.indexOf('age') : 3;
+      const heardCol = firstRow.indexOf('how_heard') !== -1 ? firstRow.indexOf('how_heard') : (firstRow.indexOf('how heard') !== -1 ? firstRow.indexOf('how heard') : 4);
+
+      const supabase = createClient();
+      if (!supabase) throw new Error("Supabase not initialized");
+
+      const walkinsToInsert = [];
+      for (let i = startIdx; i < rows.length; i++) {
+        const row = rows[i];
+        const name = row[nameCol] || 'Anonymous Visitor';
+        const phone = row[phoneCol] || '';
+        const gender = row[genderCol] || 'Female';
+        const age = parseInt(row[ageCol]) || 25;
+        const howHeard = row[heardCol] || 'Passing By';
+
+        walkinsToInsert.push({
+          market_day_id: activeEdition.id,
+          count: 1,
+          recorded_by: name,
+          notes: JSON.stringify({
+            name,
+            phone,
+            gender,
+            age,
+            how_heard: howHeard,
+            first_visit: true
+          })
+        });
+      }
+
+      if (walkinsToInsert.length > 0) {
+        const { error } = await supabase.from('walkins').insert(walkinsToInsert);
+        if (error) throw error;
+      }
+
+      addToast(`Imported ${walkinsToInsert.length} walk-in guest records!`, "success");
+      fetchWalkins();
+    } catch (err: any) {
+      console.error(err);
+      addToast("Import failed: " + err.message, "error");
+    }
+  };
+
+  const handleExportVendors = async () => {
+    if (!activeRegion) {
+      addToast("Please select an active region first!", "error");
+      return;
+    }
+    try {
+      const supabase = createClient();
+      if (!supabase) throw new Error("Supabase not initialized");
+
+      const { data, error } = await supabase
+        .from('survey_responses')
+        .select(`
+          vendor_id,
+          vendors (
+            id,
+            business_name,
+            contact_name,
+            phone,
+            email,
+            category,
+            is_active
+          ),
+          market_days!inner (
+            region_id
+          )
+        `)
+        .eq('market_days.region_id', activeRegion.id);
+
+      if (error) throw error;
+
+      const uniqueVendors: any[] = [];
+      const seenIds = new Set();
+      (data || []).forEach((row: any) => {
+        const v = row.vendors;
+        if (v && !seenIds.has(v.id)) {
+          seenIds.add(v.id);
+          uniqueVendors.push(v);
+        }
+      });
+
+      let csvContent = "ID,Contact Name,Business Name,Phone,Email,Category,Is Active\n";
+      uniqueVendors.forEach(v => {
+        csvContent += `"${v.id}","${(v.contact_name || '').replace(/"/g, '""')}","${(v.business_name || '').replace(/"/g, '""')}","${v.phone || ''}","${v.email || ''}","${v.category || ''}","${v.is_active ? 'Yes' : 'No'}"\n`;
+      });
+
+      downloadCSV(csvContent, `vendors_export_${activeRegion.slug}.csv`);
+      addToast("Vendors list exported successfully!", "success");
+    } catch (err: any) {
+      console.error(err);
+      addToast("Export failed: " + err.message, "error");
+    }
+  };
+
+  const handleExportWalkins = async () => {
+    if (!activeRegion) {
+      addToast("Please select an active region first!", "error");
+      return;
+    }
+    try {
+      const supabase = createClient();
+      if (!supabase) throw new Error("Supabase not initialized");
+
+      const { data, error } = await supabase
+        .from('walkins')
+        .select(`
+          id,
+          recorded_by,
+          notes,
+          recorded_at,
+          market_days!inner (
+            region_id
+          )
+        `)
+        .eq('market_days.region_id', activeRegion.id);
+
+      if (error) throw error;
+
+      let csvContent = "ID,Name,Phone,Gender,Age,How Heard,First Visit,Recorded At\n";
+      (data || []).forEach(w => {
+        let parsedNotes: any = {};
+        try {
+          if (w.notes) parsedNotes = JSON.parse(w.notes);
+        } catch (e) {}
+
+        const name = parsedNotes.name || w.recorded_by || 'Anonymous';
+        const phone = parsedNotes.phone || '';
+        const gender = parsedNotes.gender || 'Female';
+        const age = parsedNotes.age || 25;
+        const howHeard = parsedNotes.how_heard || 'Passing By';
+        const firstVisit = parsedNotes.first_visit !== false ? 'Yes' : 'No';
+
+        csvContent += `"${w.id}","${name.replace(/"/g, '""')}","${phone}","${gender}","${age}","${howHeard.replace(/"/g, '""')}","${firstVisit}","${w.recorded_at || ''}"\n`;
+      });
+
+      downloadCSV(csvContent, `walkins_export_${activeRegion.slug}.csv`);
+      addToast("Walk-in records exported successfully!", "success");
+    } catch (err: any) {
+      console.error(err);
+      addToast("Export failed: " + err.message, "error");
+    }
+  };
+
+  const handleExportResponses = async () => {
+    if (!activeRegion) {
+      addToast("Please select an active region first!", "error");
+      return;
+    }
+    try {
+      const supabase = createClient();
+      if (!supabase) throw new Error("Supabase not initialized");
+
+      const { data, error } = await supabase
+        .from('survey_responses')
+        .select(`
+          id,
+          submitted_at,
+          source,
+          surveyed_by,
+          vendor_id,
+          vendors (
+            contact_name,
+            business_name,
+            phone
+          ),
+          market_days!inner (
+            name,
+            region_id
+          ),
+          forms (
+            name
+          )
+        `)
+        .eq('market_days.region_id', activeRegion.id);
+
+      if (error) throw error;
+
+      let csvContent = "Response ID,Event Edition,Form Name,Contact Name,Business Name,Phone,Source,Submitted At\n";
+      (data || []).forEach(sr => {
+        const v = (sr as any).vendors || {};
+        const md = (sr as any).market_days || {};
+        const form = (sr as any).forms || {};
+
+        csvContent += `"${sr.id}","${(md.name || '').replace(/"/g, '""')}","${(form.name || '').replace(/"/g, '""')}","${(v.contact_name || '').replace(/"/g, '""')}","${(v.business_name || '').replace(/"/g, '""')}","${v.phone || ''}","${sr.source || ''}","${sr.submitted_at || ''}"\n`;
+      });
+
+      downloadCSV(csvContent, `survey_responses_export_${activeRegion.slug}.csv`);
+      addToast("Survey responses exported successfully!", "success");
+    } catch (err: any) {
+      console.error(err);
+      addToast("Export failed: " + err.message, "error");
+    }
+  };
+
   return (
     <AdminShell
-      currentMarket={currentMarket}
-      markets={markets}
-      onMarketChange={(id) => setCurrentMarket(markets.find(m => m.id === id) || markets[0])}
       activeNav={activeNav}
       onNavChange={(navId) => {
         setActiveNav(navId);
@@ -1863,31 +2433,28 @@ export default function Home() {
                 <p className="text-xs text-text-secondary mt-0.5">Admin-side data entry forms for fast registration workflows.</p>
               </div>
 
-              {/* Added Edition and Region selectors */}
-              <div className="bg-bg-surface border border-border rounded-lg p-4 flex gap-4 select-none">
-                <div className="flex-1 space-y-1">
-                  <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider block">Target Region</label>
-                  <select 
-                    value={quickEntryRegion} 
-                    onChange={(e) => setQuickEntryRegion(e.target.value)}
-                    className="w-full bg-bg-elevated border border-border-light text-text-primary text-xs rounded-md px-3 py-2 cursor-pointer outline-none focus:border-green appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%209l3%203%203-3%22%20stroke%3D%22%238b949e%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[right_10px_center] bg-no-repeat pr-8"
-                  >
-                    {regions.map(r => <option key={r} value={r}>{r}</option>)}
-                  </select>
+              {/* Active Workspace summary */}
+              <div className="bg-bg-surface border border-border rounded-lg p-4 flex items-center justify-between select-none">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-green-soft/10 text-green flex items-center justify-center font-bold">
+                    <Map className="w-4.5 h-4.5" />
+                  </div>
+                  <div>
+                    <label className="text-[9px] font-bold text-text-tertiary uppercase tracking-wider block">Active Workspace</label>
+                    <span className="text-xs font-bold text-text-primary flex items-center gap-1.5 mt-0.5">
+                      {activeRegion ? activeRegion.name : 'No Region'} 
+                      <span className="text-text-tertiary font-normal">/</span> 
+                      <span className="text-green">{activeEdition ? activeEdition.name : 'No Edition'}</span>
+                    </span>
+                  </div>
                 </div>
-                <div className="flex-1 space-y-1">
-                  <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider block">Target Edition</label>
-                  <select 
-                    value={quickEntryEdition} 
-                    onChange={(e) => setQuickEntryEdition(e.target.value)}
-                    className="w-full bg-bg-elevated border border-border-light text-text-primary text-xs rounded-md px-3 py-2 cursor-pointer outline-none focus:border-green appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%209l3%203%203-3%22%20stroke%3D%22%238b949e%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[right_10px_center] bg-no-repeat pr-8"
-                  >
-                    {editions.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-                  </select>
-                </div>
+                <Badge variant={activeEdition ? "success" : "neutral"} size="sm" className="font-extrabold select-none uppercase">
+                  {activeEdition ? "Ready" : "Select Edition"}
+                </Badge>
               </div>
 
               <QuickEntryPanel
+                disabled={!activeEdition}
                 activeTab={quickEntryTab}
                 onTabChange={setQuickEntryTab}
                 isOpen={isQuickEntryOpen}
@@ -2021,34 +2588,58 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Region and Edition dropdown selectors */}
-              <div className="bg-bg-surface border border-border rounded-lg p-4 flex gap-4 max-w-xl select-none">
-                <div className="flex-1 space-y-1">
-                  <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider block">Region</label>
-                  <select 
-                    value={uploadRegion} 
-                    onChange={(e) => setUploadRegion(e.target.value)}
-                    className="w-full bg-bg-elevated border border-border-light text-text-primary text-xs rounded-md px-3 py-2 cursor-pointer outline-none focus:border-green appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%209l3%203%203-3%22%20stroke%3D%22%238b949e%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[right_10px_center] bg-no-repeat pr-8"
-                  >
-                    {regions.map(r => <option key={r} value={r}>{r}</option>)}
-                  </select>
+              {/* Active Workspace summary */}
+              <div className="bg-bg-surface border border-border rounded-lg p-4 flex items-center justify-between select-none max-w-xl">
+                <div className="flex items-center gap-3">
+                  <div className="w-8 h-8 rounded-full bg-green-soft/10 text-green flex items-center justify-center font-bold">
+                    <Map className="w-4.5 h-4.5" />
+                  </div>
+                  <div>
+                    <label className="text-[9px] font-bold text-text-tertiary uppercase tracking-wider block">Active Workspace</label>
+                    <span className="text-xs font-bold text-text-primary flex items-center gap-1.5 mt-0.5">
+                      {activeRegion ? activeRegion.name : 'No Region'} 
+                      <span className="text-text-tertiary font-normal">/</span> 
+                      <span className="text-green">{activeEdition ? activeEdition.name : 'No Edition'}</span>
+                    </span>
+                  </div>
                 </div>
-                <div className="flex-1 space-y-1">
-                  <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider block">Edition</label>
-                  <select 
-                    value={uploadEdition} 
-                    onChange={(e) => setUploadEdition(e.target.value)}
-                    className="w-full bg-bg-elevated border border-border-light text-text-primary text-xs rounded-md px-3 py-2 cursor-pointer outline-none focus:border-green appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%209l3%203%203-3%22%20stroke%3D%22%238b949e%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[right_10px_center] bg-no-repeat pr-8"
-                  >
-                    {editions.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-                  </select>
-                </div>
+                <Badge variant={activeEdition ? "success" : "neutral"} size="sm" className="font-extrabold select-none uppercase">
+                  {activeEdition ? "Ready" : "Select Edition"}
+                </Badge>
               </div>
+
+              {/* Hidden file inputs */}
+              <input 
+                type="file" 
+                ref={fileInputRef1} 
+                className="hidden" 
+                accept=".csv" 
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImportConfirmedVendors(f); }} 
+              />
+              <input 
+                type="file" 
+                ref={fileInputRef2} 
+                className="hidden" 
+                accept=".csv" 
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImportCollectedData(f); }} 
+              />
+              <input 
+                type="file" 
+                ref={fileInputRef3} 
+                className="hidden" 
+                accept=".csv" 
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImportWalkins(f); }} 
+              />
 
               {/* Upload Cards Grid */}
               <div className="grid grid-cols-1 md:grid-cols-3 gap-5 select-none">
                 {/* Card 1: Confirmed list */}
-                <div className="bg-bg-surface border border-border rounded-xl p-5 flex flex-col justify-between">
+                <div className="bg-bg-surface border border-border rounded-xl p-5 flex flex-col justify-between relative overflow-hidden">
+                  {!activeEdition && (
+                    <div className="absolute inset-0 bg-bg-surface/85 backdrop-blur-xs flex items-center justify-center p-4 text-center z-10">
+                      <span className="text-xs text-text-secondary font-semibold">Select active edition to upload</span>
+                    </div>
+                  )}
                   <div className="space-y-3">
                     <div className="flex items-center gap-2.5">
                       <div className="w-10 h-10 rounded-full bg-green-muted text-green flex items-center justify-center">
@@ -2060,18 +2651,23 @@ export default function Home() {
                       CSV spreadsheet with vendor names and phone numbers who have completed payments for this edition.
                     </p>
                     <div className="inline-block bg-bg-elevated border border-border-light rounded px-2.5 py-1 text-[10px] text-text-secondary font-mono">
-                      name · phone · paid_status
+                      name · phone
                     </div>
                   </div>
                   <div className="pt-5">
-                    <Button variant="primary" fullWidth onClick={() => alert('Confirmed vendors CSV import triggered.')}>
+                    <Button variant="primary" fullWidth onClick={() => fileInputRef1.current?.click()}>
                       <span>Upload CSV</span>
                     </Button>
                   </div>
                 </div>
 
                 {/* Card 2: Kobo data */}
-                <div className="bg-bg-surface border border-border rounded-xl p-5 flex flex-col justify-between">
+                <div className="bg-bg-surface border border-border rounded-xl p-5 flex flex-col justify-between relative overflow-hidden">
+                  {!activeEdition && (
+                    <div className="absolute inset-0 bg-bg-surface/85 backdrop-blur-xs flex items-center justify-center p-4 text-center z-10">
+                      <span className="text-xs text-text-secondary font-semibold">Select active edition to upload</span>
+                    </div>
+                  )}
                   <div className="space-y-3">
                     <div className="flex items-center gap-2.5">
                       <div className="w-10 h-10 rounded-full bg-blue-muted text-blue flex items-center justify-center">
@@ -2083,18 +2679,23 @@ export default function Home() {
                       Historical demographics survey or direct Kobo export sheets from past market activities.
                     </p>
                     <div className="inline-block bg-bg-elevated border border-border-light rounded px-2.5 py-1 text-[10px] text-text-secondary font-mono">
-                      name · phone · category · employees
+                      name · phone · business_name · category · employees
                     </div>
                   </div>
                   <div className="pt-5">
-                    <Button variant="primary" fullWidth onClick={() => alert('Collected survey data CSV import triggered.')}>
+                    <Button variant="primary" fullWidth onClick={() => fileInputRef2.current?.click()}>
                       <span>Upload CSV</span>
                     </Button>
                   </div>
                 </div>
 
                 {/* Card 3: Walk-in records */}
-                <div className="bg-bg-surface border border-border rounded-xl p-5 flex flex-col justify-between">
+                <div className="bg-bg-surface border border-border rounded-xl p-5 flex flex-col justify-between relative overflow-hidden">
+                  {!activeEdition && (
+                    <div className="absolute inset-0 bg-bg-surface/85 backdrop-blur-xs flex items-center justify-center p-4 text-center z-10">
+                      <span className="text-xs text-text-secondary font-semibold">Select active edition to upload</span>
+                    </div>
+                  )}
                   <div className="space-y-3">
                     <div className="flex items-center gap-2.5">
                       <div className="w-10 h-10 rounded-full bg-amber-muted text-amber flex items-center justify-center">
@@ -2106,14 +2707,35 @@ export default function Home() {
                       Visitor log sheets compiled manually or through gate-keeping forms outside the network range.
                     </p>
                     <div className="inline-block bg-bg-elevated border border-border-light rounded px-2.5 py-1 text-[10px] text-text-secondary font-mono">
-                      name · phone · gender · age · category
+                      name · phone · gender · age · how_heard
                     </div>
                   </div>
                   <div className="pt-5">
-                    <Button variant="primary" fullWidth onClick={() => alert('Walk-in logs CSV import triggered.')}>
+                    <Button variant="primary" fullWidth onClick={() => fileInputRef3.current?.click()}>
                       <span>Upload CSV</span>
                     </Button>
                   </div>
+                </div>
+              </div>
+
+              {/* Export Sheets Panel */}
+              <div className="bg-bg-surface border border-border rounded-xl p-5 select-none space-y-4">
+                <div>
+                  <h3 className="font-bold text-sm text-text-primary">Export Active Region Data Sheets</h3>
+                  <p className="text-xs text-text-secondary mt-0.5">
+                    Download complete data spreadsheets filtered for active region: <span className="font-bold text-green">{activeRegion ? activeRegion.name : 'No active region'}</span>.
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+                  <Button variant="secondary" onClick={handleExportVendors} disabled={!activeRegion}>
+                    <span>Export Vendors CSV</span>
+                  </Button>
+                  <Button variant="secondary" onClick={handleExportWalkins} disabled={!activeRegion}>
+                    <span>Export Walk-ins CSV</span>
+                  </Button>
+                  <Button variant="secondary" onClick={handleExportResponses} disabled={!activeRegion}>
+                    <span>Export Survey Responses CSV</span>
+                  </Button>
                 </div>
               </div>
 
@@ -2262,6 +2884,32 @@ export default function Home() {
           questions={formQuestions[previewFormId] || []}
         />
       )}
+      {/* Toast container */}
+      <div className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-2 max-w-sm pointer-events-none">
+        {toasts.map((toast) => (
+          <div
+            key={toast.id}
+            className={`flex items-center gap-3 p-3.5 rounded-lg shadow-lg text-xs font-semibold text-white animate-slide-up pointer-events-auto border ${
+              toast.type === 'success' 
+                ? 'bg-green-soft/90 border-green text-green' 
+                : 'bg-red-soft/90 border-red text-red'
+            }`}
+          >
+            {toast.type === 'success' ? (
+              <CheckCircle2 className="w-4 h-4 text-green shrink-0" />
+            ) : (
+              <AlertCircle className="w-4 h-4 text-red shrink-0" />
+            )}
+            <span className="flex-1">{toast.message}</span>
+            <button 
+              onClick={() => setToasts((prev) => prev.filter((t) => t.id !== toast.id))}
+              className="text-text-secondary hover:text-text-primary p-0.5"
+            >
+              <X className="w-3.5 h-3.5" />
+            </button>
+          </div>
+        ))}
+      </div>
     </AdminShell>
   );
 }
