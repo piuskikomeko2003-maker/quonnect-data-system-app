@@ -1591,6 +1591,53 @@ export default function Home() {
       .filter(row => row.length > 0 && row.some(cell => cell !== ''));
   };
 
+  const parseCSVToObjects = (text: string): Record<string, string>[] => {
+    const lines = text.split(/\r?\n/);
+    if (lines.length === 0) return [];
+
+    const headers = parseCSVRow(lines[0]);
+    const results: Record<string, string>[] = [];
+
+    for (let i = 1; i < lines.length; i++) {
+      if (!lines[i].trim()) continue;
+      const values = parseCSVRow(lines[i]);
+      const rowObj: Record<string, string> = {};
+      headers.forEach((header, index) => {
+        rowObj[header] = values[index] || '';
+      });
+      results.push(rowObj);
+    }
+    return results;
+  };
+
+  const parseCSVRow = (line: string): string[] => {
+    const result = [];
+    let current = '';
+    let inQuotes = false;
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      if (char === '"') {
+        inQuotes = !inQuotes;
+      } else if (char === ',' && !inQuotes) {
+        result.push(current.trim());
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    result.push(current.trim());
+    return result;
+  };
+
+  const normalizePhone = (p: string): string => {
+    if (!p) return '';
+    let clean = p.replace(/\D/g, '');
+    if (clean.startsWith('0')) {
+      clean = '256' + clean.slice(1);
+    }
+    return clean;
+  };
+
   const downloadCSV = (csvContent: string, filename: string) => {
     const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
@@ -1713,28 +1760,16 @@ export default function Home() {
 
     try {
       const text = await file.text();
-      const rows = parseCSV(text);
+      const rows = parseCSVToObjects(text);
       if (rows.length === 0) {
         addToast("CSV is empty", "error");
         return;
       }
 
-      let startIdx = 0;
-      const firstRow = rows[0].map(c => c.toLowerCase());
-      if (firstRow.includes('name') || firstRow.includes('phone') || firstRow.includes('business_name')) {
-        startIdx = 1;
-      }
-
-      const nameCol = firstRow.indexOf('name') !== -1 ? firstRow.indexOf('name') : 0;
-      const phoneCol = firstRow.indexOf('phone') !== -1 ? firstRow.indexOf('phone') : 1;
-      const bizCol = firstRow.indexOf('business_name') !== -1 ? firstRow.indexOf('business_name') : (firstRow.indexOf('business name') !== -1 ? firstRow.indexOf('business name') : 2);
-      const catCol = firstRow.indexOf('category') !== -1 ? firstRow.indexOf('category') : 3;
-      const empCol = firstRow.indexOf('employees') !== -1 ? firstRow.indexOf('employees') : (firstRow.indexOf('employee_count') !== -1 ? firstRow.indexOf('employee_count') : 4);
-
       const supabase = createClient();
       if (!supabase) throw new Error("Supabase not initialized");
 
-      // Fetch form Vendor Data Collection Survey
+      // 1. Fetch form Vendor Data Collection Survey
       const { data: formData, error: fError } = await supabase
         .from('forms')
         .select('id')
@@ -1745,18 +1780,64 @@ export default function Home() {
       if (!formData || formData.length === 0) throw new Error("Data Collection Form not found in database.");
       const formId = formData[0].id;
 
+      // 2. Fetch all survey questions
       const { data: questions } = await supabase
         .from('survey_questions')
-        .select('id, csv_column');
+        .select('id, csv_column')
+        .eq('form_id', formId);
+
+      if (!questions || questions.length === 0) {
+        throw new Error("No questions found for this form.");
+      }
+
+      // 3. Load column map from profile
+      const { data: profiles } = await supabase
+        .from('csv_import_profiles')
+        .select('*')
+        .eq('name', 'Vendor Data Collection Import')
+        .limit(1);
+
+      const columnMap = profiles?.[0]?.column_map || {};
+      const csvColumnToHeader: Record<string, string> = {};
+      for (const [header, target] of Object.entries(columnMap)) {
+        if (typeof target === 'string' && target.startsWith('answer.')) {
+          const csvCol = target.replace('answer.', '');
+          csvColumnToHeader[csvCol] = header;
+        }
+      }
+
+      // Find target headers for name and phone and business name
+      const firstRow = rows[0];
+      const phoneHeader = Object.keys(firstRow).find(h => 
+        h.toLowerCase().includes('phone') || 
+        h.toLowerCase() === 'phone number' || 
+        columnMap[h] === 'answer.phone_number'
+      ) || 'Phone number';
+
+      const nameHeader = Object.keys(firstRow).find(h => 
+        h.toLowerCase().includes('name') || 
+        h.toLowerCase() === 'full name' || 
+        columnMap[h] === 'answer.full_name'
+      ) || 'Full name';
+
+      const bizHeader = Object.keys(firstRow).find(h => 
+        h.toLowerCase().includes('business') || 
+        h.toLowerCase() === 'business name' || 
+        columnMap[h] === 'answer.business_name'
+      ) || 'Business name';
+
+      const catHeader = Object.keys(firstRow).find(h => 
+        h.toLowerCase().includes('category') || 
+        h.toLowerCase() === 'business category' || 
+        columnMap[h] === 'answer.business_category'
+      ) || 'Business category';
 
       let count = 0;
-      for (let i = startIdx; i < rows.length; i++) {
-        const row = rows[i];
-        const name = row[nameCol];
-        const phone = row[phoneCol];
-        const biz = row[bizCol] || '';
-        const cat = row[catCol] || 'Fashion';
-        const emp = row[empCol] || '';
+      for (const rowObj of rows) {
+        const name = rowObj[nameHeader];
+        const phone = rowObj[phoneHeader];
+        const biz = rowObj[bizHeader] || '';
+        const cat = rowObj[catHeader] || 'Fashion';
 
         if (!phone || !name) continue;
 
@@ -1803,31 +1884,24 @@ export default function Home() {
             const responseId = resData[0].id;
 
             // Insert answers
-            const answers = [];
-            const fieldMappings = {
-              name,
-              phone,
-              business_name: biz,
-              category: cat,
-              employee_count: emp
-            };
-
-            for (const key of Object.keys(fieldMappings)) {
-              const val = fieldMappings[key as keyof typeof fieldMappings];
-              if (val !== undefined && val !== null && val !== '') {
-                const qId = questions?.find((q: any) => q.csv_column === key)?.id;
-                if (qId) {
-                  answers.push({
+            const answersToInsert = [];
+            for (const q of questions) {
+              const headerName = csvColumnToHeader[q.csv_column] || Object.keys(rowObj).find(k => k.toLowerCase() === q.csv_column.toLowerCase());
+              if (headerName) {
+                const val = rowObj[headerName];
+                if (val !== undefined && val !== null && val !== '') {
+                  answersToInsert.push({
                     response_id: responseId,
-                    question_id: qId,
-                    answer_value: String(val)
+                    question_id: q.id,
+                    answer: String(val)
                   });
                 }
               }
             }
 
-            if (answers.length > 0) {
-              await supabase.from('survey_answers').insert(answers);
+            if (answersToInsert.length > 0) {
+              const { error: ansError } = await supabase.from('survey_answers').insert(answersToInsert);
+              if (ansError) console.error("survey_answers insert error:", ansError);
             }
           }
           count++;
@@ -2059,6 +2133,154 @@ export default function Home() {
     } catch (err: any) {
       console.error(err);
       addToast("Export failed: " + err.message, "error");
+    }
+  };
+
+  const handleReprocessAnswers = async (file: File) => {
+    if (!activeEdition || !activeRegion) {
+      addToast("Please select an active workspace (region & edition) first!", "error");
+      return;
+    }
+
+    try {
+      const text = await file.text();
+      const rows = parseCSVToObjects(text);
+      if (rows.length === 0) {
+        addToast("CSV is empty", "error");
+        return;
+      }
+
+      const supabase = createClient();
+      if (!supabase) throw new Error("Supabase not initialized");
+
+      // 1. Fetch all survey responses for this active edition, with their vendor profiles
+      const { data: responses, error: rError } = await supabase
+        .from('survey_responses')
+        .select(`
+          id,
+          vendor_id,
+          vendors (
+            id,
+            phone
+          )
+        `)
+        .eq('context_id', activeEdition.id);
+
+      if (rError) throw rError;
+      if (!responses || responses.length === 0) {
+        addToast("No existing survey responses found for this event edition.", "error");
+        return;
+      }
+
+      // 2. Fetch all survey questions
+      const { data: formData } = await supabase
+        .from('forms')
+        .select('id')
+        .eq('name', 'Vendor Data Collection Survey')
+        .limit(1);
+
+      if (!formData || formData.length === 0) {
+        throw new Error("Survey Form definition not found.");
+      }
+      const formId = formData[0].id;
+
+      const { data: questions } = await supabase
+        .from('survey_questions')
+        .select('id, csv_column')
+        .eq('form_id', formId);
+
+      if (!questions || questions.length === 0) {
+        throw new Error("No questions found for this form.");
+      }
+
+      // 3. Load column map from profile
+      const { data: profiles } = await supabase
+        .from('csv_import_profiles')
+        .select('*')
+        .eq('name', 'Vendor Data Collection Import')
+        .limit(1);
+
+      const columnMap = profiles?.[0]?.column_map || {};
+      const csvColumnToHeader: Record<string, string> = {};
+      for (const [header, target] of Object.entries(columnMap)) {
+        if (typeof target === 'string' && target.startsWith('answer.')) {
+          const csvCol = target.replace('answer.', '');
+          csvColumnToHeader[csvCol] = header;
+        }
+      }
+
+      // Find the phone column header name
+      const firstRow = rows[0];
+      const phoneHeader = Object.keys(firstRow).find(h => 
+        h.toLowerCase().includes('phone') || 
+        h.toLowerCase() === 'phone number' || 
+        columnMap[h] === 'answer.phone_number'
+      ) || 'Phone number';
+
+      let successCount = 0;
+      const allAnswersToInsert: any[] = [];
+
+      for (const rowObj of rows) {
+        const rawPhone = rowObj[phoneHeader];
+        if (!rawPhone) continue;
+
+        const normPhone = normalizePhone(rawPhone);
+        
+        // Find matching response in our fetched list
+        const matchingResponse = responses.find(r => {
+          const v = (r as any).vendors;
+          return v && normalizePhone(v.phone) === normPhone;
+        });
+
+        if (!matchingResponse) continue;
+
+        // Check if answers already exist for this response to avoid duplicate insertion
+        const { data: existingAnswers } = await supabase
+          .from('survey_answers')
+          .select('id')
+          .eq('response_id', matchingResponse.id)
+          .limit(1);
+
+        if (existingAnswers && existingAnswers.length > 0) {
+          // Already has answers, skip
+          continue;
+        }
+
+        // Build answers for this response
+        for (const q of questions) {
+          // Find value in CSV row
+          const headerName = csvColumnToHeader[q.csv_column] || Object.keys(rowObj).find(k => k.toLowerCase() === q.csv_column.toLowerCase());
+          if (headerName) {
+            const val = rowObj[headerName];
+            if (val !== undefined && val !== null && val !== '') {
+              allAnswersToInsert.push({
+                response_id: matchingResponse.id,
+                question_id: q.id,
+                answer: String(val)
+              });
+            }
+          }
+        }
+        successCount++;
+      }
+
+      // Batch insert all answers
+      if (allAnswersToInsert.length > 0) {
+        const chunkSize = 500;
+        for (let i = 0; i < allAnswersToInsert.length; i += chunkSize) {
+          const chunk = allAnswersToInsert.slice(i, i + chunkSize);
+          const { error: insErr } = await supabase
+            .from('survey_answers')
+            .insert(chunk);
+          if (insErr) throw insErr;
+        }
+      }
+
+      addToast(`Successfully re-processed and inserted answers for ${successCount} responses!`, "success");
+      fetchSurveyResponses();
+    } catch (err: any) {
+      console.error("Reprocess error:", err);
+      addToast("Failed to re-process answers: " + err.message, "error");
     }
   };
 
@@ -2715,6 +2937,28 @@ export default function Home() {
                       <span>Upload CSV</span>
                     </Button>
                   </div>
+                </div>
+              </div>
+
+              {/* Re-process Answers Section */}
+              <div className="bg-bg-surface border border-border-light rounded-xl p-5 select-none flex flex-col md:flex-row items-center justify-between gap-4">
+                <div className="space-y-1 text-left flex-1">
+                  <h3 className="font-bold text-sm text-text-primary">Re-process answers for existing responses</h3>
+                  <p className="text-xs text-text-secondary leading-normal max-w-xl">
+                    If you already imported vendors and responses but have empty survey answers, click this button to upload the source CSV file again and reconstruct the answers.
+                  </p>
+                </div>
+                <div className="shrink-0">
+                  <input 
+                    type="file" 
+                    id="reprocessFileInput"
+                    className="hidden" 
+                    accept=".csv" 
+                    onChange={(e) => { const f = e.target.files?.[0]; if (f) handleReprocessAnswers(f); }} 
+                  />
+                  <Button variant="secondary" onClick={() => document.getElementById('reprocessFileInput')?.click()} disabled={!activeEdition}>
+                    <span>Re-process CSV Answers</span>
+                  </Button>
                 </div>
               </div>
 
