@@ -418,22 +418,37 @@ export const AdminShell: React.FC<AdminShellProps> = ({
                           {editions.length === 0 ? (
                             <p className="text-[10px] text-text-tertiary text-center py-4">No events found in this region.</p>
                           ) : (
-                            editions.map((e) => (
+                            <>
                               <button
-                                key={e.id}
                                 onClick={() => {
-                                  setActiveEdition(e);
+                                  setActiveEdition(null);
                                   setIsEditionDropdownOpen(false);
                                 }}
-                                className={`flex items-center justify-between w-full px-3 py-2 hover:bg-bg-hover text-left text-xs ${activeEdition?.id === e.id ? 'bg-green-soft text-green font-bold' : 'text-text-secondary'}`}
+                                className={`flex items-center justify-between w-full px-3 py-2 hover:bg-bg-hover text-left text-xs ${!activeEdition ? 'bg-green-soft text-green font-bold' : 'text-text-secondary'}`}
                               >
                                 <div className="min-w-0 flex-1">
-                                  <span className="block truncate font-semibold">{e.name}</span>
-                                  <span className="block text-[9px] text-text-tertiary truncate mt-0.5">{e.venue || 'No venue'}</span>
+                                  <span className="block truncate font-semibold">All Event Editions</span>
+                                  <span className="block text-[9px] text-text-tertiary truncate mt-0.5">Show region-wide data</span>
                                 </div>
-                                {activeEdition?.id === e.id && <Badge variant="success" size="sm">Selected</Badge>}
+                                {!activeEdition && <Badge variant="success" size="sm">Selected</Badge>}
                               </button>
-                            ))
+                              {editions.map((e) => (
+                                <button
+                                  key={e.id}
+                                  onClick={() => {
+                                    setActiveEdition(e);
+                                    setIsEditionDropdownOpen(false);
+                                  }}
+                                  className={`flex items-center justify-between w-full px-3 py-2 hover:bg-bg-hover text-left text-xs ${activeEdition?.id === e.id ? 'bg-green-soft text-green font-bold' : 'text-text-secondary'}`}
+                                >
+                                  <div className="min-w-0 flex-1">
+                                    <span className="block truncate font-semibold">{e.name}</span>
+                                    <span className="block text-[9px] text-text-tertiary truncate mt-0.5">{e.venue || 'No venue'}</span>
+                                  </div>
+                                  {activeEdition?.id === e.id && <Badge variant="success" size="sm">Selected</Badge>}
+                                </button>
+                              ))}
+                            </>
                           )}
                         </div>
                       </div>
