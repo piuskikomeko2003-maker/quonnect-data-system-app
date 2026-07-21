@@ -1769,18 +1769,19 @@ export default function Home() {
       const supabase = createClient();
       if (!supabase) throw new Error("Supabase not initialized");
 
-      // 1. Fetch form Vendor Data Collection Survey
+      // 1. Fetch form by slug vendor_data_collection
       const { data: formData, error: fError } = await supabase
         .from('forms')
         .select('id')
-        .eq('name', 'Vendor Data Collection Survey')
-        .limit(1);
+        .eq('slug', 'vendor_data_collection')
+        .limit(1)
+        .single();
 
       if (fError) throw fError;
-      if (!formData || formData.length === 0) throw new Error("Data Collection Form not found in database.");
-      const formId = formData[0].id;
+      if (!formData) throw new Error("Vendor Data Collection Survey form not found in database.");
+      const formId = formData.id;
 
-      // 2. Fetch all survey questions
+      // 2. Fetch all survey questions for this form only
       const { data: questions } = await supabase
         .from('survey_questions')
         .select('id, csv_column')
@@ -1791,22 +1792,26 @@ export default function Home() {
       }
 
       // 3. Load column map from profile
-      const { data: profiles } = await supabase
+      const { data: profile, error: pErr } = await supabase
         .from('csv_import_profiles')
-        .select('*')
-        .eq('name', 'Vendor Data Collection Import')
-        .limit(1);
+        .select('column_map')
+        .eq('form_id', formId)
+        .limit(1)
+        .single();
 
-      const columnMap = profiles?.[0]?.column_map || {};
-      const csvColumnToHeader: Record<string, string> = {};
-      for (const [header, target] of Object.entries(columnMap)) {
-        if (typeof target === 'string' && target.startsWith('answer.')) {
-          const csvCol = target.replace('answer.', '');
-          csvColumnToHeader[csvCol] = header;
+      if (pErr) throw pErr;
+      const columnMap = profile?.column_map || {};
+
+      // Strip "answer." prefix to get csv_column values
+      const headerToColumn: Record<string, string> = {};
+      Object.entries(columnMap).forEach(([header, path]) => {
+        if (typeof path === 'string') {
+          const csvColumn = path.replace('answer.', '');
+          headerToColumn[header] = csvColumn;
         }
-      }
+      });
 
-      // Find target headers for name and phone and business name
+      // Find target headers for name and phone and business name to create/update vendors
       const firstRow = rows[0];
       const phoneHeader = Object.keys(firstRow).find(h => 
         h.toLowerCase().includes('phone') || 
@@ -1833,6 +1838,8 @@ export default function Home() {
       ) || 'Business category';
 
       let count = 0;
+      let totalAnswersCount = 0;
+
       for (const rowObj of rows) {
         const name = rowObj[nameHeader];
         const phone = rowObj[phoneHeader];
@@ -1875,40 +1882,44 @@ export default function Home() {
               context_id: activeEdition.id,
               vendor_id: vendorId,
               source: 'csv_import',
+              import_batch: file.name,
               submitted_at: new Date().toISOString()
             })
-            .select();
+            .select()
+            .single();
 
           if (resError) throw resError;
-          if (resData && resData.length > 0) {
-            const responseId = resData[0].id;
+          if (resData) {
+            const responseId = resData.id;
 
             // Insert answers
-            const answersToInsert = [];
-            for (const q of questions) {
-              const headerName = csvColumnToHeader[q.csv_column] || Object.keys(rowObj).find(k => k.toLowerCase() === q.csv_column.toLowerCase());
-              if (headerName) {
-                const val = rowObj[headerName];
-                if (val !== undefined && val !== null && val !== '') {
-                  answersToInsert.push({
-                    response_id: responseId,
-                    question_id: q.id,
-                    answer: String(val)
-                  });
-                }
-              }
-            }
+            const answersToInsert: any[] = [];
+            Object.entries(rowObj).forEach(([header, value]) => {
+              const csvColumn = headerToColumn[header];
+              if (!csvColumn) return;
+              const question = questions.find(q => q.csv_column === csvColumn);
+              if (!question) return;
+              answersToInsert.push({
+                response_id: responseId,
+                question_id: question.id,
+                answer: String(value ?? '')
+              });
+            });
 
             if (answersToInsert.length > 0) {
               const { error: ansError } = await supabase.from('survey_answers').insert(answersToInsert);
-              if (ansError) console.error("survey_answers insert error:", ansError);
+              if (ansError) {
+                console.error("Answers insert error:", ansError.message, ansError.code);
+              } else {
+                totalAnswersCount = answersToInsert.length;
+              }
             }
           }
           count++;
         }
       }
 
-      addToast(`Imported Kobo surveys for ${count} vendors successfully!`, "success");
+      addToast(`${count} vendors imported with ${totalAnswersCount} answers each`, "success");
       fetchVendors();
       fetchSurveyResponses();
     } catch (err: any) {
@@ -2136,151 +2147,79 @@ export default function Home() {
     }
   };
 
-  const handleReprocessAnswers = async (file: File) => {
-    if (!activeEdition || !activeRegion) {
-      addToast("Please select an active workspace (region & edition) first!", "error");
+  const handleClearEditionData = async () => {
+    if (!activeEdition) {
+      addToast("Please select an active edition first!", "error");
       return;
     }
+    const confirmed = window.confirm("Are you sure you want to clear all survey responses and imported vendor data for the active edition? This action cannot be undone.");
+    if (!confirmed) return;
 
     try {
-      const text = await file.text();
-      const rows = parseCSVToObjects(text);
-      if (rows.length === 0) {
-        addToast("CSV is empty", "error");
-        return;
-      }
-
       const supabase = createClient();
       if (!supabase) throw new Error("Supabase not initialized");
 
-      // 1. Fetch all survey responses for this active edition, with their vendor profiles
-      const { data: responses, error: rError } = await supabase
+      // 1. Get all vendor IDs associated with survey responses for this edition
+      const { data: responses, error: fetchErr } = await supabase
         .from('survey_responses')
-        .select(`
-          id,
-          vendor_id,
-          vendors (
-            id,
-            phone
-          )
-        `)
+        .select('id, vendor_id')
         .eq('context_id', activeEdition.id);
 
-      if (rError) throw rError;
-      if (!responses || responses.length === 0) {
-        addToast("No existing survey responses found for this event edition.", "error");
-        return;
-      }
+      if (fetchErr) throw fetchErr;
 
-      // 2. Fetch all survey questions
-      const { data: formData } = await supabase
-        .from('forms')
-        .select('id')
-        .eq('name', 'Vendor Data Collection Survey')
-        .limit(1);
+      const vendorIds = responses?.map(r => r.vendor_id).filter(Boolean) || [];
+      const responseIds = responses?.map(r => r.id).filter(Boolean) || [];
 
-      if (!formData || formData.length === 0) {
-        throw new Error("Survey Form definition not found.");
-      }
-      const formId = formData[0].id;
-
-      const { data: questions } = await supabase
-        .from('survey_questions')
-        .select('id, csv_column')
-        .eq('form_id', formId);
-
-      if (!questions || questions.length === 0) {
-        throw new Error("No questions found for this form.");
-      }
-
-      // 3. Load column map from profile
-      const { data: profiles } = await supabase
-        .from('csv_import_profiles')
-        .select('*')
-        .eq('name', 'Vendor Data Collection Import')
-        .limit(1);
-
-      const columnMap = profiles?.[0]?.column_map || {};
-      const csvColumnToHeader: Record<string, string> = {};
-      for (const [header, target] of Object.entries(columnMap)) {
-        if (typeof target === 'string' && target.startsWith('answer.')) {
-          const csvCol = target.replace('answer.', '');
-          csvColumnToHeader[csvCol] = header;
-        }
-      }
-
-      // Find the phone column header name
-      const firstRow = rows[0];
-      const phoneHeader = Object.keys(firstRow).find(h => 
-        h.toLowerCase().includes('phone') || 
-        h.toLowerCase() === 'phone number' || 
-        columnMap[h] === 'answer.phone_number'
-      ) || 'Phone number';
-
-      let successCount = 0;
-      const allAnswersToInsert: any[] = [];
-
-      for (const rowObj of rows) {
-        const rawPhone = rowObj[phoneHeader];
-        if (!rawPhone) continue;
-
-        const normPhone = normalizePhone(rawPhone);
-        
-        // Find matching response in our fetched list
-        const matchingResponse = responses.find(r => {
-          const v = (r as any).vendors;
-          return v && normalizePhone(v.phone) === normPhone;
-        });
-
-        if (!matchingResponse) continue;
-
-        // Check if answers already exist for this response to avoid duplicate insertion
-        const { data: existingAnswers } = await supabase
+      // 2. Delete survey responses & answers
+      if (responseIds.length > 0) {
+        await supabase
           .from('survey_answers')
-          .select('id')
-          .eq('response_id', matchingResponse.id)
-          .limit(1);
+          .delete()
+          .in('response_id', responseIds);
+      }
 
-        if (existingAnswers && existingAnswers.length > 0) {
-          // Already has answers, skip
-          continue;
-        }
+      const { error: respErr } = await supabase
+        .from('survey_responses')
+        .delete()
+        .eq('context_id', activeEdition.id);
 
-        // Build answers for this response
-        for (const q of questions) {
-          // Find value in CSV row
-          const headerName = csvColumnToHeader[q.csv_column] || Object.keys(rowObj).find(k => k.toLowerCase() === q.csv_column.toLowerCase());
-          if (headerName) {
-            const val = rowObj[headerName];
-            if (val !== undefined && val !== null && val !== '') {
-              allAnswersToInsert.push({
-                response_id: matchingResponse.id,
-                question_id: q.id,
-                answer: String(val)
-              });
-            }
+      if (respErr) throw respErr;
+
+      // 3. Delete vendors that have no other responses or registrations
+      if (vendorIds.length > 0) {
+        const { data: otherRegs } = await supabase
+          .from('vendor_registrations')
+          .select('vendor_id')
+          .in('vendor_id', vendorIds);
+        
+        const { data: otherResps } = await supabase
+          .from('survey_responses')
+          .select('vendor_id')
+          .in('vendor_id', vendorIds);
+
+        const keepVendorIds = new Set([
+          ...(otherRegs?.map(r => r.vendor_id) || []),
+          ...(otherResps?.map(r => r.vendor_id) || [])
+        ]);
+
+        const deleteVendorIds = vendorIds.filter(id => !keepVendorIds.has(id));
+        if (deleteVendorIds.length > 0) {
+          const { error: vendErr } = await supabase
+            .from('vendors')
+            .delete()
+            .in('id', deleteVendorIds);
+          if (vendErr) {
+            console.error("Error deleting isolated vendors:", vendErr);
           }
         }
-        successCount++;
       }
 
-      // Batch insert all answers
-      if (allAnswersToInsert.length > 0) {
-        const chunkSize = 500;
-        for (let i = 0; i < allAnswersToInsert.length; i += chunkSize) {
-          const chunk = allAnswersToInsert.slice(i, i + chunkSize);
-          const { error: insErr } = await supabase
-            .from('survey_answers')
-            .insert(chunk);
-          if (insErr) throw insErr;
-        }
-      }
-
-      addToast(`Successfully re-processed and inserted answers for ${successCount} responses!`, "success");
+      addToast("Successfully cleared all survey responses and imported vendors for this edition.", "success");
+      fetchVendors();
       fetchSurveyResponses();
     } catch (err: any) {
-      console.error("Reprocess error:", err);
-      addToast("Failed to re-process answers: " + err.message, "error");
+      console.error(err);
+      addToast("Failed to clear data: " + err.message, "error");
     }
   };
 
@@ -2940,24 +2879,17 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* Re-process Answers Section */}
-              <div className="bg-bg-surface border border-border-light rounded-xl p-5 select-none flex flex-col md:flex-row items-center justify-between gap-4">
+              {/* Clear Edition Data Section */}
+              <div className="bg-bg-surface border border-red/20 rounded-xl p-5 select-none flex flex-col md:flex-row items-center justify-between gap-4">
                 <div className="space-y-1 text-left flex-1">
-                  <h3 className="font-bold text-sm text-text-primary">Re-process answers for existing responses</h3>
+                  <h3 className="font-bold text-sm text-red">Clear responses for active edition</h3>
                   <p className="text-xs text-text-secondary leading-normal max-w-xl">
-                    If you already imported vendors and responses but have empty survey answers, click this button to upload the source CSV file again and reconstruct the answers.
+                    Delete existing survey responses and imported vendor records associated with <span className="font-bold text-text-primary">{activeEdition ? activeEdition.name : 'the selected edition'}</span>. This lets you re-import clean CSV files without duplicates.
                   </p>
                 </div>
                 <div className="shrink-0">
-                  <input 
-                    type="file" 
-                    id="reprocessFileInput"
-                    className="hidden" 
-                    accept=".csv" 
-                    onChange={(e) => { const f = e.target.files?.[0]; if (f) handleReprocessAnswers(f); }} 
-                  />
-                  <Button variant="secondary" onClick={() => document.getElementById('reprocessFileInput')?.click()} disabled={!activeEdition}>
-                    <span>Re-process CSV Answers</span>
+                  <Button variant="danger" onClick={handleClearEditionData} disabled={!activeEdition}>
+                    <span>Clear & Reset Data</span>
                   </Button>
                 </div>
               </div>
