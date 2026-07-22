@@ -110,6 +110,7 @@ const getVendorDetailData = (vendor: any) => {
 
 export default function Home() {
   const [mounted, setMounted] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
   const { activeRegion, activeEdition, regions: ctxRegions, switchRegion, loadingRegions, editions: ctxEditions, setActiveEdition } = useRegion();
 
   const [toasts, setToasts] = useState<Array<{ id: number; message: string; type: 'success' | 'error' }>>([]);
@@ -1758,6 +1759,9 @@ export default function Home() {
       return;
     }
 
+    if (isImporting) return;
+    setIsImporting(true);
+
     try {
       const text = await file.text();
       const rows = parseCSVToObjects(text);
@@ -1829,7 +1833,7 @@ export default function Home() {
         }
       });
 
-      // CSV Header Overrides for exact matches
+      // Manual fallback mappings
       const csvHeaderOverrides: Record<string, string> = {
         'primary_income_source': 'primary_source_of_income',
         'years_in_business': 'how_long_in_business',
@@ -1900,65 +1904,68 @@ export default function Home() {
             continue;
           }
 
-          const vendorData = { contact_name: name, phone, business_name: biz, category: cat, is_active: true };
-          console.log("Inserting vendor:", index + 1, "of", rows.length, vendorData);
-
-          // Insert/update vendor
-          const { data: existing } = await supabase
+          // Insert/update vendor via upsert
+          const { data: vendorResult, error: vendorError } = await supabase
             .from('vendors')
-            .select('id')
-            .eq('phone', phone)
-            .limit(1);
+            .upsert({
+              contact_name: name,
+              phone: phone,
+              business_name: biz,
+              category: cat,
+              is_active: true
+            }, {
+              onConflict: 'phone',
+              ignoreDuplicates: false
+            })
+            .select()
+            .single();
 
-          let vendorId;
-          if (existing && existing.length > 0) {
-            vendorId = existing[0].id;
-            const { error: vUpdateErr } = await supabase
-              .from('vendors')
-              .update({ contact_name: name, business_name: biz, category: cat, is_active: true })
-              .eq('id', vendorId);
-            if (vUpdateErr) {
-              console.error("Failed at row:", index + 1, vUpdateErr.message, vUpdateErr.code, vUpdateErr.details);
-              break;
-            }
-          } else {
-            const { data: inserted, error: vInsertErr } = await supabase
-              .from('vendors')
-              .insert({ contact_name: name, phone, business_name: biz, category: cat, is_active: true })
-              .select();
-            if (vInsertErr) {
-              console.error("Failed at row:", index + 1, vInsertErr.message, vInsertErr.code, vInsertErr.details);
-              break;
-            }
-            if (inserted && inserted.length > 0) {
-              vendorId = inserted[0].id;
-            }
+          if (vendorError) {
+            console.error("Failed at row:", index + 1, vendorError.message, vendorError.code, vendorError.details);
+            break;
           }
 
-          if (vendorId) {
-            // Insert survey response
-            const { data: resData, error: resError } = await supabase
-              .from('survey_responses')
-              .insert({
-                form_id: formId,
-                context_type: 'market_day',
-                context_id: activeEdition.id,
-                vendor_id: vendorId,
-                source: 'csv_import',
-                import_batch: file.name,
-                submitted_at: new Date().toISOString()
-              })
-              .select()
-              .single();
+          const vendorId = vendorResult?.id;
 
-            if (resError) {
-              console.error("Failed at row:", index + 1, resError.message, resError.code, resError.details);
-              break;
+          if (vendorId) {
+            // Check if survey response already exists for this vendor and edition
+            const { data: existingResponse } = await supabase
+              .from('survey_responses')
+              .select('id')
+              .eq('form_id', formId)
+              .eq('context_id', activeEdition.id)
+              .eq('vendor_id', vendorId)
+              .limit(1);
+
+            let responseId;
+            if (existingResponse && existingResponse.length > 0) {
+              responseId = existingResponse[0].id;
+            } else {
+              // Insert survey response
+              const { data: resData, error: resError } = await supabase
+                .from('survey_responses')
+                .insert({
+                  form_id: formId,
+                  context_type: 'market_day',
+                  context_id: activeEdition.id,
+                  vendor_id: vendorId,
+                  source: 'csv_import',
+                  import_batch: file.name,
+                  submitted_at: new Date().toISOString()
+                })
+                .select()
+                .single();
+
+              if (resError) {
+                console.error("Failed at row:", index + 1, resError.message, resError.code, resError.details);
+                break;
+              }
+              if (resData) {
+                responseId = resData.id;
+              }
             }
 
-            if (resData) {
-              const responseId = resData.id;
-
+            if (responseId) {
               // Insert answers
               const answersToInsert: any[] = [];
               Object.entries(rowObj).forEach(([header, value]) => {
@@ -1976,12 +1983,15 @@ export default function Home() {
               console.log("Inserting answers for response:", responseId, "count:", answersToInsert.length);
 
               if (answersToInsert.length > 0) {
-                // Chunk answer inserts into chunks of 50
+                // Chunk answer upserts into chunks of 50
                 for (let c = 0; c < answersToInsert.length; c += 50) {
                   const chunk = answersToInsert.slice(c, c + 50);
                   const { error: ansError } = await supabase
                     .from('survey_answers')
-                    .insert(chunk);
+                    .upsert(chunk, {
+                      onConflict: 'response_id,question_id',
+                      ignoreDuplicates: true
+                    });
                   if (ansError) {
                     console.error("Chunk error:", c, ansError.message);
                     console.error("Failed at row:", index + 1, ansError.message, ansError.code, ansError.details);
@@ -2005,6 +2015,8 @@ export default function Home() {
     } catch (err: any) {
       console.error(err);
       addToast("Import failed: " + err.message, "error");
+    } finally {
+      setIsImporting(false);
     }
   };
 
@@ -2924,8 +2936,8 @@ export default function Home() {
                     </div>
                   </div>
                   <div className="pt-5">
-                    <Button variant="primary" fullWidth onClick={() => fileInputRef2.current?.click()}>
-                      <span>Upload CSV</span>
+                    <Button variant="primary" fullWidth onClick={() => fileInputRef2.current?.click()} disabled={isImporting}>
+                      <span>{isImporting ? "Importing..." : "Upload CSV"}</span>
                     </Button>
                   </div>
                 </div>
