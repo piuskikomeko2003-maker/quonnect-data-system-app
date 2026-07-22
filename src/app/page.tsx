@@ -1786,7 +1786,7 @@ export default function Home() {
       // 2. Fetch all survey questions for this form only
       const { data: questions } = await supabase
         .from('survey_questions')
-        .select('id, csv_column')
+        .select('id, csv_column, question_text')
         .eq('form_id', formId);
 
       if (!questions || questions.length === 0) {
@@ -1820,6 +1820,30 @@ export default function Home() {
         if (q.csv_column) {
           headerToColumn[q.csv_column.toLowerCase().trim()] = q.csv_column;
         }
+      });
+
+      // Method 3: direct question_text match as fallback
+      questions.forEach(q => {
+        if (q.question_text && q.csv_column) {
+          headerToColumn[q.question_text.toLowerCase().trim()] = q.csv_column;
+        }
+      });
+
+      // Manual fallback mappings
+      const manualMappings: Record<string, string> = {
+        'primary source of income': 'primary_source_of_income',
+        'is this business your primary source of income?': 'primary_source_of_income',
+        'new employees count': 'new_employees_count',
+        'how many new employees in the past 12 months?': 'new_employees_count',
+        'how long in business': 'how_long_in_business',
+        'first time at quonnect': 'first_time_at_quonnect',
+        'how did you know about quonnect?': 'how_did_you_know',
+        'how did you know': 'how_did_you_know',
+        'products primarily from': 'products_primarily_from',
+      };
+
+      Object.entries(manualMappings).forEach(([header, csvColumn]) => {
+        headerToColumn[header.toLowerCase().trim()] = csvColumn;
       });
 
       // Flexible header lookup
