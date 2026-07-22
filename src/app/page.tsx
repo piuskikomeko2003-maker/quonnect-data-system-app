@@ -1766,7 +1766,7 @@ export default function Home() {
         addToast("CSV is empty", "error");
         return;
       }
-      console.log("CSV headers found:", Object.keys(rows[0]));
+      console.log("All CSV headers:", Object.keys(rows[0]));
 
       const supabase = createClient();
       if (!supabase) throw new Error("Supabase not initialized");
@@ -1804,45 +1804,62 @@ export default function Home() {
       if (pErr) throw pErr;
       const columnMap = profile?.column_map || {};
 
-      // Strip "answer." prefix to get csv_column values
-      const normalizedHeaderToColumn: Record<string, string> = {};
+      // Build headerToColumn lookup map
+      const headerToColumn: Record<string, string> = {};
+
+      // Method 1: from column_map
       Object.entries(columnMap).forEach(([header, path]) => {
         if (typeof path === 'string') {
           const csvColumn = path.replace('answer.', '');
-          const normHeader = header.toLowerCase().replace(/[^a-z0-9]/g, '');
-          normalizedHeaderToColumn[normHeader] = csvColumn;
+          headerToColumn[header.toLowerCase().trim()] = csvColumn;
         }
       });
 
-      // Map normalized question columns
-      const normalizedQuestionColumn: Record<string, string> = {};
+      // Method 2: direct csv_column match as fallback
       questions.forEach(q => {
         if (q.csv_column) {
-          const normCol = q.csv_column.toLowerCase().replace(/[^a-z0-9]/g, '');
-          normalizedQuestionColumn[normCol] = q.csv_column;
+          headerToColumn[q.csv_column.toLowerCase().trim()] = q.csv_column;
         }
       });
+
+      // Flexible header lookup
+      const getColumnKey = (header: string): string | undefined => {
+        const cleanHeader = header.toLowerCase().trim();
+        // Try exact lowercase trimmed match
+        if (headerToColumn[cleanHeader]) {
+          return headerToColumn[cleanHeader];
+        }
+        // Fallback: check if normalized clean versions match
+        const normHeader = cleanHeader.replace(/[^a-z0-9]/g, '');
+        for (const [key, value] of Object.entries(headerToColumn)) {
+          const normKey = key.replace(/[^a-z0-9]/g, '');
+          if (normHeader === normKey || normHeader.includes(normKey) || normKey.includes(normHeader)) {
+            return value;
+          }
+        }
+        return undefined;
+      };
 
       // Find target headers for name and phone and business name to create/update vendors
       const firstRow = rows[0];
       const phoneHeader = Object.keys(firstRow).find(h => {
-        const norm = h.toLowerCase().replace(/[^a-z0-9]/g, '');
-        return norm === 'phone' || norm === 'phonenumber' || normalizedHeaderToColumn[norm] === 'phone_number';
+        const csvCol = getColumnKey(h);
+        return csvCol === 'phone_number' || csvCol === 'phone' || h.toLowerCase().includes('phone');
       }) || 'Phone number';
 
       const nameHeader = Object.keys(firstRow).find(h => {
-        const norm = h.toLowerCase().replace(/[^a-z0-9]/g, '');
-        return norm === 'fullname' || norm === 'name' || normalizedHeaderToColumn[norm] === 'full_name';
+        const csvCol = getColumnKey(h);
+        return csvCol === 'full_name' || csvCol === 'name' || h.toLowerCase().includes('name') || h.toLowerCase().includes('contact');
       }) || 'Full name';
 
       const bizHeader = Object.keys(firstRow).find(h => {
-        const norm = h.toLowerCase().replace(/[^a-z0-9]/g, '');
-        return norm === 'businessname' || norm === 'vendorname' || normalizedHeaderToColumn[norm] === 'business_name';
+        const csvCol = getColumnKey(h);
+        return csvCol === 'business_name' || h.toLowerCase().includes('business');
       }) || 'Business name';
 
       const catHeader = Object.keys(firstRow).find(h => {
-        const norm = h.toLowerCase().replace(/[^a-z0-9]/g, '');
-        return norm === 'category' || norm === 'businesscategory' || normalizedHeaderToColumn[norm] === 'business_category';
+        const csvCol = getColumnKey(h);
+        return csvCol === 'business_category' || csvCol === 'category' || h.toLowerCase().includes('category');
       }) || 'Business category';
 
       let count = 0;
@@ -1924,21 +1941,10 @@ export default function Home() {
               // Insert answers
               const answersToInsert: any[] = [];
               Object.entries(rowObj).forEach(([header, value]) => {
-                const normHeader = header.toLowerCase().replace(/[^a-z0-9]/g, '');
-                
-                // 1. Try to find csvColumn from profile columnMap
-                let csvColumn = normalizedHeaderToColumn[normHeader];
-                
-                // 2. If not found, check if it directly matches a question's csv_column
-                if (!csvColumn) {
-                  csvColumn = normalizedQuestionColumn[normHeader];
-                }
-
+                const csvColumn = getColumnKey(header);
                 if (!csvColumn) return;
-
                 const question = questions.find(q => q.csv_column === csvColumn);
                 if (!question) return;
-
                 answersToInsert.push({
                   response_id: responseId,
                   question_id: question.id,
