@@ -1829,21 +1829,18 @@ export default function Home() {
         }
       });
 
-      // Manual fallback mappings
-      const manualMappings: Record<string, string> = {
-        'primary source of income': 'primary_source_of_income',
-        'is this business your primary source of income?': 'primary_source_of_income',
-        'new employees count': 'new_employees_count',
-        'how many new employees in the past 12 months?': 'new_employees_count',
-        'how long in business': 'how_long_in_business',
-        'first time at quonnect': 'first_time_at_quonnect',
-        'how did you know about quonnect?': 'how_did_you_know',
-        'how did you know': 'how_did_you_know',
-        'products primarily from': 'products_primarily_from',
+      // CSV Header Overrides for exact matches
+      const csvHeaderOverrides: Record<string, string> = {
+        'primary_income_source': 'primary_source_of_income',
+        'years_in_business': 'how_long_in_business',
+        'first_time_attendee': 'first_time_at_quonnect',
+        'how_heard_about_quonnect': 'how_did_you_know',
+        'products_source': 'products_primarily_from',
+        'hired_new_employees_12mo': 'new_employees_count',
       };
 
-      Object.entries(manualMappings).forEach(([header, csvColumn]) => {
-        headerToColumn[header.toLowerCase().trim()] = csvColumn;
+      Object.entries(csvHeaderOverrides).forEach(([csvHeader, csvColumn]) => {
+        headerToColumn[csvHeader.toLowerCase().trim()] = csvColumn;
       });
 
       // Flexible header lookup
