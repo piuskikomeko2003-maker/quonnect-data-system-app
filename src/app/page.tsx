@@ -1833,20 +1833,6 @@ export default function Home() {
         }
       });
 
-      // Manual fallback mappings
-      const csvHeaderOverrides: Record<string, string> = {
-        'primary_income_source': 'primary_source_of_income',
-        'years_in_business': 'how_long_in_business',
-        'first_time_attendee': 'first_time_at_quonnect',
-        'how_heard_about_quonnect': 'how_did_you_know',
-        'products_source': 'products_primarily_from',
-        'hired_new_employees_12mo': 'new_employees_count',
-      };
-
-      Object.entries(csvHeaderOverrides).forEach(([csvHeader, csvColumn]) => {
-        headerToColumn[csvHeader.toLowerCase().trim()] = csvColumn;
-      });
-
       // Flexible header lookup
       const getColumnKey = (header: string): string | undefined => {
         const cleanHeader = header.toLowerCase().trim();
