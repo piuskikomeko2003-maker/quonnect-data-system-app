@@ -53,7 +53,8 @@ import {
   ChevronRight,
   Loader2,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  CreditCard
 } from 'lucide-react';
 
 // ==========================================
@@ -190,6 +191,14 @@ export default function Home() {
   const [walkins, setWalkins] = useState<any[]>([]);
   const [loadingVendors, setLoadingVendors] = useState(true);
   const [error, setError] = useState<string | null>(null);
+
+  // Paid Vendors states
+  const [paidVendors, setPaidVendors] = useState<any[]>([]);
+  const [paidVendorCounts, setPaidVendorCounts] = useState({ paid: 0, unpaid: 0, revenue: 0 });
+  const [loadingPaidVendors, setLoadingPaidVendors] = useState(false);
+
+  // Overview live counts
+  const [overviewCounts, setOverviewCounts] = useState({ paidVendors: 0, walkins: 0, surveyResponses: 0 });
 
   const fetchVendors = async () => {
     try {
@@ -339,6 +348,66 @@ export default function Home() {
     }
   };
 
+  const fetchPaidVendors = async () => {
+    try {
+      const supabase = createClient();
+      if (!supabase || !activeEdition?.id) {
+        setPaidVendors([]);
+        setPaidVendorCounts({ paid: 0, unpaid: 0, revenue: 0 });
+        setLoadingPaidVendors(false);
+        return;
+      }
+
+      setLoadingPaidVendors(true);
+
+      const { data, error } = await supabase
+        .from('vendor_registrations')
+        .select(`
+          id,
+          payment_status,
+          stall_number,
+          amount_paid,
+          created_at,
+          vendors (
+            id,
+            business_name,
+            contact_name,
+            phone,
+            category
+          )
+        `)
+        .eq('market_day_id', activeEdition.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+
+      const registrations = (data || []).map((r: any) => ({
+        id: r.id,
+        payment_status: r.payment_status,
+        stall_number: r.stall_number,
+        amount_paid: r.amount_paid,
+        created_at: r.created_at,
+        business_name: r.vendors?.business_name || 'Unknown',
+        contact_name: r.vendors?.contact_name || 'Unknown',
+        phone: r.vendors?.phone || '',
+        category: r.vendors?.category || '',
+      }));
+
+      const paid = registrations.filter(r => r.payment_status === 'paid').length;
+      const unpaid = registrations.filter(r => r.payment_status !== 'paid').length;
+      const revenue = registrations.reduce((sum: number, r: any) => sum + (Number(r.amount_paid) || 0), 0);
+
+      setPaidVendors(registrations);
+      setPaidVendorCounts({ paid, unpaid, revenue });
+      setLoadingPaidVendors(false);
+    } catch (err: any) {
+      console.error("Error fetching paid vendors:", err);
+      setPaidVendors([]);
+      setPaidVendorCounts({ paid: 0, unpaid: 0, revenue: 0 });
+      setLoadingPaidVendors(false);
+    }
+  };
+
   const fetchSurveyResponses = async () => {
     try {
       const supabase = createClient();
@@ -408,6 +477,35 @@ export default function Home() {
     } catch (err: any) {
       console.error("Supabase error fetching responses:", err?.message, err?.code, err?.details, JSON.stringify(err));
       setSurveyResponses([]);
+    }
+  };
+
+  const fetchOverviewCounts = async () => {
+    if (!activeEdition?.id) {
+      setOverviewCounts({ paidVendors: 0, walkins: 0, surveyResponses: 0 });
+      return;
+    }
+    try {
+      const supabase = createClient();
+      if (!supabase) return;
+
+      const [paidRes, walkinRes, surveyRes] = await Promise.all([
+        supabase.from('vendor_registrations').select('*', { count: 'exact', head: true })
+          .eq('market_day_id', activeEdition.id)
+          .eq('payment_status', 'paid'),
+        supabase.from('walkins').select('*', { count: 'exact', head: true })
+          .eq('market_day_id', activeEdition.id),
+        supabase.from('survey_responses').select('*', { count: 'exact', head: true })
+          .eq('context_id', activeEdition.id),
+      ]);
+
+      setOverviewCounts({
+        paidVendors: paidRes.count ?? 0,
+        walkins: walkinRes.count ?? 0,
+        surveyResponses: surveyRes.count ?? 0,
+      });
+    } catch (err: any) {
+      console.error("Error fetching overview counts:", err);
     }
   };
 
@@ -533,11 +631,14 @@ export default function Home() {
     let regionsChannel: any;
     let walkinsChannel: any;
     let responsesChannel: any;
+    let vendorRegistrationsChannel: any;
 
     if (mounted) {
       fetchVendors();
       fetchWalkins();
       fetchSurveyResponses();
+      fetchPaidVendors();
+      fetchOverviewCounts();
       fetchRegions();
       fetchMarketDays();
       fetchFormsAndQuestions();
@@ -591,6 +692,18 @@ export default function Home() {
             }
           )
           .subscribe();
+
+        vendorRegistrationsChannel = supabase
+          .channel('public-vendor_registrations-realtime')
+          .on(
+            'postgres_changes',
+            { event: 'INSERT', schema: 'public', table: 'vendor_registrations' },
+            () => {
+              fetchPaidVendors();
+              fetchOverviewCounts();
+            }
+          )
+          .subscribe();
       }
     }
 
@@ -601,6 +714,7 @@ export default function Home() {
         if (regionsChannel) supabase.removeChannel(regionsChannel);
         if (walkinsChannel) supabase.removeChannel(walkinsChannel);
         if (responsesChannel) supabase.removeChannel(responsesChannel);
+        if (vendorRegistrationsChannel) supabase.removeChannel(vendorRegistrationsChannel);
       }
     };
   }, [mounted, activeRegion?.id, activeEdition?.id]);
@@ -1012,6 +1126,26 @@ export default function Home() {
               });
             if (resError) throw resError;
           }
+        }
+
+        // Insert into vendor_registrations for this edition
+        const { data: existingReg } = await supabase
+          .from('vendor_registrations')
+          .select('id')
+          .eq('vendor_id', vendorId)
+          .eq('market_day_id', activeEdition.id)
+          .limit(1);
+
+        if (!existingReg || existingReg.length === 0) {
+          const { error: regError } = await supabase
+            .from('vendor_registrations')
+            .insert({
+              market_day_id: activeEdition.id,
+              vendor_id: vendorId,
+              payment_status: 'paid',
+              amount_paid: Number(paidFormValues.amountPaid) || 0,
+            });
+          if (regError) throw regError;
         }
       }
 
@@ -2326,6 +2460,37 @@ export default function Home() {
                 />
               </div>
 
+              {/* Live Overview Counts Card */}
+              {activeEdition && (
+                <div className="bg-bg-surface border border-green/20 rounded-lg p-5">
+                  <div className="flex items-center gap-2 mb-4">
+                    <span className="relative flex h-2.5 w-2.5 shrink-0">
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green"></span>
+                    </span>
+                    <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider">{activeRegion?.name} {activeEdition.name}</h3>
+                    <Badge variant="success" size="sm">LIVE</Badge>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="bg-bg-elevated rounded-lg p-3 text-center">
+                      <CreditCard className="w-5 h-5 text-green mx-auto mb-1.5" />
+                      <span className="block text-2xl font-bold text-text-primary">{overviewCounts.paidVendors}</span>
+                      <span className="block text-[10px] text-text-tertiary uppercase tracking-wider font-bold mt-0.5">Paid Vendors</span>
+                    </div>
+                    <div className="bg-bg-elevated rounded-lg p-3 text-center">
+                      <Footprints className="w-5 h-5 text-green mx-auto mb-1.5" />
+                      <span className="block text-2xl font-bold text-text-primary">{overviewCounts.walkins}</span>
+                      <span className="block text-[10px] text-text-tertiary uppercase tracking-wider font-bold mt-0.5">Walk-ins</span>
+                    </div>
+                    <div className="bg-bg-elevated rounded-lg p-3 text-center">
+                      <ClipboardList className="w-5 h-5 text-green mx-auto mb-1.5" />
+                      <span className="block text-2xl font-bold text-text-primary">{overviewCounts.surveyResponses}</span>
+                      <span className="block text-[10px] text-text-tertiary uppercase tracking-wider font-bold mt-0.5">Survey Data</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Interactive Shared Filter Bar */}
               <FilterBar
                 filters={filters}
@@ -2618,6 +2783,103 @@ export default function Home() {
               </div>
             );
           })()}
+
+          {/* 3.5 PAID VENDORS */}
+          {activeNav === 'paid-vendors' && (
+            <div className="space-y-5 animate-fade-in text-left">
+              <div className="flex justify-between items-center">
+                <div>
+                  <h1 className="text-xl font-bold tracking-tight text-text-primary">Paid Vendors</h1>
+                  <p className="text-xs text-text-secondary mt-0.5">Vendor registration and payment tracking per edition.</p>
+                </div>
+              </div>
+
+              {!activeEdition ? (
+                <div className="bg-bg-surface border border-border rounded-lg p-12 text-center">
+                  <CreditCard className="w-10 h-10 text-text-tertiary mx-auto mb-3" />
+                  <p className="text-sm text-text-secondary font-semibold">Select an edition to view paid vendors</p>
+                </div>
+              ) : (
+                <>
+                  {/* Live Count Cards */}
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="bg-bg-surface border border-green/20 rounded-lg p-4 flex flex-col">
+                      <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider mb-1">Paid Vendors</span>
+                      <span className="text-2xl font-bold text-green">{paidVendorCounts.paid}</span>
+                      <span className="text-[10px] text-text-secondary mt-1">payment_status = paid</span>
+                    </div>
+                    <div className="bg-bg-surface border border-yellow/20 rounded-lg p-4 flex flex-col">
+                      <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider mb-1">Pending Vendors</span>
+                      <span className="text-2xl font-bold text-yellow">{paidVendorCounts.unpaid}</span>
+                      <span className="text-[10px] text-text-secondary mt-1">unpaid / partial / pending</span>
+                    </div>
+                    <div className="bg-bg-surface border border-purple/20 rounded-lg p-4 flex flex-col">
+                      <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider mb-1">Total Revenue</span>
+                      <span className="text-2xl font-bold text-purple">UGX {paidVendorCounts.revenue.toLocaleString()}</span>
+                      <span className="text-[10px] text-text-secondary mt-1">sum of amount_paid</span>
+                    </div>
+                  </div>
+
+                  {/* Paid Vendors Table */}
+                  <div className="bg-bg-surface border border-border rounded-lg overflow-hidden">
+                    {loadingPaidVendors ? (
+                      <div className="p-12 text-center">
+                        <div className="animate-spin w-6 h-6 border-2 border-green border-t-transparent rounded-full mx-auto mb-3" />
+                        <p className="text-xs text-text-tertiary font-medium">Loading paid vendors...</p>
+                      </div>
+                    ) : paidVendors.length === 0 ? (
+                      <div className="p-12 text-center">
+                        <CreditCard className="w-10 h-10 text-text-tertiary mx-auto mb-3" />
+                        <p className="text-sm text-text-secondary font-semibold">No paid vendors yet for this edition.</p>
+                        <p className="text-xs text-text-tertiary mt-1">Add them via Quick Entry.</p>
+                      </div>
+                    ) : (
+                      <table className="w-full border-collapse text-left text-xs">
+                        <thead>
+                          <tr className="bg-bg-elevated border-b border-border">
+                            <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider">Business Name</th>
+                            <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider">Contact Name</th>
+                            <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider">Phone</th>
+                            <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider">Category</th>
+                            <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider text-center">Status</th>
+                            <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider">Stall #</th>
+                            <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider text-right">Amount Paid</th>
+                            <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider">Registered</th>
+                          </tr>
+                        </thead>
+                        <tbody className="divide-y divide-border/40 text-xs">
+                          {paidVendors.map((pv) => (
+                            <tr key={pv.id} className="hover:bg-green-soft/10">
+                              <td className="p-3.5">
+                                <span className="block font-bold text-text-primary">{pv.business_name}</span>
+                              </td>
+                              <td className="p-3.5 text-text-secondary font-medium">{pv.contact_name}</td>
+                              <td className="p-3.5 text-text-secondary font-medium">{pv.phone || '—'}</td>
+                              <td className="p-3.5 text-text-secondary font-semibold">{pv.category || '—'}</td>
+                              <td className="p-3.5 text-center">
+                                <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
+                                  pv.payment_status === 'paid' ? 'bg-green-muted text-green' :
+                                  pv.payment_status === 'waived' ? 'bg-gray-100 text-text-tertiary' :
+                                  'bg-yellow-muted text-yellow'
+                                }`}>
+                                  {pv.payment_status}
+                                </span>
+                              </td>
+                              <td className="p-3.5 text-text-secondary font-medium">{pv.stall_number || '—'}</td>
+                              <td className="p-3.5 text-right text-text-primary font-bold">UGX {Number(pv.amount_paid).toLocaleString()}</td>
+                              <td className="p-3.5 text-text-secondary font-medium">
+                                {pv.created_at ? new Date(pv.created_at).toLocaleString() : '—'}
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    )}
+                  </div>
+                </>
+              )}
+            </div>
+          )}
 
           {/* 4. QUICK ENTRY PANEL */}
           {activeNav === 'quick-entry' && (

@@ -17,7 +17,8 @@ import {
   UploadCloud,
   Store,
   CheckCircle2,
-  AlertCircle
+  AlertCircle,
+  CreditCard
 } from 'lucide-react';
 import { Badge } from '../ui/Badge';
 import { useRegion, Region, Edition } from '@/context/RegionContext';
@@ -84,6 +85,7 @@ export const AdminShell: React.FC<AdminShellProps> = ({
           badge: vendorAlertCount > 0 ? { type: 'action', value: vendorAlertCount } : undefined 
         },
         { id: 'walkins', name: 'Walk-ins', icon: <Footprints className="w-5 h-5" /> },
+        { id: 'paid-vendors', name: 'Paid Vendors', icon: <CreditCard className="w-5 h-5" /> },
         { id: 'quick-entry', name: 'Quick Entry', icon: <Zap className="w-5 h-5" /> },
         { id: 'import-export', name: 'Import/Export', icon: <UploadCloud className="w-5 h-5" /> },
       ]
@@ -103,6 +105,7 @@ export const AdminShell: React.FC<AdminShellProps> = ({
       case 'overview': return <LayoutDashboard className="w-5 h-5" />;
       case 'vendors': return <Users className="w-5 h-5" />;
       case 'walkins': return <Footprints className="w-5 h-5" />;
+      case 'paid-vendors': return <CreditCard className="w-5 h-5" />;
       case 'quick-entry': return <Zap className="w-5 h-5" />;
       case 'import-export': return <UploadCloud className="w-5 h-5" />;
       case 'formbuilder': return <ClipboardList className="w-5 h-5" />;
