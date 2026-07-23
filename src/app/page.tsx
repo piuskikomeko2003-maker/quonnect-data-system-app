@@ -200,12 +200,14 @@ export default function Home() {
         return;
       }
 
-      if (!activeRegion) {
+      if (!activeRegion?.id) {
         setVendors([]);
         setRunningCount(0);
         setLoadingVendors(false);
         return;
       }
+
+      console.log("Fetching vendors for region:", activeRegion.id);
 
       let query = supabase
         .from('survey_responses')
@@ -235,6 +237,7 @@ export default function Home() {
       const { data, error } = await query;
 
       if (error) {
+        console.error("Vendor fetch error:", error.message, error.code, error.details, error.hint);
         throw error;
       }
 
