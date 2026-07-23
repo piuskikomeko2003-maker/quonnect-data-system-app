@@ -62,10 +62,10 @@ export const AdminShell: React.FC<AdminShellProps> = ({
   const [newRegionName, setNewRegionName] = useState('');
   const [newRegionSlug, setNewRegionSlug] = useState('');
   const [isCreating, setIsCreating] = useState(false);
-  const [toasts, setToasts] = useState<Array<{ id: number; message: string; type: 'success' | 'error' }>>([]);
+  const [toasts, setToasts] = useState<Array<{ id: string; message: string; type: 'success' | 'error' }>>([]);
 
   const addToast = (message: string, type: 'success' | 'error' = 'success') => {
-    const id = Date.now();
+    const id = crypto.randomUUID();
     setToasts(prev => [...prev, { id, message, type }]);
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id));

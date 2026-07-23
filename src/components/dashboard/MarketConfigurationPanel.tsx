@@ -104,7 +104,7 @@ export const MarketConfigurationPanel: React.FC = () => {
   const [isUpdatingMarketName, setIsUpdatingMarketName] = useState(false);
 
   const addToast = (message: string, type: 'success' | 'error') => {
-    const id = Math.random().toString(36).substring(2, 9);
+    const id = crypto.randomUUID();
     setToasts((prev) => [...prev, { id, message, type }]);
     setTimeout(() => {
       setToasts((prev) => prev.filter((t) => t.id !== id));

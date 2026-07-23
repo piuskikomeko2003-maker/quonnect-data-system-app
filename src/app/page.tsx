@@ -113,10 +113,10 @@ export default function Home() {
   const [isImporting, setIsImporting] = useState(false);
   const { activeRegion, activeEdition, regions: ctxRegions, switchRegion, loadingRegions, editions: ctxEditions, setActiveEdition } = useRegion();
 
-  const [toasts, setToasts] = useState<Array<{ id: number; message: string; type: 'success' | 'error' }>>([]);
+  const [toasts, setToasts] = useState<Array<{ id: string; message: string; type: 'success' | 'error' }>>([]);
 
   const addToast = (message: string, type: 'success' | 'error' = 'success') => {
-    const id = Date.now();
+    const id = crypto.randomUUID();
     setToasts(prev => [...prev, { id, message, type }]);
     setTimeout(() => {
       setToasts(prev => prev.filter(t => t.id !== id));
@@ -1014,7 +1014,7 @@ export default function Home() {
 
       const timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       setRecentActivities(prev => [{
-        id: Math.random().toString(36).substring(7),
+        id: crypto.randomUUID(),
         type: 'paid',
         name: paidFormValues.name,
         phone: paidFormValues.phone,
