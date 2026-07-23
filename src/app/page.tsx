@@ -315,18 +315,13 @@ export default function Home() {
       if (error) throw error;
 
       const mappedWalkins = (data || []).map((w: any) => {
-        let parsedNotes: any = {};
-        try {
-          if (w.notes) parsedNotes = JSON.parse(w.notes);
-        } catch (e) {}
-
         return {
           id: w.id,
-          name: parsedNotes.name || w.recorded_by || 'Anonymous Visitor',
-          phone: parsedNotes.phone || '',
-          gender: parsedNotes.gender || 'Female',
-          age: parsedNotes.age || 25,
-          howHeard: parsedNotes.how_heard || 'Passing By',
+          full_name: w.full_name || 'Anonymous Visitor',
+          phone: w.phone || '',
+          email: w.email || '',
+          business_type: w.business_type || '',
+          age: w.age || 0,
           date: w.recorded_at ? new Date(w.recorded_at).toISOString().slice(0, 16).replace('T', ' ') : '',
           region: activeRegion.name,
           editionId: w.market_day_id || ''
@@ -610,7 +605,7 @@ export default function Home() {
   // Walk-ins filtering states
   const [walkinRegionFilter, setWalkinRegionFilter] = useState('All');
   const [walkinEditionFilter, setWalkinEditionFilter] = useState('All');
-  const [walkinGenderFilter, setWalkinGenderFilter] = useState('All');
+  const [walkinBusinessTypeFilter, setWalkinBusinessTypeFilter] = useState('All');
   const [walkinMinAgeFilter, setWalkinMinAgeFilter] = useState<number | ''>('');
   const [walkinMaxAgeFilter, setWalkinMaxAgeFilter] = useState<number | ''>('');
 
@@ -712,13 +707,11 @@ export default function Home() {
   });
 
   const [walkinFormValues, setWalkinFormValues] = useState<WalkinFormValues>({
-    name: '',
+    fullName: '',
     phone: '',
-    gender: '',
-    age: '',
-    howHeard: '',
-    firstVisit: '',
-    approximateVisitCount: ''
+    email: '',
+    businessType: '',
+    age: ''
   });
   const [walkinSuccessState, setWalkinSuccessState] = useState<{ show: boolean; visitorName?: string; onAddAnother: () => void }>({
     show: false,
@@ -818,13 +811,11 @@ export default function Home() {
 
   const resetWalkinForm = () => {
     setWalkinFormValues({
-      name: '',
+      fullName: '',
       phone: '',
-      gender: '',
-      age: '',
-      howHeard: '',
-      firstVisit: '',
-      approximateVisitCount: ''
+      email: '',
+      businessType: '',
+      age: ''
     });
     setWalkinSuccessState(prev => ({ ...prev, show: false }));
   };
@@ -1174,16 +1165,12 @@ export default function Home() {
         .from('walkins')
         .insert({
           market_day_id: activeEdition.id,
-          count: 1,
-          recorded_by: walkinFormValues.name || 'Anonymous Visitor',
-          notes: JSON.stringify({
-            name: walkinFormValues.name || 'Anonymous Visitor',
-            phone: walkinFormValues.phone || '',
-            gender: walkinFormValues.gender || 'Female',
-            age: walkinFormValues.age ? parseInt(walkinFormValues.age) : 25,
-            how_heard: walkinFormValues.howHeard || 'Passing By',
-            first_visit: walkinFormValues.firstVisit === 'Yes'
-          })
+          full_name: walkinFormValues.fullName || 'Anonymous Visitor',
+          phone: walkinFormValues.phone || '',
+          email: walkinFormValues.email || '',
+          business_type: walkinFormValues.businessType || '',
+          age: walkinFormValues.age ? parseInt(walkinFormValues.age) : null,
+          recorded_at: new Date().toISOString()
         })
         .select();
 
@@ -1193,10 +1180,9 @@ export default function Home() {
 
       setWalkinSuccessState({
         show: true,
-        visitorName: walkinFormValues.name || 'Anonymous Visitor',
+        visitorName: walkinFormValues.fullName || 'Anonymous Visitor',
         onAddAnother: () => resetWalkinForm()
       });
-      // Trigger local fetch
       fetchWalkins();
 
       addToast(`Walk-in guest logged successfully!`, "success");
@@ -1483,7 +1469,7 @@ export default function Home() {
       changeText: '+12% from last edition'
     },
     walkinCustomers: {
-      value: runningWalkins * 14, // Scale up mock representation
+      value: runningWalkins,
       changeText: 'Healthy visitor traffic flow',
       isChangePositive: true
     },
@@ -2014,57 +2000,41 @@ export default function Home() {
 
     try {
       const text = await file.text();
-      const rows = parseCSV(text);
+      const rows = parseCSVToObjects(text);
       if (rows.length === 0) {
         addToast("CSV is empty", "error");
         return;
       }
 
-      let startIdx = 0;
-      const firstRow = rows[0].map(c => c.toLowerCase());
-      if (firstRow.includes('name') || firstRow.includes('phone') || firstRow.includes('gender')) {
-        startIdx = 1;
-      }
-
-      const nameCol = firstRow.indexOf('name') !== -1 ? firstRow.indexOf('name') : 0;
-      const phoneCol = firstRow.indexOf('phone') !== -1 ? firstRow.indexOf('phone') : 1;
-      const genderCol = firstRow.indexOf('gender') !== -1 ? firstRow.indexOf('gender') : 2;
-      const ageCol = firstRow.indexOf('age') !== -1 ? firstRow.indexOf('age') : 3;
-      const heardCol = firstRow.indexOf('how_heard') !== -1 ? firstRow.indexOf('how_heard') : (firstRow.indexOf('how heard') !== -1 ? firstRow.indexOf('how heard') : 4);
-
       const supabase = createClient();
       if (!supabase) throw new Error("Supabase not initialized");
 
-      const walkinsToInsert = [];
-      for (let i = startIdx; i < rows.length; i++) {
-        const row = rows[i];
-        const name = row[nameCol] || 'Anonymous Visitor';
-        const phone = row[phoneCol] || '';
-        const gender = row[genderCol] || 'Female';
-        const age = parseInt(row[ageCol]) || 25;
-        const howHeard = row[heardCol] || 'Passing By';
+      const total = rows.length;
+      const walkinRows = rows.map(row => ({
+        market_day_id: activeEdition.id,
+        full_name: row['Full Name'] || '',
+        phone: String(row['Phone Number'] || ''),
+        email: row['Email'] || '',
+        business_type: row['Business Type'] || '',
+        age: parseInt(row['Age']) || null,
+        recorded_at: new Date().toISOString()
+      }));
 
-        walkinsToInsert.push({
-          market_day_id: activeEdition.id,
-          count: 1,
-          recorded_by: name,
-          notes: JSON.stringify({
-            name,
-            phone,
-            gender,
-            age,
-            how_heard: howHeard,
-            first_visit: true
-          })
-        });
+      let inserted = 0;
+      for (let i = 0; i < walkinRows.length; i += 50) {
+        const chunk = walkinRows.slice(i, i + 50);
+        const { error } = await supabase
+          .from('walkins')
+          .insert(chunk);
+        if (error) {
+          console.error("Walkin chunk error:", i, error.message, error.code);
+        } else {
+          inserted += chunk.length;
+        }
+        addToast(`Importing walk-in ${Math.min(i + 50, total)} of ${total}...`, "success");
       }
 
-      if (walkinsToInsert.length > 0) {
-        const { error } = await supabase.from('walkins').insert(walkinsToInsert);
-        if (error) throw error;
-      }
-
-      addToast(`Imported ${walkinsToInsert.length} walk-in guest records!`, "success");
+      addToast(`${inserted} walk-ins imported successfully`, "success");
       fetchWalkins();
     } catch (err: any) {
       console.error(err);
@@ -2138,8 +2108,11 @@ export default function Home() {
         .from('walkins')
         .select(`
           id,
-          recorded_by,
-          notes,
+          full_name,
+          phone,
+          email,
+          business_type,
+          age,
           recorded_at,
           market_days!inner (
             region_id
@@ -2149,21 +2122,15 @@ export default function Home() {
 
       if (error) throw error;
 
-      let csvContent = "ID,Name,Phone,Gender,Age,How Heard,First Visit,Recorded At\n";
+      let csvContent = "ID,Full Name,Phone,Email,Business Type,Age,Recorded At\n";
       (data || []).forEach(w => {
-        let parsedNotes: any = {};
-        try {
-          if (w.notes) parsedNotes = JSON.parse(w.notes);
-        } catch (e) {}
+        const name = (w.full_name || '').replace(/"/g, '""');
+        const phone = (w.phone || '').replace(/"/g, '""');
+        const email = (w.email || '').replace(/"/g, '""');
+        const businessType = (w.business_type || '').replace(/"/g, '""');
+        const age = w.age ?? '';
 
-        const name = parsedNotes.name || w.recorded_by || 'Anonymous';
-        const phone = parsedNotes.phone || '';
-        const gender = parsedNotes.gender || 'Female';
-        const age = parsedNotes.age || 25;
-        const howHeard = parsedNotes.how_heard || 'Passing By';
-        const firstVisit = parsedNotes.first_visit !== false ? 'Yes' : 'No';
-
-        csvContent += `"${w.id}","${name.replace(/"/g, '""')}","${phone}","${gender}","${age}","${howHeard.replace(/"/g, '""')}","${firstVisit}","${w.recorded_at || ''}"\n`;
+        csvContent += `"${w.id}","${name}","${phone}","${email}","${businessType}","${age}","${w.recorded_at || ''}"\n`;
       });
 
       downloadCSV(csvContent, `walkins_export_${activeRegion.slug}.csv`);
@@ -2517,7 +2484,7 @@ export default function Home() {
               const walkinEditionVal = (w as any).editionId || 'may-2026';
               if (walkinEditionFilter !== 'All' && walkinEditionVal !== walkinEditionFilter) return false;
 
-              if (walkinGenderFilter !== 'All' && w.gender !== walkinGenderFilter) return false;
+              if (walkinBusinessTypeFilter !== 'All' && (w as any).business_type !== walkinBusinessTypeFilter) return false;
 
               if (walkinMinAgeFilter !== '' && w.age < walkinMinAgeFilter) return false;
               if (walkinMaxAgeFilter !== '' && w.age > walkinMaxAgeFilter) return false;
@@ -2572,20 +2539,6 @@ export default function Home() {
                   </div>
 
                   <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider block">Gender</label>
-                    <select 
-                      value={walkinGenderFilter} 
-                      onChange={(e) => setWalkinGenderFilter(e.target.value)}
-                      className="bg-bg-elevated border border-border-light text-text-primary text-xs rounded-md px-3 py-2 cursor-pointer outline-none focus:border-green appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%209l3%203%203-3%22%20stroke%3D%22%238b949e%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[right_10px_center] bg-no-repeat pr-8 min-w-[120px]"
-                    >
-                      <option value="All">All Genders</option>
-                      <option value="Female">Female</option>
-                      <option value="Male">Male</option>
-                      <option value="Other">Other</option>
-                    </select>
-                  </div>
-
-                  <div className="space-y-1">
                     <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider block">Age Range</label>
                     <div className="flex items-center gap-2">
                       <input 
@@ -2606,12 +2559,12 @@ export default function Home() {
                     </div>
                   </div>
 
-                  {(walkinRegionFilter !== 'All' || walkinEditionFilter !== 'All' || walkinGenderFilter !== 'All' || walkinMinAgeFilter !== '' || walkinMaxAgeFilter !== '') && (
+                  {(walkinRegionFilter !== 'All' || walkinEditionFilter !== 'All' || walkinMinAgeFilter !== '' || walkinMaxAgeFilter !== '') && (
                     <button 
                       onClick={() => {
                         setWalkinRegionFilter('All');
                         setWalkinEditionFilter('All');
-                        setWalkinGenderFilter('All');
+                        setWalkinBusinessTypeFilter('All');
                         setWalkinMinAgeFilter('');
                         setWalkinMaxAgeFilter('');
                       }}
@@ -2627,11 +2580,11 @@ export default function Home() {
                   <table className="w-full border-collapse text-left text-xs">
                     <thead>
                       <tr className="bg-bg-elevated border-b border-border">
-                        <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider">Name & Phone</th>
-                        <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider text-center">Gender</th>
+                        <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider">Full Name</th>
+                        <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider">Phone</th>
+                        <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider">Business Type</th>
                         <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider text-center">Age</th>
-                        <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider">How Heard</th>
-                        <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider">Time Recorded</th>
+                        <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider">Recorded At</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border/40 text-xs">
@@ -2645,14 +2598,13 @@ export default function Home() {
                         filteredWalkins.map((w) => (
                           <tr key={w.id} className="hover:bg-green-soft/10">
                             <td className="p-3.5">
-                              <span className="block font-bold text-text-primary">{w.name}</span>
-                              {w.phone && <span className="block text-[10px] text-text-secondary mt-0.5">{w.phone}</span>}
+                              <span className="block font-bold text-text-primary">{w.full_name}</span>
                             </td>
-                            <td className="p-3.5 text-center font-semibold text-text-secondary">{w.gender}</td>
+                            <td className="p-3.5 text-text-secondary font-medium">{w.phone || '—'}</td>
+                            <td className="p-3.5 text-text-secondary font-semibold">{w.business_type || '—'}</td>
                             <td className="p-3.5 text-center">
                               <Badge variant="neutral" size="sm" className="font-bold">{w.age}</Badge>
                             </td>
-                            <td className="p-3.5 text-text-secondary font-semibold">{w.howHeard}</td>
                             <td className="p-3.5 text-text-secondary font-medium">{w.date}</td>
                           </tr>
                         ))
@@ -2946,7 +2898,7 @@ export default function Home() {
                       Visitor log sheets compiled manually or through gate-keeping forms outside the network range.
                     </p>
                     <div className="inline-block bg-bg-elevated border border-border-light rounded px-2.5 py-1 text-[10px] text-text-secondary font-mono">
-                      name · phone · gender · age · how_heard
+                      Full Name · Phone Number · Email · Business Type · Age
                     </div>
                   </div>
                   <div className="pt-5">
