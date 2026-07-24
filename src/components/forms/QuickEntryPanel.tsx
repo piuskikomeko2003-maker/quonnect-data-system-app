@@ -157,7 +157,7 @@ export const QuickEntryPanel: React.FC<QuickEntryPanelProps> = ({
           ))}
         </div>
 
-        <div className="p-5 bg-bg-surface/30 relative min-h-[250px]">
+        <div className="p-5 bg-bg-surface/30 relative min-h-[250px] max-h-[70vh] overflow-y-auto">
           {disabled && (
             <div className="absolute inset-0 bg-bg-surface/80 backdrop-blur-[2px] z-50 flex items-center justify-center select-none p-6">
               <div className="bg-bg border border-border rounded-xl p-6 text-center max-w-[280px] shadow-lg animate-fade-in">
