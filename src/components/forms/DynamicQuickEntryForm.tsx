@@ -365,8 +365,8 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
             required={q.is_required}
           >
             <option value="">Select an option...</option>
-            {options.map((opt: string) => (
-              <option key={opt} value={opt}>{opt}</option>
+            {[...new Set(options)].map((opt: string, index: number) => (
+              <option key={`${opt}-${index}`} value={opt}>{opt}</option>
             ))}
           </select>
         );
@@ -377,8 +377,8 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
         const selected = value ? value.split('||') : [];
         return (
           <div className="space-y-1.5">
-            {options.map((opt: string) => (
-              <label key={opt} className="flex items-center gap-2 text-xs text-text-primary cursor-pointer select-none">
+            {[...new Set(options)].map((opt: string, index: number) => (
+              <label key={`${opt}-${index}`} className="flex items-center gap-2 text-xs text-text-primary cursor-pointer select-none">
                 <input
                   type="checkbox"
                   checked={selected.includes(opt)}
