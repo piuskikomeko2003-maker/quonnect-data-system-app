@@ -46,8 +46,6 @@ import {
   Copy,
   Info,
   X,
-  Store,
-  Calendar,
   Map,
   ChevronRight,
   Loader2,
@@ -216,20 +214,10 @@ export default function Home() {
 
       console.log("Fetching vendors for region:", activeRegion.id);
 
-      let query = supabase
+      let surveyQuery = supabase
         .from('survey_responses')
         .select(`
           vendor_id,
-          vendors (
-            id,
-            business_name,
-            contact_name,
-            phone,
-            email,
-            category,
-            is_active,
-            created_at
-          ),
           survey_answers (
             answer,
             survey_questions (
@@ -237,59 +225,81 @@ export default function Home() {
             )
           ),
           market_days!inner (
-            id,
             region_id
           )
         `)
         .eq('market_days.region_id', activeRegion.id);
 
       if (activeEdition) {
-        query = query.eq('context_id', activeEdition.id);
+        surveyQuery = surveyQuery.eq('context_id', activeEdition.id);
       }
 
-      const { data, error } = await query;
+      const { data: surveyData, error: surveyError } = await surveyQuery;
 
-      if (error) {
-        console.error("Vendor fetch error:", error.message, error.code, error.details, error.hint);
-        throw error;
+      if (surveyError) {
+        console.error("Survey fetch error:", surveyError.message);
+        throw surveyError;
       }
 
-      let paidIds: Set<string> = new Set();
+      const surveyVendorIds = new Set<string>();
+      const vendorAnswersMap = new globalThis.Map<string, any[]>();
+
+      (surveyData || []).forEach((row: any) => {
+        if (row.vendor_id) {
+          surveyVendorIds.add(row.vendor_id);
+          if (!vendorAnswersMap.has(row.vendor_id)) {
+            vendorAnswersMap.set(row.vendor_id, []);
+          }
+          if (row.survey_answers && Array.isArray(row.survey_answers)) {
+            vendorAnswersMap.get(row.vendor_id)!.push(...row.survey_answers);
+          }
+        }
+      });
+
+      let paidVendorIds = new Set<string>();
       if (activeEdition?.id) {
         const { data: paidData } = await supabase
           .from('vendor_registrations')
           .select('vendor_id')
           .eq('market_day_id', activeEdition.id);
-        paidIds = new Set((paidData || []).map((r: any) => r.vendor_id));
+        paidVendorIds = new Set((paidData || []).map((r: any) => r.vendor_id));
       }
 
-      const surveyIds = new Set<string>();
-      (data || []).forEach((row: any) => {
-        if (row.vendor_id) surveyIds.add(row.vendor_id);
-      });
+      const allVendorIds = [...new globalThis.Set([...surveyVendorIds, ...paidVendorIds])];
 
-      const vendorAnswersMap = new globalThis.Map<string, { vendor: any; answers: any[] }>();
-      (data || []).forEach((row: any) => {
-        const v = row.vendors;
-        if (!v) return;
-        if (!vendorAnswersMap.has(v.id)) {
-          vendorAnswersMap.set(v.id, { vendor: v, answers: [] });
-        }
-        if (row.survey_answers && Array.isArray(row.survey_answers)) {
-          vendorAnswersMap.get(v.id)!.answers.push(...row.survey_answers);
-        }
-      });
+      console.log("Paid vendor IDs:", [...paidVendorIds]);
+      console.log("Survey vendor IDs:", surveyVendorIds.size);
+      console.log("All vendor IDs:", allVendorIds.length);
+      console.log("Active edition:", activeEdition?.id, activeEdition?.name);
 
-      const mappedVendors = Array.from(vendorAnswersMap.values()).map(({ vendor: v, answers }) => {
+      if (allVendorIds.length === 0) {
+        setVendors([]);
+        setRunningCount(0);
+        setError(null);
+        return;
+      }
+
+      const { data: vendorData, error: vendorError } = await supabase
+        .from('vendors')
+        .select('*')
+        .in('id', allVendorIds);
+
+      if (vendorError) {
+        console.error("Vendor fetch error:", vendorError.message);
+        throw vendorError;
+      }
+
+      const mappedVendors = (vendorData || []).map((v: any) => {
+        const answers = vendorAnswersMap.get(v.id) || [];
         const getAnswer = (col: string): string | undefined => {
           const match = answers.find((a: any) => a.survey_questions?.csv_column === col);
           return match?.answer || undefined;
         };
 
         const registrationType: 'survey' | 'paid' | 'both' | 'unknown' =
-          paidIds.has(v.id) && surveyIds.has(v.id) ? 'both' :
-          paidIds.has(v.id) ? 'paid' :
-          surveyIds.has(v.id) ? 'survey' : 'unknown';
+          surveyVendorIds.has(v.id) && paidVendorIds.has(v.id) ? 'both' :
+          paidVendorIds.has(v.id) ? 'paid' :
+          surveyVendorIds.has(v.id) ? 'survey' : 'unknown';
 
         return {
           id: v.id,
@@ -319,6 +329,15 @@ export default function Home() {
       setVendors(mappedVendors);
       setRunningCount(mappedVendors.length);
       setError(null);
+
+      const rtCounts = {
+        all: mappedVendors.length,
+        survey: mappedVendors.filter((v: any) => v.registrationType === 'survey').length,
+        paid: mappedVendors.filter((v: any) => v.registrationType === 'paid').length,
+        both: mappedVendors.filter((v: any) => v.registrationType === 'both').length,
+        unknown: mappedVendors.filter((v: any) => v.registrationType === 'unknown').length
+      };
+      console.log("Registration type counts:", rtCounts);
     } catch (err: any) {
       console.error("Supabase error fetching vendors:", err);
       setVendors([]);
@@ -1478,8 +1497,14 @@ export default function Home() {
     if (filters.maxAge !== '' && v.age > filters.maxAge) return false;
 
     // Registration type filter
-    if (filters.registrationType && filters.registrationType !== 'All' && v.registrationType !== filters.registrationType) {
-      return false;
+    if (filters.registrationType && filters.registrationType !== 'All') {
+      if (filters.registrationType === 'both') {
+        if (v.registrationType !== 'both') return false;
+      } else if (filters.registrationType === 'paid') {
+        if (v.registrationType !== 'paid' && v.registrationType !== 'both') return false;
+      } else if (filters.registrationType === 'survey') {
+        if (v.registrationType !== 'survey' && v.registrationType !== 'both') return false;
+      }
     }
 
     return true;
