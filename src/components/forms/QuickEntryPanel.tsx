@@ -1,21 +1,62 @@
 import React from 'react';
-import { PaidVendorForm, PaidVendorFormProps } from './PaidVendorForm';
-import { FieldCollectionForm, FieldCollectionFormProps } from './FieldCollectionForm';
-import { WalkinForm, WalkinFormProps } from './WalkinForm';
+import { DynamicQuickEntryForm, DynamicQuickEntryFormProps } from './DynamicQuickEntryForm';
 import { ChevronUp, ChevronDown, Zap, Users, Footprints, Database } from 'lucide-react';
-import { Button } from '../ui/Button';
+
+type QuickEntryTab = 'paid' | 'collection' | 'walkin';
+
+interface TabFormConfig {
+  slug: string;
+  label: string;
+  subtitle?: string;
+  countLabel: string;
+  icon: React.ReactNode;
+  lookupEnabled: boolean;
+}
+
+const TAB_FORMS: Record<QuickEntryTab, TabFormConfig> = {
+  paid: {
+    slug: 'paid_vendor_registration',
+    label: 'Paid Vendor Entry',
+    subtitle: 'Register confirmed/paid vendors',
+    countLabel: 'paid vendors added',
+    icon: <Users className="w-4 h-4 text-green" />,
+    lookupEnabled: true,
+  },
+  collection: {
+    slug: 'vendor_data_collection',
+    label: 'Field Data Collection',
+    subtitle: 'Impact & Demographics Sheet',
+    countLabel: 'profiles collected',
+    icon: <Database className="w-4 h-4 text-green" />,
+    lookupEnabled: true,
+  },
+  walkin: {
+    slug: 'walkin_registration',
+    label: 'Walk-in Guest Registry',
+    subtitle: 'Optimized for speed entry',
+    countLabel: 'walk-ins entered',
+    icon: <Footprints className="w-4 h-4 text-green" />,
+    lookupEnabled: false,
+  },
+};
 
 export interface QuickEntryPanelProps {
-  activeTab: 'paid' | 'collection' | 'walkin';
-  onTabChange: (tab: 'paid' | 'collection' | 'walkin') => void;
+  activeTab: QuickEntryTab;
+  onTabChange: (tab: QuickEntryTab) => void;
   isOpen: boolean;
   onToggleCollapse: () => void;
   disabled?: boolean;
-  
-  // Forms props
-  paidVendorFormProps: PaidVendorFormProps;
-  fieldCollectionFormProps: FieldCollectionFormProps;
-  walkinFormProps: WalkinFormProps;
+  activeEdition: { id: string; name: string } | null;
+  onPaidSubmit: (answers: Record<string, string>) => Promise<void>;
+  onCollectionSubmit: (answers: Record<string, string>) => Promise<void>;
+  onWalkinSubmit: (answers: Record<string, string>) => Promise<void>;
+  onPhoneLookup: (phone: string, formSlug: string) => Promise<Record<string, string> | null>;
+  paidCount: number;
+  collectionCount: number;
+  walkinCount: number;
+  paidSuccessState: { show: boolean; name?: string; onAddAnother: () => void };
+  collectionSuccessState: { show: boolean; name?: string; onAddAnother: () => void };
+  walkinSuccessState: { show: boolean; name?: string; onAddAnother: () => void };
 }
 
 export const QuickEntryPanel: React.FC<QuickEntryPanelProps> = ({
@@ -24,13 +65,68 @@ export const QuickEntryPanel: React.FC<QuickEntryPanelProps> = ({
   isOpen,
   onToggleCollapse,
   disabled = false,
-  paidVendorFormProps,
-  fieldCollectionFormProps,
-  walkinFormProps
+  activeEdition,
+  onPaidSubmit,
+  onCollectionSubmit,
+  onWalkinSubmit,
+  onPhoneLookup,
+  paidCount,
+  collectionCount,
+  walkinCount,
+  paidSuccessState,
+  collectionSuccessState,
+  walkinSuccessState,
 }) => {
+  const currentConfig = TAB_FORMS[activeTab];
+
+  const getFormProps = (tab: QuickEntryTab): DynamicQuickEntryFormProps => {
+    switch (tab) {
+      case 'paid':
+        return {
+          formSlug: 'paid_vendor_registration',
+          activeEdition,
+          onSubmit: onPaidSubmit,
+          onPhoneLookup: (phone) => onPhoneLookup(phone, 'paid_vendor_registration'),
+          successState: paidSuccessState,
+          runningCount: paidCount,
+          formIcon: TAB_FORMS.paid.icon,
+          formLabel: TAB_FORMS.paid.label,
+          formSubtitle: TAB_FORMS.paid.subtitle,
+          countLabel: TAB_FORMS.paid.countLabel,
+          lookupEnabled: true,
+        };
+      case 'collection':
+        return {
+          formSlug: 'vendor_data_collection',
+          activeEdition,
+          onSubmit: onCollectionSubmit,
+          onPhoneLookup: (phone) => onPhoneLookup(phone, 'vendor_data_collection'),
+          successState: collectionSuccessState,
+          runningCount: collectionCount,
+          formIcon: TAB_FORMS.collection.icon,
+          formLabel: TAB_FORMS.collection.label,
+          formSubtitle: TAB_FORMS.collection.subtitle,
+          countLabel: TAB_FORMS.collection.countLabel,
+          lookupEnabled: true,
+        };
+      case 'walkin':
+        return {
+          formSlug: 'walkin_registration',
+          activeEdition,
+          onSubmit: onWalkinSubmit,
+          successState: walkinSuccessState,
+          runningCount: walkinCount,
+          formIcon: TAB_FORMS.walkin.icon,
+          formLabel: TAB_FORMS.walkin.label,
+          formSubtitle: TAB_FORMS.walkin.subtitle,
+          countLabel: TAB_FORMS.walkin.countLabel,
+          lookupEnabled: false,
+        };
+    }
+  };
+
   return (
     <div className="bg-bg-surface border border-border rounded-lg overflow-hidden transition-all duration-300 select-none">
-      {/* Header panel with Collapse switch */}
       <div 
         onClick={onToggleCollapse}
         className="p-4 bg-bg-elevated/40 border-b border-border flex items-center justify-between cursor-pointer hover:bg-bg-elevated/60"
@@ -44,49 +140,25 @@ export const QuickEntryPanel: React.FC<QuickEntryPanelProps> = ({
         </button>
       </div>
 
-      {/* Expandable Content Container */}
       <div className={`transition-all duration-300 overflow-hidden ${isOpen ? 'max-h-[1200px] border-t-0' : 'max-h-0 pointer-events-none'}`}>
-        {/* Navigation Tabs */}
         <div className="flex border-b border-border p-1 bg-bg-elevated/10">
-          <button
-            onClick={() => !disabled && onTabChange('paid')}
-            className={`flex-1 py-2 text-xs font-semibold rounded-md transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-              activeTab === 'paid'
-                ? 'bg-bg-surface text-green border border-border-light shadow-card font-bold'
-                : 'text-text-secondary hover:text-text-primary'
-            } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-            disabled={disabled}
-          >
-            <Users className="w-3.5 h-3.5" />
-            <span>Paid Vendor</span>
-          </button>
-          <button
-            onClick={() => !disabled && onTabChange('collection')}
-            className={`flex-1 py-2 text-xs font-semibold rounded-md transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-              activeTab === 'collection'
-                ? 'bg-bg-surface text-green border border-border-light shadow-card font-bold'
-                : 'text-text-secondary hover:text-text-primary'
-            } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-            disabled={disabled}
-          >
-            <Database className="w-3.5 h-3.5" />
-            <span>Field Collection</span>
-          </button>
-          <button
-            onClick={() => !disabled && onTabChange('walkin')}
-            className={`flex-1 py-2 text-xs font-semibold rounded-md transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-              activeTab === 'walkin'
-                ? 'bg-bg-surface text-green border border-border-light shadow-card font-bold'
-                : 'text-text-secondary hover:text-text-primary'
-            } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
-            disabled={disabled}
-          >
-            <Footprints className="w-3.5 h-3.5" />
-            <span>Walk-in</span>
-          </button>
+          {(['paid', 'collection', 'walkin'] as QuickEntryTab[]).map((tab) => (
+            <button
+              key={tab}
+              onClick={() => !disabled && onTabChange(tab)}
+              className={`flex-1 py-2 text-xs font-semibold rounded-md transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                activeTab === tab
+                  ? 'bg-bg-surface text-green border border-border-light shadow-card font-bold'
+                  : 'text-text-secondary hover:text-text-primary'
+              } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
+              disabled={disabled}
+            >
+              {TAB_FORMS[tab].icon}
+              <span>{tab === 'paid' ? 'Paid Vendor' : tab === 'collection' ? 'Field Collection' : 'Walk-in'}</span>
+            </button>
+          ))}
         </div>
 
-        {/* Selected Form Content wrapper */}
         <div className="p-5 bg-bg-surface/30 relative min-h-[250px]">
           {disabled && (
             <div className="absolute inset-0 bg-bg-surface/80 backdrop-blur-[2px] z-50 flex items-center justify-center select-none p-6">
@@ -99,9 +171,7 @@ export const QuickEntryPanel: React.FC<QuickEntryPanelProps> = ({
               </div>
             </div>
           )}
-          {activeTab === 'paid' && <PaidVendorForm {...paidVendorFormProps} />}
-          {activeTab === 'collection' && <FieldCollectionForm {...fieldCollectionFormProps} />}
-          {activeTab === 'walkin' && <WalkinForm {...walkinFormProps} />}
+          <DynamicQuickEntryForm {...getFormProps(activeTab)} />
         </div>
       </div>
     </div>

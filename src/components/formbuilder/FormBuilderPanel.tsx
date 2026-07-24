@@ -108,6 +108,7 @@ export const FormBuilderPanel: React.FC = () => {
   const [forms, setForms] = useState<Form[]>([]);
   const [loadingForms, setLoadingForms] = useState(true);
   const [selectedFormId, setSelectedFormId] = useState<string | null>(null);
+  const [formQuestionCounts, setFormQuestionCounts] = useState<Record<string, number>>({});
   
   // Create Form Modal state
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
@@ -189,6 +190,22 @@ export const FormBuilderPanel: React.FC = () => {
 
       if (error) throw error;
       setForms(data || []);
+
+      if (data && data.length > 0) {
+        const formIds = data.map((f: Form) => f.id);
+        const { data: qData, error: qError } = await supabase
+          .from('survey_questions')
+          .select('form_id')
+          .in('form_id', formIds);
+
+        if (!qError && qData) {
+          const counts: Record<string, number> = {};
+          qData.forEach((q: any) => {
+            counts[q.form_id] = (counts[q.form_id] || 0) + 1;
+          });
+          setFormQuestionCounts(counts);
+        }
+      }
     } catch (err: any) {
       console.error("Error fetching forms:", err);
       addToast(err.message || "Failed to load forms.", "error");
@@ -230,6 +247,7 @@ export const FormBuilderPanel: React.FC = () => {
 
       if (error) throw error;
       setQuestions(data || []);
+      setFormQuestionCounts(prev => ({ ...prev, [formId]: (data || []).length }));
       
       // Also fetch logic rules using helper
       if (data && data.length > 0) {
@@ -279,6 +297,21 @@ export const FormBuilderPanel: React.FC = () => {
   useEffect(() => {
     fetchForms();
   }, []);
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const targetSlug = customEvent.detail?.formSlug;
+      if (targetSlug && forms.length > 0) {
+        const targetForm = forms.find(f => f.slug === targetSlug);
+        if (targetForm) {
+          setSelectedFormId(targetForm.id);
+        }
+      }
+    };
+    window.addEventListener('select-form-in-builder', handler);
+    return () => window.removeEventListener('select-form-in-builder', handler);
+  }, [forms]);
 
   useEffect(() => {
     if (selectedFormId) {
@@ -1014,6 +1047,7 @@ export const FormBuilderPanel: React.FC = () => {
             ) : (
               forms.map((form) => {
                 const isActive = form.id === selectedFormId;
+                const qCount = formQuestionCounts[form.id] || 0;
                 return (
                   <div
                     key={form.id}
@@ -1028,9 +1062,14 @@ export const FormBuilderPanel: React.FC = () => {
                       <span className={`block font-bold text-xs truncate ${isActive ? 'text-green' : 'text-text-primary'}`}>
                         {form.name}
                       </span>
-                      <span className="block text-[10px] text-text-tertiary font-mono truncate mt-0.5">
-                        /{form.slug}
-                      </span>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        <span className="block text-[10px] text-text-tertiary font-mono truncate">
+                          /{form.slug}
+                        </span>
+                        <Badge variant="neutral" size="sm" className="font-mono text-[9px] px-1.5 shrink-0">
+                          {qCount} {qCount === 1 ? 'question' : 'questions'}
+                        </Badge>
+                      </div>
                     </div>
                     <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
                       <button

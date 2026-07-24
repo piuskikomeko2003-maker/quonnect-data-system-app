@@ -19,7 +19,6 @@ import { FilterBar, FilterState } from '@/components/dashboard/FilterBar';
 import { VendorTable, Vendor } from '@/components/vendors/VendorTable';
 import { VendorDetailPanel } from '@/components/vendors/VendorDetailPanel';
 import { QuickEntryPanel } from '@/components/forms/QuickEntryPanel';
-import { WalkinFormValues } from '@/components/forms/WalkinForm';
 import { FormBuilderShell } from '@/components/formbuilder/FormBuilderShell';
 import { FormBuilderPanel } from '@/components/formbuilder/FormBuilderPanel';
 import { FormCard } from '@/components/formbuilder/FormCard';
@@ -783,55 +782,21 @@ export default function Home() {
   const [quickEntryTab, setQuickEntryTab] = useState<'paid' | 'collection' | 'walkin'>('paid');
   const [isQuickEntryOpen, setIsQuickEntryOpen] = useState(true);
   
-  // Form Values States
-  const [paidFormValues, setPaidFormValues] = useState({
-    phone: '',
-    name: '',
-    businessName: '',
-    email: '',
-    gender: '',
-    dob: '',
-    amountPaid: '50000'
-  });
-  const [paidLookupStatus, setPaidLookupStatus] = useState<'idle' | 'searching' | 'returning' | 'new'>('idle');
+  // Quick Entry Success States
   const [paidSuccessState, setPaidSuccessState] = useState<{ show: boolean; vendorName?: string; onAddAnother: () => void }>({
     show: false,
-    onAddAnother: () => resetPaidForm()
+    vendorName: undefined,
+    onAddAnother: () => {}
   });
-
-  const [collectionFormValues, setCollectionFormValues] = useState({
-    phone: '',
-    name: '',
-    businessName: '',
-    email: '',
-    gender: '',
-    dob: '',
-    employeeCount: '',
-    newHiresThisYear: '',
-    businessType: '',
-    sellsOwnProducts: '' as 'Yes' | 'No' | '',
-    exportReady: '' as 'Yes' | 'No' | '',
-    impactRating: 0,
-    businessGrowthNarrative: '',
-    previousEditionsCount: ''
-  });
-  const [collectionLookupStatus, setCollectionLookupStatus] = useState<'idle' | 'searching' | 'returning' | 'new'>('idle');
-  const [isCollectionPaidVendor, setIsCollectionPaidVendor] = useState<boolean | null>(null);
   const [collectionSuccessState, setCollectionSuccessState] = useState<{ show: boolean; vendorName?: string; onAddAnother: () => void }>({
     show: false,
-    onAddAnother: () => resetCollectionForm()
-  });
-
-  const [walkinFormValues, setWalkinFormValues] = useState<WalkinFormValues>({
-    fullName: '',
-    phone: '',
-    email: '',
-    businessType: '',
-    age: ''
+    vendorName: undefined,
+    onAddAnother: () => {}
   });
   const [walkinSuccessState, setWalkinSuccessState] = useState<{ show: boolean; visitorName?: string; onAddAnother: () => void }>({
     show: false,
-    onAddAnother: () => resetWalkinForm()
+    visitorName: undefined,
+    onAddAnother: () => {}
   });
 
   const [recentActivities, setRecentActivities] = useState<Array<{
@@ -846,6 +811,23 @@ export default function Home() {
   // Ensure DOM is fully mounted
   useEffect(() => {
     setMounted(true);
+  }, []);
+
+  // Listen for form builder navigation from Quick Entry forms
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const targetSlug = customEvent.detail?.formSlug;
+      setActiveNav('formbuilder');
+      if (targetSlug) {
+        setTimeout(() => {
+          const event = new CustomEvent('select-form-in-builder', { detail: { formSlug: targetSlug } });
+          window.dispatchEvent(event);
+        }, 200);
+      }
+    };
+    window.addEventListener('navigate-to-form-builder', handler);
+    return () => window.removeEventListener('navigate-to-form-builder', handler);
   }, []);
 
   // Calculate duplicate merge proposals dynamically from live vendors
@@ -886,172 +868,94 @@ export default function Home() {
   }
 
   // ==========================================
-  // 2. HELPER FUNCTIONS & ACTIONS
+  // 2. DYNAMIC QUICK ENTRY HANDLERS
   // ==========================================
 
   const resetPaidForm = () => {
-    setPaidFormValues({
-      phone: '',
-      name: '',
-      businessName: '',
-      email: '',
-      gender: '',
-      dob: '',
-      amountPaid: '50000'
-    });
-    setPaidLookupStatus('idle');
     setPaidSuccessState(prev => ({ ...prev, show: false }));
   };
 
   const resetCollectionForm = () => {
-    setCollectionFormValues({
-      phone: '',
-      name: '',
-      businessName: '',
-      email: '',
-      gender: '',
-      dob: '',
-      employeeCount: '',
-      newHiresThisYear: '',
-      businessType: '',
-      sellsOwnProducts: '',
-      exportReady: '',
-      impactRating: 0,
-      businessGrowthNarrative: '',
-      previousEditionsCount: ''
-    });
-    setCollectionLookupStatus('idle');
-    setIsCollectionPaidVendor(null);
     setCollectionSuccessState(prev => ({ ...prev, show: false }));
   };
 
   const resetWalkinForm = () => {
-    setWalkinFormValues({
-      fullName: '',
-      phone: '',
-      email: '',
-      businessType: '',
-      age: ''
-    });
     setWalkinSuccessState(prev => ({ ...prev, show: false }));
   };
 
-  // Live lookup on phone keyup
-  const handlePaidPhoneLookup = async (phone: string) => {
-    setPaidLookupStatus('searching');
+  const handleDynamicPhoneLookup = async (phone: string, formSlug: string): Promise<Record<string, string> | null> => {
     try {
       const supabase = createClient();
-      if (!supabase) return;
-      
+      if (!supabase) return null;
+
       const { data, error } = await supabase
         .from('vendors')
         .select('*')
         .eq('phone', phone)
         .limit(1);
-        
-      if (error) throw error;
-      
-      if (data && data.length > 0) {
-        const v = data[0];
-        setPaidLookupStatus('returning');
-        setPaidFormValues(prev => ({
-          ...prev,
-          name: v.contact_name || '',
-          businessName: v.business_name || '',
-          gender: 'Female',
-          email: v.email || '',
-          dob: ''
-        }));
-      } else {
-        setPaidLookupStatus('new');
-      }
-    } catch (err) {
-      console.error("Lookup error:", err);
-      setPaidLookupStatus('new');
-    }
-  };
 
-  const handleCollectionPhoneLookup = async (phone: string) => {
-    setCollectionLookupStatus('searching');
-    try {
-      const supabase = createClient();
-      if (!supabase) return;
-      
-      const { data: vendorData, error: vError } = await supabase
-        .from('vendors')
-        .select('*')
-        .eq('phone', phone)
-        .limit(1);
-        
-      if (vError) throw vError;
-      
-      if (vendorData && vendorData.length > 0) {
-        const v = vendorData[0];
-        setCollectionLookupStatus('returning');
-        setIsCollectionPaidVendor(true);
-        
+      if (error || !data || data.length === 0) return null;
+
+      const v = data[0];
+      const result: Record<string, string> = {
+        contact_name: v.contact_name || '',
+        business_name: v.business_name || '',
+        phone: v.phone || phone,
+        email: v.email || '',
+        category: v.category || '',
+      };
+
+      if (formSlug === 'vendor_data_collection' && activeEdition) {
         const { data: responseData } = await supabase
           .from('survey_responses')
           .select(`
             id,
             survey_answers (
-              answer_value,
+              answer,
               survey_questions ( csv_column )
             )
           `)
           .eq('vendor_id', v.id)
+          .eq('context_id', activeEdition.id)
           .order('submitted_at', { ascending: false })
           .limit(1);
-          
-        const answers = responseData?.[0]?.survey_answers || [];
-        const getAnswer = (col: string) => {
-          return answers.find((a: any) => a.survey_questions?.csv_column === col)?.answer_value || '';
-        };
 
-        setCollectionFormValues(prev => ({
-          ...prev,
-          name: v.contact_name || '',
-          businessName: v.business_name || '',
-          gender: 'Female',
-          email: v.email || '',
-          dob: '',
-          employeeCount: getAnswer('employee_count'),
-          newHiresThisYear: getAnswer('new_hires_this_year'),
-          businessType: v.category || getAnswer('business_type') || '',
-          sellsOwnProducts: (getAnswer('sells_own_products') || '') as any,
-          exportReady: (getAnswer('export_ready') || '') as any,
-          impactRating: Number(getAnswer('impact_rating')) || 0,
-          businessGrowthNarrative: getAnswer('business_growth_narrative') || '',
-          previousEditionsCount: '1'
-        }));
-      } else {
-        setCollectionLookupStatus('new');
-        setIsCollectionPaidVendor(false);
+        const surveyAnswers = responseData?.[0]?.survey_answers || [];
+        surveyAnswers.forEach((a: any) => {
+          const col = a.survey_questions?.csv_column;
+          if (col) result[col] = a.answer;
+        });
       }
+
+      return result;
     } catch (err) {
-      console.error("Lookup error:", err);
-      setCollectionLookupStatus('new');
+      console.error("Phone lookup error:", err);
+      return null;
     }
   };
 
-  // Form Submissions
-  const handlePaidSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!paidFormValues.phone || !paidFormValues.name) return;
+  const handleDynamicPaidSubmit = async (answers: Record<string, string>) => {
     if (!activeEdition) {
       addToast("Please select an active event edition first!", "error");
-      return;
+      throw new Error("No active edition");
     }
 
     try {
       const supabase = createClient();
       if (!supabase) throw new Error("Supabase client is not initialized.");
 
-      // Check if vendor already exists
+      const phone = answers.phone || '';
+      const contactName = answers.contact_name || '';
+      const businessName = answers.business_name || '';
+      const category = answers.category || '';
+      const stallNumber = answers.stall_number || '';
+      const amountPaid = answers.amount_paid ? parseFloat(answers.amount_paid) : 0;
+      const paymentStatus = answers.payment_status || 'paid';
+
       const { data: existing, error: findError } = await supabase
         .from('vendors')
         .select('id')
-        .eq('phone', paidFormValues.phone)
+        .eq('phone', phone)
         .limit(1);
 
       if (findError) throw findError;
@@ -1062,25 +966,24 @@ export default function Home() {
         const { error: updateError } = await supabase
           .from('vendors')
           .update({
-            business_name: paidFormValues.businessName,
-            contact_name: paidFormValues.name,
-            email: paidFormValues.email,
-            category: 'Fashion',
+            business_name: businessName,
+            contact_name: contactName,
+            email: answers.email || '',
+            category: category,
             is_active: true
           })
           .eq('id', vendorId);
 
         if (updateError) throw updateError;
-        console.log("Updated existing vendor:", vendorId);
       } else {
         const { data: inserted, error: insertError } = await supabase
           .from('vendors')
           .insert({
-            business_name: paidFormValues.businessName,
-            contact_name: paidFormValues.name,
-            phone: paidFormValues.phone,
-            email: paidFormValues.email,
-            category: 'Fashion',
+            business_name: businessName,
+            contact_name: contactName,
+            phone: phone,
+            email: answers.email || '',
+            category: category,
             is_active: true
           })
           .select();
@@ -1088,46 +991,9 @@ export default function Home() {
         if (insertError) throw insertError;
         if (!inserted || inserted.length === 0) throw new Error("Failed to insert vendor profile.");
         vendorId = inserted[0].id;
-        console.log("Inserted new vendor:", vendorId);
       }
 
-      // Link vendor to activeEdition by creating a survey response under "Vendor Registration Form"
       if (activeEdition && vendorId) {
-        const { data: formData, error: fError } = await supabase
-          .from('forms')
-          .select('id')
-          .eq('slug', 'vendor_registration')
-          .limit(1);
-
-        if (fError) throw fError;
-        if (formData && formData.length > 0) {
-          const formId = formData[0].id;
-          
-          // Check if there is already a survey response for this vendor in this active edition
-          const { data: existingResponse } = await supabase
-            .from('survey_responses')
-            .select('id')
-            .eq('vendor_id', vendorId)
-            .eq('form_id', formId)
-            .eq('context_id', activeEdition.id)
-            .limit(1);
-
-          if (!existingResponse || existingResponse.length === 0) {
-            const { error: resError } = await supabase
-              .from('survey_responses')
-              .insert({
-                form_id: formId,
-                context_type: 'market_day',
-                context_id: activeEdition.id,
-                vendor_id: vendorId,
-                source: 'manual',
-                submitted_at: new Date().toISOString()
-              });
-            if (resError) throw resError;
-          }
-        }
-
-        // Insert into vendor_registrations for this edition
         const { data: existingReg } = await supabase
           .from('vendor_registrations')
           .select('id')
@@ -1141,59 +1007,77 @@ export default function Home() {
             .insert({
               market_day_id: activeEdition.id,
               vendor_id: vendorId,
-              payment_status: 'paid',
-              amount_paid: Number(paidFormValues.amountPaid) || 0,
+              stall_number: stallNumber || null,
+              amount_paid: amountPaid,
+              payment_status: paymentStatus,
             });
           if (regError) throw regError;
+        } else {
+          const { error: regUpdateError } = await supabase
+            .from('vendor_registrations')
+            .update({
+              stall_number: stallNumber || null,
+              amount_paid: amountPaid,
+              payment_status: paymentStatus,
+            })
+            .eq('id', existingReg[0].id);
+          if (regUpdateError) throw regUpdateError;
         }
       }
+
+      fetchPaidVendors();
+      fetchVendors();
+      fetchOverviewCounts();
+      incrementVendorsCount();
 
       const timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
       setRecentActivities(prev => [{
         id: crypto.randomUUID(),
         type: 'paid',
-        name: paidFormValues.name,
-        phone: paidFormValues.phone,
-        detail: paidFormValues.businessName ? `${paidFormValues.businessName} • UGX ${Number(paidFormValues.amountPaid).toLocaleString()}` : `UGX ${Number(paidFormValues.amountPaid).toLocaleString()}`,
+        name: contactName,
+        phone: phone,
+        detail: businessName ? `${businessName} • UGX ${amountPaid.toLocaleString()}` : `UGX ${amountPaid.toLocaleString()}`,
         timestamp: timeString
       }, ...prev]);
 
       setPaidSuccessState({
         show: true,
-        vendorName: paidFormValues.name,
+        vendorName: contactName,
         onAddAnother: () => resetPaidForm()
       });
 
-      addToast(`Paid vendor "${paidFormValues.name}" registered successfully!`, "success");
+      addToast(`Paid vendor "${contactName}" registered successfully!`, "success");
     } catch (err: any) {
       console.error("Supabase error saving vendor:", err);
       addToast("Error saving vendor: " + (err.message || err), "error");
+      throw err;
     }
   };
 
-  const handleCollectionSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!collectionFormValues.phone || !collectionFormValues.name) return;
+  const handleDynamicCollectionSubmit = async (answers: Record<string, string>) => {
     if (!activeEdition) {
       addToast("Please select an active event edition first!", "error");
-      return;
+      throw new Error("No active edition");
     }
 
     try {
       const supabase = createClient();
       if (!supabase) throw new Error("Supabase client is not initialized.");
 
+      const phone = answers.phone || '';
+      const contactName = answers.contact_name || answers.name || '';
+
       const { data: vendorData, error: vError } = await supabase
         .from('vendors')
         .select('id')
-        .eq('phone', collectionFormValues.phone)
+        .eq('phone', phone)
         .limit(1);
 
       if (vError) throw vError;
 
       if (!vendorData || vendorData.length === 0) {
-        addToast('Paid registration not found. Please register this vendor using the Paid Vendor form first.', 'error');
-        return;
+        addToast("Paid registration not found. Please register this vendor using the Paid Vendor form first.", "error");
+        throw new Error("Vendor not found");
       }
 
       const vendorId = vendorData[0].id;
@@ -1201,15 +1085,12 @@ export default function Home() {
       const { data: formData, error: fError } = await supabase
         .from('forms')
         .select('id')
-        .eq('name', 'Vendor Data Collection Survey')
-        .limit(1);
+        .eq('slug', 'vendor_data_collection')
+        .limit(1)
+        .single();
 
       if (fError) throw fError;
-      if (!formData || formData.length === 0) {
-        throw new Error("Survey Form definition not found in database.");
-      }
-
-      const formId = formData[0].id;
+      const formId = formData.id;
 
       const { data: resData, error: resError } = await supabase
         .from('survey_responses')
@@ -1224,43 +1105,26 @@ export default function Home() {
         .select();
 
       if (resError) throw resError;
-      if (!resData || resData.length === 0) {
-        throw new Error("Failed to insert survey response.");
-      }
+      if (!resData || resData.length === 0) throw new Error("Failed to insert survey response.");
 
       const responseId = resData[0].id;
 
       const { data: questions, error: qError } = await supabase
         .from('survey_questions')
-        .select('id, csv_column');
+        .select('id, csv_column')
+        .eq('form_id', formId);
 
       if (qError) throw qError;
 
       const answersToInsert = [];
-      const fieldMappings = {
-        name: collectionFormValues.name,
-        phone: collectionFormValues.phone,
-        business_name: collectionFormValues.businessName,
-        gender: collectionFormValues.gender,
-        age: collectionFormValues.dob ? String(2026 - new Date(collectionFormValues.dob).getFullYear()) : '',
-        employee_count: collectionFormValues.employeeCount,
-        new_hires_this_year: collectionFormValues.newHiresThisYear,
-        business_type: collectionFormValues.businessType,
-        sells_own_products: collectionFormValues.sellsOwnProducts,
-        export_ready: collectionFormValues.exportReady,
-        impact_rating: String(collectionFormValues.impactRating),
-        business_growth_narrative: collectionFormValues.businessGrowthNarrative
-      };
-
-      for (const key of Object.keys(fieldMappings)) {
-        const val = fieldMappings[key as keyof typeof fieldMappings];
+      for (const [csvCol, val] of Object.entries(answers)) {
         if (val !== undefined && val !== null && val !== '') {
-          const qId = questions?.find((q: any) => q.csv_column === key)?.id;
-          if (qId) {
+          const q = (questions || []).find((q: any) => q.csv_column === csvCol);
+          if (q) {
             answersToInsert.push({
               response_id: responseId,
-              question_id: qId,
-              answer_value: String(val)
+              question_id: q.id,
+              answer: String(val)
             });
           }
         }
@@ -1271,63 +1135,95 @@ export default function Home() {
         if (ansError) throw ansError;
       }
 
-      console.log("Survey response submitted successfully.");
+      fetchSurveyResponses();
+      fetchVendors();
+      fetchOverviewCounts();
+
+      const timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      setRecentActivities(prev => [{
+        id: crypto.randomUUID(),
+        type: 'collection',
+        name: contactName,
+        phone: phone,
+        detail: `Collected: ${answers.business_name || 'General Info'} • ${activeEdition?.name || 'Event'}`,
+        timestamp: timeString
+      }, ...prev]);
 
       setCollectionSuccessState({
         show: true,
-        vendorName: collectionFormValues.name,
+        vendorName: contactName,
         onAddAnother: () => resetCollectionForm()
       });
 
-      addToast(`Field collection sheet for "${collectionFormValues.name}" saved!`, "success");
+      addToast(`Field collection sheet for "${contactName}" saved!`, "success");
     } catch (err: any) {
+      if (err.message === "Vendor not found" || err.message === "No active edition") {
+        throw err;
+      }
       console.error("Supabase error submitting survey:", err);
       addToast("Error submitting survey: " + (err.message || err), "error");
+      throw err;
     }
   };
 
-  const handleWalkinSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleDynamicWalkinSubmit = async (answers: Record<string, string>) => {
     if (!activeEdition) {
       addToast("Please select an active event edition first!", "error");
-      return;
+      throw new Error("No active edition");
     }
 
     try {
       const supabase = createClient();
       if (!supabase) throw new Error("Supabase client is not initialized.");
 
-      const { data, error } = await supabase
+      const fullName = answers.full_name || 'Anonymous Visitor';
+      const phone = answers.phone || '';
+      const email = answers.email || '';
+      const businessType = answers.business_type || '';
+      const age = answers.age ? parseInt(answers.age) : null;
+
+      const { error } = await supabase
         .from('walkins')
         .insert({
           market_day_id: activeEdition.id,
-          full_name: walkinFormValues.fullName || 'Anonymous Visitor',
-          phone: walkinFormValues.phone || '',
-          email: walkinFormValues.email || '',
-          business_type: walkinFormValues.businessType || '',
-          age: walkinFormValues.age ? parseInt(walkinFormValues.age) : null,
+          full_name: fullName,
+          phone: phone,
+          email: email,
+          business_type: businessType,
+          age: age,
           recorded_at: new Date().toISOString()
-        })
-        .select();
+        });
 
       if (error) throw error;
 
-      console.log("Walk-in inserted successfully:", data);
+      fetchWalkins();
+      fetchOverviewCounts();
+      incrementWalkinsCount();
+
+      const timeString = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      setRecentActivities(prev => [{
+        id: crypto.randomUUID(),
+        type: 'walkin',
+        name: fullName,
+        phone: phone,
+        detail: businessType || 'Walk-in Guest',
+        timestamp: timeString
+      }, ...prev]);
 
       setWalkinSuccessState({
         show: true,
-        visitorName: walkinFormValues.fullName || 'Anonymous Visitor',
+        visitorName: fullName,
         onAddAnother: () => resetWalkinForm()
       });
-      fetchWalkins();
 
-      addToast(`Walk-in guest logged successfully!`, "success");
+      addToast("Walk-in guest logged successfully!", "success");
     } catch (err: any) {
+      if (err.message === "No active edition") throw err;
       console.error("Supabase error inserting walk-in:", err);
       addToast("Error submitting walk-in: " + (err.message || err), "error");
+      throw err;
     }
   };
-
 
   const handleCreateRegion = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -2811,31 +2707,28 @@ export default function Home() {
                 onTabChange={setQuickEntryTab}
                 isOpen={isQuickEntryOpen}
                 onToggleCollapse={() => setIsQuickEntryOpen(!isQuickEntryOpen)}
-                paidVendorFormProps={{
-                  values: paidFormValues,
-                  onChange: (updates) => setPaidFormValues(prev => ({ ...prev, ...updates })),
-                  onSubmit: handlePaidSubmit,
-                  lookupStatus: paidLookupStatus,
-                  onPhoneLookup: handlePaidPhoneLookup,
-                  successState: paidSuccessState,
-                  runningCount: runningCount
+                activeEdition={activeEdition}
+                onPaidSubmit={handleDynamicPaidSubmit}
+                onCollectionSubmit={handleDynamicCollectionSubmit}
+                onWalkinSubmit={handleDynamicWalkinSubmit}
+                onPhoneLookup={handleDynamicPhoneLookup}
+                paidCount={runningCount}
+                collectionCount={dataCollectedListCount}
+                walkinCount={runningWalkins}
+                paidSuccessState={{
+                  show: paidSuccessState.show,
+                  name: paidSuccessState.vendorName,
+                  onAddAnother: () => resetPaidForm()
                 }}
-                fieldCollectionFormProps={{
-                  values: collectionFormValues,
-                  onChange: (updates) => setCollectionFormValues(prev => ({ ...prev, ...updates })),
-                  onSubmit: handleCollectionSubmit,
-                  lookupStatus: collectionLookupStatus,
-                  onPhoneLookup: handleCollectionPhoneLookup,
-                  isPaidVendor: isCollectionPaidVendor,
-                  successState: collectionSuccessState,
-                  runningCount: dataCollectedListCount
+                collectionSuccessState={{
+                  show: collectionSuccessState.show,
+                  name: collectionSuccessState.vendorName,
+                  onAddAnother: () => resetCollectionForm()
                 }}
-                walkinFormProps={{
-                  values: walkinFormValues,
-                  onChange: (updates) => setWalkinFormValues(prev => ({ ...prev, ...updates })),
-                  onSubmit: handleWalkinSubmit,
-                  successState: walkinSuccessState,
-                  runningCount: runningWalkins
+                walkinSuccessState={{
+                  show: walkinSuccessState.show,
+                  name: walkinSuccessState.visitorName,
+                  onAddAnother: () => resetWalkinForm()
                 }}
               />
 
