@@ -77,8 +77,6 @@ export const QuickEntryPanel: React.FC<QuickEntryPanelProps> = ({
   collectionSuccessState,
   walkinSuccessState,
 }) => {
-  const currentConfig = TAB_FORMS[activeTab];
-
   const getFormProps = (tab: QuickEntryTab): DynamicQuickEntryFormProps => {
     switch (tab) {
       case 'paid':

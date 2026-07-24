@@ -74,7 +74,6 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
   countLabel,
   lookupEnabled = false,
 }) => {
-  const [formId, setFormId] = useState<string | null>(null);
   const [questions, setQuestions] = useState<FormQuestion[]>([]);
   const [sectionQuestions, setSectionQuestions] = useState<Record<string, FormQuestion[]>>({});
   const [sections, setSections] = useState<{ id: string; name: string; sort_order: number }[]>([]);
@@ -101,7 +100,6 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
         .single();
 
       if (fErr || !formData) throw new Error(`Form not found: ${formSlug}`);
-      setFormId(formData.id);
 
       const { data: qData, error: qErr } = await supabase
         .from('survey_questions')
@@ -156,9 +154,9 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
         setQuestionRules(qlData || []);
         setSectionRules(slData || []);
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Error loading form:', err);
-      setLoadError(err.message || 'Failed to load form');
+      setLoadError(err instanceof Error ? err.message : 'Failed to load form');
     } finally {
       setLoading(false);
     }
@@ -279,7 +277,7 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
     setSubmitting(true);
     try {
       await onSubmit(answers);
-    } catch (err: any) {
+    } catch (err: unknown) {
       console.error('Submit error:', err);
     } finally {
       setSubmitting(false);
@@ -526,9 +524,6 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
               <QuestionField
                 key={q.id}
                 question={q}
-                value={answers[q.csv_column] || ''}
-                onChange={handleAnswerChange}
-                onMultiSelectChange={handleMultiSelectChange}
                 renderField={renderQuestionField}
               />
             ))}
@@ -550,9 +545,6 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
                   <QuestionField
                     key={q.id}
                     question={q}
-                    value={answers[q.csv_column] || ''}
-                    onChange={handleAnswerChange}
-                    onMultiSelectChange={handleMultiSelectChange}
                     renderField={renderQuestionField}
                   />
                 ))}
@@ -567,9 +559,6 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
               <QuestionField
                 key={q.id}
                 question={q}
-                value={answers[q.csv_column] || ''}
-                onChange={handleAnswerChange}
-                onMultiSelectChange={handleMultiSelectChange}
                 renderField={renderQuestionField}
               />
             ))}
@@ -617,11 +606,8 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
 
 const QuestionField: React.FC<{
   question: FormQuestion;
-  value: string;
-  onChange: (csvColumn: string, value: string) => void;
-  onMultiSelectChange: (csvColumn: string, option: string, checked: boolean) => void;
   renderField: (q: FormQuestion) => React.ReactNode;
-}> = ({ question, value, onChange, onMultiSelectChange, renderField }) => {
+}> = ({ question, renderField }) => {
   return (
     <div>
       <label className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider flex items-center justify-between mb-1.5 select-none">
