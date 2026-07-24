@@ -126,7 +126,6 @@ export default function Home() {
 
   const fileInputRef1 = useRef<HTMLInputElement>(null);
   const fileInputRef2 = useRef<HTMLInputElement>(null);
-  const fileInputRef3 = useRef<HTMLInputElement>(null);
 
   const handleCreateRegionFromName = async (name: string) => {
     try {
@@ -1773,109 +1772,6 @@ export default function Home() {
     document.body.removeChild(link);
   };
 
-  const handleImportConfirmedVendors = async (file: File) => {
-    if (!activeEdition || !activeRegion) {
-      addToast("Please select an active workspace (region & edition) first!", "error");
-      return;
-    }
-
-    try {
-      const text = await file.text();
-      const rows = parseCSV(text);
-      if (rows.length === 0) {
-        addToast("CSV is empty", "error");
-        return;
-      }
-
-      // Check header
-      let startIdx = 0;
-      const firstRow = rows[0].map(c => c.toLowerCase());
-      if (firstRow.includes('name') || firstRow.includes('phone')) {
-        startIdx = 1;
-      }
-
-      const nameCol = firstRow.indexOf('name') !== -1 ? firstRow.indexOf('name') : 0;
-      const phoneCol = firstRow.indexOf('phone') !== -1 ? firstRow.indexOf('phone') : 1;
-
-      const supabase = createClient();
-      if (!supabase) throw new Error("Supabase not initialized");
-
-      // Lookup form for Vendor Registration Form
-      const { data: formData, error: fError } = await supabase
-        .from('forms')
-        .select('id')
-        .eq('slug', 'vendor_registration')
-        .limit(1);
-
-      if (fError) throw fError;
-      if (!formData || formData.length === 0) throw new Error("Vendor Registration Form not found in database.");
-      const formId = formData[0].id;
-
-      let count = 0;
-      for (let i = startIdx; i < rows.length; i++) {
-        const row = rows[i];
-        const name = row[nameCol];
-        const phone = row[phoneCol];
-        if (!phone || !name) continue;
-
-        // Check if vendor exists
-        const { data: existing } = await supabase
-          .from('vendors')
-          .select('id')
-          .eq('phone', phone)
-          .limit(1);
-
-        let vendorId;
-        if (existing && existing.length > 0) {
-          vendorId = existing[0].id;
-          await supabase
-            .from('vendors')
-            .update({ contact_name: name, is_active: true })
-            .eq('id', vendorId);
-        } else {
-          const { data: inserted } = await supabase
-            .from('vendors')
-            .insert({ contact_name: name, phone, is_active: true })
-            .select();
-          if (inserted && inserted.length > 0) {
-             vendorId = inserted[0].id;
-          }
-        }
-
-        if (vendorId) {
-          // Insert survey response if not exists
-          const { data: existingRes } = await supabase
-            .from('survey_responses')
-            .select('id')
-            .eq('vendor_id', vendorId)
-            .eq('form_id', formId)
-            .eq('context_id', activeEdition.id)
-            .limit(1);
-
-          if (!existingRes || existingRes.length === 0) {
-            await supabase
-              .from('survey_responses')
-              .insert({
-                form_id: formId,
-                context_type: 'market_day',
-                context_id: activeEdition.id,
-                vendor_id: vendorId,
-                source: 'csv_import',
-                submitted_at: new Date().toISOString()
-              });
-          }
-          count++;
-        }
-      }
-
-      addToast(`Imported ${count} vendors successfully!`, "success");
-      fetchVendors();
-    } catch (err: any) {
-      console.error(err);
-      addToast("Import failed: " + err.message, "error");
-    }
-  };
-
   const handleImportCollectedData = async (file: File) => {
     if (!activeEdition || !activeRegion) {
       addToast("Please select an active workspace (region & edition) first!", "error");
@@ -3070,54 +2966,19 @@ export default function Home() {
                 ref={fileInputRef1} 
                 className="hidden" 
                 accept=".csv" 
-                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImportConfirmedVendors(f); }} 
+                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImportCollectedData(f); }} 
               />
               <input 
                 type="file" 
                 ref={fileInputRef2} 
                 className="hidden" 
                 accept=".csv" 
-                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImportCollectedData(f); }} 
-              />
-              <input 
-                type="file" 
-                ref={fileInputRef3} 
-                className="hidden" 
-                accept=".csv" 
                 onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImportWalkins(f); }} 
               />
 
               {/* Upload Cards Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-5 select-none">
-                {/* Card 1: Confirmed list */}
-                <div className="bg-bg-surface border border-border rounded-xl p-5 flex flex-col justify-between relative overflow-hidden">
-                  {!activeEdition && (
-                    <div className="absolute inset-0 bg-bg-surface/85 backdrop-blur-xs flex items-center justify-center p-4 text-center z-10">
-                      <span className="text-xs text-text-secondary font-semibold">Select active edition to upload</span>
-                    </div>
-                  )}
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-10 h-10 rounded-full bg-green-muted text-green flex items-center justify-center">
-                        <Users className="w-5 h-5 animate-pulse" />
-                      </div>
-                      <h3 className="font-bold text-sm text-text-primary">Upload Confirmed Vendors List</h3>
-                    </div>
-                    <p className="text-xs text-text-secondary leading-relaxed">
-                      CSV spreadsheet with vendor names and phone numbers who have completed payments for this edition.
-                    </p>
-                    <div className="inline-block bg-bg-elevated border border-border-light rounded px-2.5 py-1 text-[10px] text-text-secondary font-mono">
-                      name · phone
-                    </div>
-                  </div>
-                  <div className="pt-5">
-                    <Button variant="primary" fullWidth onClick={() => fileInputRef1.current?.click()}>
-                      <span>Upload CSV</span>
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Card 2: Kobo data */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 select-none">
+                {/* Card 1: Kobo data */}
                 <div className="bg-bg-surface border border-border rounded-xl p-5 flex flex-col justify-between relative overflow-hidden">
                   {!activeEdition && (
                     <div className="absolute inset-0 bg-bg-surface/85 backdrop-blur-xs flex items-center justify-center p-4 text-center z-10">
@@ -3139,13 +3000,13 @@ export default function Home() {
                     </div>
                   </div>
                   <div className="pt-5">
-                    <Button variant="primary" fullWidth onClick={() => fileInputRef2.current?.click()} disabled={isImporting}>
+                    <Button variant="primary" fullWidth onClick={() => fileInputRef1.current?.click()} disabled={isImporting}>
                       <span>{isImporting ? "Importing..." : "Upload CSV"}</span>
                     </Button>
                   </div>
                 </div>
 
-                {/* Card 3: Walk-in records */}
+                {/* Card 2: Walk-in records */}
                 <div className="bg-bg-surface border border-border rounded-xl p-5 flex flex-col justify-between relative overflow-hidden">
                   {!activeEdition && (
                     <div className="absolute inset-0 bg-bg-surface/85 backdrop-blur-xs flex items-center justify-center p-4 text-center z-10">
@@ -3167,7 +3028,7 @@ export default function Home() {
                     </div>
                   </div>
                   <div className="pt-5">
-                    <Button variant="primary" fullWidth onClick={() => fileInputRef3.current?.click()}>
+                    <Button variant="primary" fullWidth onClick={() => fileInputRef2.current?.click()}>
                       <span>Upload CSV</span>
                     </Button>
                   </div>
