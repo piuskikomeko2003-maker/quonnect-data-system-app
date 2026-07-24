@@ -10,7 +10,7 @@ export interface FilterState {
   minAge: number | '';
   maxAge: number | '';
   businessType: string;
-  registrationType?: 'All' | 'Paid' | 'Collected';
+  registrationType?: 'All' | 'survey' | 'paid' | 'both';
 }
 
 export interface FilterBarProps {
@@ -83,11 +83,12 @@ export const FilterBar: React.FC<FilterBarProps> = ({
         <select
           value={filters.registrationType || 'All'}
           onChange={(e) => onFiltersChange({ registrationType: e.target.value as any })}
-          className="bg-bg-elevated border border-border-light text-text-primary text-xs rounded-md px-3.5 py-2 cursor-pointer outline-none transition-colors focus:border-green appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%209l3%203%203-3%22%20stroke%3D%22%238b949e%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[right_10px_center] bg-no-repeat pr-8 min-w-[155px]"
+          className="bg-bg-elevated border border-border-light text-text-primary text-xs rounded-md px-3.5 py-2 cursor-pointer outline-none transition-colors focus:border-green appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%209l3%203%203-3%22%20stroke%3D%22%238b949e%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[right_10px_center] bg-no-repeat pr-8 min-w-[180px]"
         >
-          <option value="All" className="bg-bg-surface">All Registrations</option>
-          <option value="Paid" className="bg-bg-surface">Paid Vendors Only</option>
-          <option value="Collected" className="bg-bg-surface">Field Collections Only</option>
+          <option value="All" className="bg-bg-surface">All Vendors</option>
+          <option value="survey" className="bg-bg-surface">Survey/Field Data Only</option>
+          <option value="paid" className="bg-bg-surface">Paid/Registered Only</option>
+          <option value="both" className="bg-bg-surface">Both (Surveyed & Paid)</option>
         </select>
 
         {/* Business Type Dropdown */}

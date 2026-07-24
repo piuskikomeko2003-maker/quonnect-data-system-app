@@ -254,6 +254,20 @@ export default function Home() {
         throw error;
       }
 
+      let paidIds: Set<string> = new Set();
+      if (activeEdition?.id) {
+        const { data: paidData } = await supabase
+          .from('vendor_registrations')
+          .select('vendor_id')
+          .eq('market_day_id', activeEdition.id);
+        paidIds = new Set((paidData || []).map((r: any) => r.vendor_id));
+      }
+
+      const surveyIds = new Set<string>();
+      (data || []).forEach((row: any) => {
+        if (row.vendor_id) surveyIds.add(row.vendor_id);
+      });
+
       const vendorAnswersMap = new globalThis.Map<string, { vendor: any; answers: any[] }>();
       (data || []).forEach((row: any) => {
         const v = row.vendors;
@@ -271,6 +285,11 @@ export default function Home() {
           const match = answers.find((a: any) => a.survey_questions?.csv_column === col);
           return match?.answer || undefined;
         };
+
+        const registrationType: 'survey' | 'paid' | 'both' | 'unknown' =
+          paidIds.has(v.id) && surveyIds.has(v.id) ? 'both' :
+          paidIds.has(v.id) ? 'paid' :
+          surveyIds.has(v.id) ? 'survey' : 'unknown';
 
         return {
           id: v.id,
@@ -292,7 +311,8 @@ export default function Home() {
           businessGrowthNarrative: '',
           dob: '',
           amountPaid: '0',
-          email: v.email || ''
+          email: v.email || '',
+          registrationType
         };
       });
 
@@ -1457,12 +1477,9 @@ export default function Home() {
     if (filters.minAge !== '' && v.age < filters.minAge) return false;
     if (filters.maxAge !== '' && v.age > filters.maxAge) return false;
 
-    // Registration type filters (Paid / Collection status)
-    if (filters.registrationType === 'Paid') {
-      const amt = Number(v.amountPaid) || 0;
-      if (amt <= 0) return false;
-    } else if (filters.registrationType === 'Collected') {
-      if (!v.employeeCount && !v.businessGrowthNarrative) return false;
+    // Registration type filter
+    if (filters.registrationType && filters.registrationType !== 'All' && v.registrationType !== filters.registrationType) {
+      return false;
     }
 
     return true;
@@ -2412,18 +2429,7 @@ export default function Home() {
                 </div>
               )}
 
-              {!loadingVendors && !error && filteredVendors.length === 0 && (
-                <div className="bg-bg-surface border border-border rounded-xl p-12 text-center flex flex-col items-center justify-center select-none">
-                  <Store className="w-12 h-12 text-text-tertiary mb-4 stroke-[1.5] mx-auto" />
-                  <h3 className="text-sm font-bold text-text-primary mb-1">No vendors found</h3>
-                  <p className="text-xs text-text-secondary max-w-[280px] mx-auto">
-                    Register a new vendor using the Paid Vendor Registration form to see them here.
-                  </p>
-                </div>
-              )}
-
-              {/* Vendors List Table */}
-              {!loadingVendors && !error && filteredVendors.length > 0 && (
+              {!loadingVendors && !error && (
                 <VendorTable
                   vendors={filteredVendors}
                   selectedVendorIds={selectedVendorIds}

@@ -14,6 +14,7 @@ export interface Vendor {
   region: string;
   attendanceCount: number;
   lastSeen: string;
+  registrationType?: 'survey' | 'paid' | 'both' | 'unknown';
 }
 
 export interface VendorTableProps {
@@ -126,6 +127,7 @@ export const VendorTable: React.FC<VendorTableProps> = ({
                 <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider">Business</th>
                 <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider text-center">Gender</th>
                 <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider text-center">Status</th>
+                <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider text-center">Type</th>
                 <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider">Region</th>
                 <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider text-center">Attendances</th>
                 <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider">Last Seen</th>
@@ -174,6 +176,24 @@ export const VendorTable: React.FC<VendorTableProps> = ({
                     {/* Status Badge */}
                     <td className="p-3.5 text-center">
                       <VendorStatusBadge status={vendor.status} />
+                    </td>
+                    
+                    {/* Registration Type Badge */}
+                    <td className="p-3.5 text-center">
+                      {(() => {
+                        const badges: Record<string, { label: string; color: string }> = {
+                          survey: { label: 'Field Data', color: 'bg-blue-500' },
+                          paid: { label: 'Registered', color: 'bg-green-500' },
+                          both: { label: 'Registered + Surveyed', color: 'bg-purple-500' },
+                          unknown: { label: 'Unverified', color: 'bg-gray-400' }
+                        };
+                        const badge = badges[vendor.registrationType || 'unknown'];
+                        return (
+                          <span className={`${badge.color} text-white text-[10px] px-2 py-0.5 rounded-full font-semibold whitespace-nowrap`}>
+                            {badge.label}
+                          </span>
+                        );
+                      })()}
                     </td>
                     
                     {/* Region */}
