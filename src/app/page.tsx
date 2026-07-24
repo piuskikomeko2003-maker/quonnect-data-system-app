@@ -230,6 +230,12 @@ export default function Home() {
             is_active,
             created_at
           ),
+          survey_answers (
+            answer,
+            survey_questions (
+              csv_column
+            )
+          ),
           market_days!inner (
             id,
             region_id
@@ -248,28 +254,35 @@ export default function Home() {
         throw error;
       }
 
-      const uniqueVendors: any[] = [];
-      const seenIds = new Set();
+      const vendorAnswersMap = new globalThis.Map<string, { vendor: any; answers: any[] }>();
       (data || []).forEach((row: any) => {
         const v = row.vendors;
-        if (v && !seenIds.has(v.id)) {
-          seenIds.add(v.id);
-          uniqueVendors.push(v);
+        if (!v) return;
+        if (!vendorAnswersMap.has(v.id)) {
+          vendorAnswersMap.set(v.id, { vendor: v, answers: [] });
+        }
+        if (row.survey_answers && Array.isArray(row.survey_answers)) {
+          vendorAnswersMap.get(v.id)!.answers.push(...row.survey_answers);
         }
       });
 
-      const mappedVendors = uniqueVendors.map((v: any) => {
+      const mappedVendors = Array.from(vendorAnswersMap.values()).map(({ vendor: v, answers }) => {
+        const getAnswer = (col: string): string | undefined => {
+          const match = answers.find((a: any) => a.survey_questions?.csv_column === col);
+          return match?.answer || undefined;
+        };
+
         return {
           id: v.id,
           name: v.contact_name || 'Anonymous',
           phone: v.phone || '',
           businessName: v.business_name || '',
-          gender: 'Female',
+          gender: getAnswer('gender') || 'Unknown',
           status: v.is_active ? ('active' as const) : ('new' as const),
           region: activeRegion.name,
-          attendanceCount: 1,
+          attendanceCount: Number(getAnswer('times_attended')) || 1,
           lastSeen: activeEdition ? activeEdition.name : 'May 2026',
-          age: 28,
+          age: Number(getAnswer('age')) || 0,
           employeeCount: '',
           newHiresThisYear: '',
           businessType: v.category || 'Fashion',
@@ -1426,7 +1439,7 @@ export default function Home() {
     }
 
     // Gender filter
-    if (filters.gender !== 'All' && v.gender !== filters.gender) {
+    if (filters.gender !== 'All' && v.gender?.toLowerCase() !== filters.gender.toLowerCase()) {
       return false;
     }
 
@@ -1459,7 +1472,7 @@ export default function Home() {
   const totalUniqueVendorsCount = vendors.length;
   const activeVendorsList = vendors.filter(v => v.status === 'active' || v.status === 'loyal');
   
-  const femaleVendorsCount = vendors.filter(v => v.gender === 'Female').length;
+  const femaleVendorsCount = vendors.filter(v => v.gender?.toLowerCase() === 'female').length;
   const womenOwnedPctVal = totalUniqueVendorsCount > 0 
     ? Math.round((femaleVendorsCount / totalUniqueVendorsCount) * 100)
     : 0;
