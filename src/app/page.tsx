@@ -46,6 +46,7 @@ import {
   Copy,
   Info,
   X,
+  Filter,
   Map,
   ChevronRight,
   Loader2,
@@ -242,27 +243,37 @@ export default function Home() {
       }
 
       const surveyVendorIds = new Set<string>();
-      const vendorAnswersMap = new globalThis.Map<string, any[]>();
+      const vendorAnswersMap = new globalThis.Map<string, Record<string, string>>();
 
       (surveyData || []).forEach((row: any) => {
         if (row.vendor_id) {
           surveyVendorIds.add(row.vendor_id);
           if (!vendorAnswersMap.has(row.vendor_id)) {
-            vendorAnswersMap.set(row.vendor_id, []);
+            vendorAnswersMap.set(row.vendor_id, {});
           }
+          const answerMap = vendorAnswersMap.get(row.vendor_id)!;
           if (row.survey_answers && Array.isArray(row.survey_answers)) {
-            vendorAnswersMap.get(row.vendor_id)!.push(...row.survey_answers);
+            row.survey_answers.forEach((a: any) => {
+              const csvColumn = a.survey_questions?.csv_column;
+              if (csvColumn && a.answer !== undefined && a.answer !== null) {
+                answerMap[csvColumn] = a.answer;
+              }
+            });
           }
         }
       });
 
       let paidVendorIds = new Set<string>();
+      const paidAmountMap = new globalThis.Map<string, string>();
       if (activeEdition?.id) {
         const { data: paidData } = await supabase
           .from('vendor_registrations')
-          .select('vendor_id')
+          .select('vendor_id, amount_paid')
           .eq('market_day_id', activeEdition.id);
-        paidVendorIds = new Set((paidData || []).map((r: any) => r.vendor_id));
+        (paidData || []).forEach((r: any) => {
+          paidVendorIds.add(r.vendor_id);
+          paidAmountMap.set(r.vendor_id, String(r.amount_paid || '0'));
+        });
       }
 
       const allVendorIds = [...new globalThis.Set([...surveyVendorIds, ...paidVendorIds])];
@@ -290,11 +301,7 @@ export default function Home() {
       }
 
       const mappedVendors = (vendorData || []).map((v: any) => {
-        const answers = vendorAnswersMap.get(v.id) || [];
-        const getAnswer = (col: string): string | undefined => {
-          const match = answers.find((a: any) => a.survey_questions?.csv_column === col);
-          return match?.answer || undefined;
-        };
+        const answerMap = vendorAnswersMap.get(v.id) || {};
 
         const registrationType: 'survey' | 'paid' | 'both' | 'unknown' =
           surveyVendorIds.has(v.id) && paidVendorIds.has(v.id) ? 'both' :
@@ -303,25 +310,25 @@ export default function Home() {
 
         return {
           id: v.id,
-          name: v.contact_name || 'Anonymous',
-          phone: v.phone || '',
-          businessName: v.business_name || '',
-          gender: getAnswer('gender') || 'Unknown',
+          name: v.contact_name || answerMap['full_name'] || answerMap['contact_name'] || 'Unknown',
+          phone: v.phone || answerMap['phone_number'] || answerMap['phone'] || '',
+          businessName: v.business_name || answerMap['business_name'] || '',
+          gender: answerMap['gender'] || 'Unknown',
           status: v.is_active ? ('active' as const) : ('new' as const),
           region: activeRegion.name,
-          attendanceCount: Number(getAnswer('times_attended')) || 1,
+          attendanceCount: Number(answerMap['times_attended']) || 1,
           lastSeen: activeEdition ? activeEdition.name : 'May 2026',
-          age: Number(getAnswer('age')) || 0,
-          employeeCount: '',
-          newHiresThisYear: '',
-          businessType: v.category || 'Fashion',
-          sellsOwnProducts: 'Yes',
-          exportReady: 'No',
-          impactRating: 4,
-          businessGrowthNarrative: '',
-          dob: '',
-          amountPaid: '0',
-          email: v.email || '',
+          age: answerMap['age'] ? parseInt(answerMap['age'], 10) : 0,
+          employeeCount: answerMap['employee_count'] || answerMap['employees'] || '',
+          newHiresThisYear: answerMap['new_hires_this_year'] || answerMap['new_hires'] || '',
+          businessType: v.category || answerMap['business_category'] || answerMap['category'] || 'Fashion',
+          sellsOwnProducts: answerMap['sells_own_products'] || 'No',
+          exportReady: answerMap['export_ready'] || 'No',
+          impactRating: answerMap['impact_rating'] ? Number(answerMap['impact_rating']) : 0,
+          businessGrowthNarrative: answerMap['business_growth_narrative'] || answerMap['business_growth'] || '',
+          dob: answerMap['date_of_birth'] || answerMap['dob'] || v.dob || '',
+          amountPaid: paidAmountMap.get(v.id) || '0',
+          email: v.email || answerMap['email'] || answerMap['email_address'] || '',
           registrationType
         };
       });
@@ -811,6 +818,43 @@ export default function Home() {
   });
   const [vendorSearch, setVendorSearch] = useState('');
   const [selectedVendorIds, setSelectedVendorIds] = useState<string[]>([]);
+  
+  // Overview filter bar state
+  const [overviewScope, setOverviewScope] = useState<'all' | 'region' | 'edition'>('all');
+  const [overviewRegionId, setOverviewRegionId] = useState<string | null>(null);
+  const [overviewEditionId, setOverviewEditionId] = useState<string | null>(null);
+  const [overviewGender, setOverviewGender] = useState<'all' | 'Female' | 'Male'>('all');
+  const [overviewRegions, setOverviewRegions] = useState<{ id: string; name: string }[]>([]);
+  const [overviewEditions, setOverviewEditions] = useState<{ id: string; name: string }[]>([]);
+
+  // Fetch regions and editions for overview filter bar dropdowns
+  useEffect(() => {
+    if (activeNav === 'overview' && mounted) {
+      const fetchOverviewFilters = async () => {
+        const supabase = createClient();
+        if (!supabase) return;
+
+        const { data: regionsData } = await supabase
+          .from('regions')
+          .select('id, name')
+          .eq('is_active', true)
+          .order('name');
+        setOverviewRegions(regionsData || []);
+
+        if (overviewRegionId) {
+          const { data: editionsData } = await supabase
+            .from('market_days')
+            .select('id, name')
+            .eq('region_id', overviewRegionId)
+            .order('name');
+          setOverviewEditions(editionsData || []);
+        } else {
+          setOverviewEditions([]);
+        }
+      };
+      fetchOverviewFilters();
+    }
+  }, [activeNav, overviewRegionId, mounted]);
   
   // Drawer Panel & Modal States
   const [selectedVendorId, setSelectedVendorId] = useState<string | null>(null);
@@ -1665,16 +1709,16 @@ export default function Home() {
       .filter(row => row.length > 0 && row.some(cell => cell !== ''));
   };
 
-  const parseCSVToObjects = (text: string): Record<string, string>[] => {
+  const parseCSVToObjects = (text: string, delimiter: string = ','): Record<string, string>[] => {
     const lines = text.split(/\r?\n/);
     if (lines.length === 0) return [];
 
-    const headers = parseCSVRow(lines[0]);
+    const headers = parseCSVRow(lines[0], delimiter);
     const results: Record<string, string>[] = [];
 
     for (let i = 1; i < lines.length; i++) {
       if (!lines[i].trim()) continue;
-      const values = parseCSVRow(lines[i]);
+      const values = parseCSVRow(lines[i], delimiter);
       const rowObj: Record<string, string> = {};
       headers.forEach((header, index) => {
         rowObj[header] = values[index] || '';
@@ -1684,7 +1728,7 @@ export default function Home() {
     return results;
   };
 
-  const parseCSVRow = (line: string): string[] => {
+  const parseCSVRow = (line: string, delimiter: string = ','): string[] => {
     const result = [];
     let current = '';
     let inQuotes = false;
@@ -1692,7 +1736,7 @@ export default function Home() {
       const char = line[i];
       if (char === '"') {
         inQuotes = !inQuotes;
-      } else if (char === ',' && !inQuotes) {
+      } else if (char === delimiter && !inQuotes) {
         result.push(current.trim());
         current = '';
       } else {
@@ -1733,14 +1777,20 @@ export default function Home() {
     setIsImporting(true);
 
     try {
-      const text = await file.text();
-      const rows = parseCSVToObjects(text);
+      const rawText = await file.text();
+
+      // Standard format is comma-delimited from KoboCollect
+      const rows = parseCSVToObjects(rawText, ',');
       console.log("Total CSV rows parsed:", rows.length);
       if (rows.length === 0) {
         addToast("CSV is empty", "error");
+        setIsImporting(false);
         return;
       }
-      console.log("All CSV headers:", Object.keys(rows[0]));
+
+      const firstRow = rows[0];
+      console.log("First row sample:", JSON.stringify(firstRow));
+      console.log("CSV headers:", Object.keys(firstRow));
 
       const supabase = createClient();
       if (!supabase) throw new Error("Supabase not initialized");
@@ -1767,96 +1817,92 @@ export default function Home() {
         throw new Error("No questions found for this form.");
       }
 
-      // 3. Load column map from profile
-      const { data: profile, error: pErr } = await supabase
-        .from('csv_import_profiles')
-        .select('column_map')
-        .eq('form_id', formId)
-        .limit(1)
-        .single();
-
-      if (pErr) throw pErr;
-      const columnMap = profile?.column_map || {};
-
-      // Build headerToColumn lookup map
-      const headerToColumn: Record<string, string> = {};
-
-      // Method 1: from column_map
-      Object.entries(columnMap).forEach(([header, path]) => {
-        if (typeof path === 'string') {
-          const csvColumn = path.replace('answer.', '');
-          headerToColumn[header.toLowerCase().trim()] = csvColumn;
+      // 3. Standard KoboCollect form field extractor
+      const getField = (row: any, ...keys: string[]): string => {
+        for (const key of keys) {
+          const val = row[key];
+          if (val && String(val).trim()) return String(val).trim();
         }
-      });
-
-      // Method 2: direct csv_column match as fallback
-      questions.forEach(q => {
-        if (q.csv_column) {
-          headerToColumn[q.csv_column.toLowerCase().trim()] = q.csv_column;
-        }
-      });
-
-      // Method 3: direct question_text match as fallback
-      questions.forEach(q => {
-        if (q.question_text && q.csv_column) {
-          headerToColumn[q.question_text.toLowerCase().trim()] = q.csv_column;
-        }
-      });
-
-      // Flexible header lookup
-      const getColumnKey = (header: string): string | undefined => {
-        const cleanHeader = header.toLowerCase().trim();
-        // Try exact lowercase trimmed match
-        if (headerToColumn[cleanHeader]) {
-          return headerToColumn[cleanHeader];
-        }
-        // Fallback: check if normalized clean versions match
-        const normHeader = cleanHeader.replace(/[^a-z0-9]/g, '');
-        for (const [key, value] of Object.entries(headerToColumn)) {
-          const normKey = key.replace(/[^a-z0-9]/g, '');
-          if (normHeader === normKey || normHeader.includes(normKey) || normKey.includes(normHeader)) {
-            return value;
-          }
-        }
-        return undefined;
+        return '';
       };
 
-      // Find target headers for name and phone and business name to create/update vendors
-      const firstRow = rows[0];
-      const phoneHeader = Object.keys(firstRow).find(h => {
-        const csvCol = getColumnKey(h);
-        return csvCol === 'phone_number' || csvCol === 'phone' || h.toLowerCase().includes('phone');
-      }) || 'Phone number';
+      // 4. Standard KoboCollect CSV header → survey_question csv_column mapping
+      const headerToColumn: Record<string, string> = {
+        'full_name': 'full_name',
+        'business_name': 'business_name',
+        'phone_number': 'phone_number',
+        'email': 'email',
+        'gender': 'gender',
+        'age': 'age',
+        'business_category': 'business_category',
+        'how_long_in_business': 'how_long_in_business',
+        'primary_income_source': 'primary_source_of_income',
+        'products_source': 'products_primarily_from',
+        'business_operates_as': 'business_operates_as',
+        'first_time_attendee': 'first_time_at_quonnect',
+        'times_attended': 'times_attended',
+        'attended_last_quonnect': 'attended_last_quonnect',
+        'regions_attended': 'regions_attended',
+        'has_paid_employees': 'paid_employees',
+        'number_of_employees': 'number_of_employees',
+        'female_employees_share': 'female_employees',
+        'youth_employees_share': 'youth_employees',
+        'new_employees_12mo': 'hired_new_employees',
+        'hired_new_employees_12mo': 'new_employees_count',
+        'business_growth_vs_before': 'business_growth',
+        'quonnect_benefits_summary': 'quonnect_benefits',
+        'has_active_social_media': 'active_social_media',
+        'makes_online_sales': 'online_sales',
+        'how_heard_about_quonnect': 'how_did_you_know',
+        'would_recommend_quonnect': 'would_recommend',
+        'main_challenges_summary': 'main_challenges',
+        'sales_impact': 'sales_impact',
+        'revenue_impact': 'revenue_impact',
+      };
 
-      const nameHeader = Object.keys(firstRow).find(h => {
-        const csvCol = getColumnKey(h);
-        return csvCol === 'full_name' || csvCol === 'name' || h.toLowerCase().includes('name') || h.toLowerCase().includes('contact');
-      }) || 'Full name';
+      // Normalize for case-insensitive matching
+      const normalizedHeaderMap: Record<string, string> = {};
+      Object.entries(headerToColumn).forEach(([header, csvColumn]) => {
+        normalizedHeaderMap[header.toLowerCase().trim()] = csvColumn;
+      });
 
-      const bizHeader = Object.keys(firstRow).find(h => {
-        const csvCol = getColumnKey(h);
-        return csvCol === 'business_name' || h.toLowerCase().includes('business');
-      }) || 'Business name';
+      // Build reverse lookup: csv_column → question
+      const questionByCsvColumn: Record<string, any> = {};
+      questions.forEach(q => {
+        if (q.csv_column) questionByCsvColumn[q.csv_column] = q;
+      });
 
-      const catHeader = Object.keys(firstRow).find(h => {
-        const csvCol = getColumnKey(h);
-        return csvCol === 'business_category' || csvCol === 'category' || h.toLowerCase().includes('category');
-      }) || 'Business category';
+      // Metadata columns to skip
+      const metadataPrefixes = ['_', '/'];
+      const metadataKeywords = ['uuid', 'submission_time', 'validation_status', 'submitted_by', 'start', 'end', 'today', 'deviceid', 'simserial', 'phonenumber', 'instanceid', 'formhub/uuid', 'meta/instanceid'];
+
+      const shouldSkipColumn = (header: string): boolean => {
+        const lower = header.toLowerCase().trim();
+        for (const prefix of metadataPrefixes) {
+          if (lower.startsWith(prefix)) return true;
+        }
+        for (const kw of metadataKeywords) {
+          if (lower === kw || lower.includes(kw)) return true;
+        }
+        if (lower.includes('/')) return true;
+        return false;
+      };
 
       let count = 0;
       let totalAnswersCount = 0;
 
       for (const [index, rowObj] of rows.entries()) {
         try {
-          const name = rowObj[nameHeader];
-          const phone = rowObj[phoneHeader];
-          const biz = rowObj[bizHeader] || '';
-          const cat = rowObj[catHeader] || 'Fashion';
+          const name = getField(rowObj, 'full_name', 'contact_name');
+          const phone = getField(rowObj, 'phone_number', 'phone');
+          const biz = getField(rowObj, 'business_name');
+          const email = getField(rowObj, 'email');
+          const cat = getField(rowObj, 'business_category', 'category') || 'Fashion';
 
           addToast(`Importing row ${index + 1} of ${rows.length}...`, "success");
 
           if (!phone || !name) {
-            console.warn(`Row ${index + 1} skipped due to missing name or phone. Name: ${name}, Phone: ${phone}`);
+            console.warn(`Row ${index + 1} skipped — missing name or phone. Name: "${name}", Phone: "${phone}"`);
             continue;
           }
 
@@ -1867,6 +1913,7 @@ export default function Home() {
               contact_name: name,
               phone: phone,
               business_name: biz,
+              email: email,
               category: cat,
               is_active: true
             }, {
@@ -1897,7 +1944,6 @@ export default function Home() {
             if (existingResponse && existingResponse.length > 0) {
               responseId = existingResponse[0].id;
             } else {
-              // Insert survey response
               const { data: resData, error: resError } = await supabase
                 .from('survey_responses')
                 .insert({
@@ -1922,24 +1968,26 @@ export default function Home() {
             }
 
             if (responseId) {
-              // Insert answers
+              // Insert answers using universal header map
               const answersToInsert: any[] = [];
-              Object.entries(rowObj).forEach(([header, value]) => {
-                const csvColumn = getColumnKey(header);
+              Object.keys(rowObj).forEach(header => {
+                if (shouldSkipColumn(header)) return;
+                const csvColumn = normalizedHeaderMap[header.toLowerCase().trim()];
                 if (!csvColumn) return;
-                const question = questions.find(q => q.csv_column === csvColumn);
+                const question = questionByCsvColumn[csvColumn];
                 if (!question) return;
+                const value = rowObj[header];
+                if (value === undefined || value === null || value === '') return;
                 answersToInsert.push({
                   response_id: responseId,
                   question_id: question.id,
-                  answer: String(value ?? '')
+                  answer: String(value).trim()
                 });
               });
 
               console.log("Inserting answers for response:", responseId, "count:", answersToInsert.length);
 
               if (answersToInsert.length > 0) {
-                // Chunk answer upserts into chunks of 50
                 for (let c = 0; c < answersToInsert.length; c += 50) {
                   const chunk = answersToInsert.slice(c, c + 50);
                   const { error: ansError } = await supabase
@@ -2282,7 +2330,7 @@ export default function Home() {
 
               {/* Live Status Counter Component */}
               <LiveCounter
-                isActiveEdition={currentMarket.id === 'kampala'}
+                isActiveEdition={overviewScope === 'edition' && !!overviewEditionId}
                 paidVendorsCount={runningCount}
                 dataCollectedCount={dataCollectedListCount}
                 totalPaidVendorsCount={totalUniqueVendorsCount}
@@ -2338,27 +2386,112 @@ export default function Home() {
                 </div>
               )}
 
-              {/* Interactive Shared Filter Bar */}
-              <FilterBar
-                filters={filters}
-                onFiltersChange={(updates) => setFilters(prev => ({ ...prev, ...updates }))}
-                editions={editions}
-                businessTypes={BUSINESS_TYPES}
-                onClearFilters={() => setFilters({
-                  region: 'All',
-                  editionId: 'may-2026',
-                  gender: 'All',
-                  statuses: [],
-                  minAge: '',
-                  maxAge: '',
-                  businessType: 'All'
-                })}
-              />
+              {/* Overview Filter Bar */}
+              <div className="bg-bg-surface border border-border rounded-lg p-4 flex flex-wrap items-center gap-3 select-none">
+                {/* Scope dropdown */}
+                <div className="flex items-center gap-1.5">
+                  <Filter className="w-3.5 h-3.5 text-text-tertiary" />
+                  <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">Scope</span>
+                </div>
+                <select
+                  value={overviewScope}
+                  onChange={(e) => {
+                    const v = e.target.value as 'all' | 'region' | 'edition';
+                    setOverviewScope(v);
+                    if (v === 'all') { setOverviewRegionId(null); setOverviewEditionId(null); }
+                    if (v === 'region') setOverviewEditionId(null);
+                  }}
+                  className="bg-bg-elevated border border-border-light text-text-primary text-xs rounded-md px-3 py-2 cursor-pointer outline-none focus:border-green appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%209l3%203%203-3%22%20stroke%3D%22%238b949e%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[right_10px_center] bg-no-repeat pr-8 min-w-[140px]"
+                >
+                  <option value="all">All Regions</option>
+                  <option value="region">By Region</option>
+                  <option value="edition">By Edition</option>
+                </select>
+
+                {/* Region dropdown — visible when scope is region or edition */}
+                {(overviewScope === 'region' || overviewScope === 'edition') && (
+                  <select
+                    value={overviewRegionId || ''}
+                    onChange={(e) => {
+                      setOverviewRegionId(e.target.value || null);
+                      setOverviewEditionId(null);
+                    }}
+                    className="bg-bg-elevated border border-border-light text-text-primary text-xs rounded-md px-3 py-2 cursor-pointer outline-none focus:border-green appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%209l3%203%203-3%22%20stroke%3D%22%238b949e%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[right_10px_center] bg-no-repeat pr-8 min-w-[140px]"
+                  >
+                    <option value="">All Regions</option>
+                    {overviewRegions.map(r => (
+                      <option key={r.id} value={r.id}>{r.name}</option>
+                    ))}
+                  </select>
+                )}
+
+                {/* Edition dropdown — visible only when scope is edition with region selected */}
+                {overviewScope === 'edition' && overviewRegionId && (
+                  <select
+                    value={overviewEditionId || ''}
+                    onChange={(e) => setOverviewEditionId(e.target.value || null)}
+                    className="bg-bg-elevated border border-border-light text-text-primary text-xs rounded-md px-3 py-2 cursor-pointer outline-none focus:border-green appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%209l3%203%203-3%22%20stroke%3D%22%238b949e%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[right_10px_center] bg-no-repeat pr-8 min-w-[160px]"
+                  >
+                    <option value="">All Editions</option>
+                    {overviewEditions.map(e => (
+                      <option key={e.id} value={e.id}>{e.name}</option>
+                    ))}
+                  </select>
+                )}
+
+                {/* Gender filter — always visible */}
+                <select
+                  value={overviewGender}
+                  onChange={(e) => setOverviewGender(e.target.value as 'all' | 'Female' | 'Male')}
+                  className="bg-bg-elevated border border-border-light text-text-primary text-xs rounded-md px-3 py-2 cursor-pointer outline-none focus:border-green appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%209l3%203%203-3%22%20stroke%3D%22%238b949e%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[right_10px_center] bg-no-repeat pr-8 min-w-[130px]"
+                >
+                  <option value="all">All Genders</option>
+                  <option value="Female">Female</option>
+                  <option value="Male">Male</option>
+                </select>
+
+                {/* Clear button */}
+                {(overviewScope !== 'all' || overviewGender !== 'all') && (
+                  <button
+                    onClick={() => {
+                      setOverviewScope('all');
+                      setOverviewRegionId(null);
+                      setOverviewEditionId(null);
+                      setOverviewGender('all');
+                    }}
+                    className="text-[10px] font-bold text-text-tertiary hover:text-red transition-colors cursor-pointer ml-1"
+                  >
+                    <X className="w-3.5 h-3.5 inline mr-0.5" />
+                    Clear filters
+                  </button>
+                )}
+              </div>
+
+              {/* Active filter badges */}
+              {(overviewScope !== 'all' || overviewGender !== 'all') && (
+                <div className="flex flex-wrap items-center gap-1.5 -mt-3">
+                  {overviewScope !== 'all' && overviewRegionId && (
+                    <span className="text-[10px] font-semibold bg-green-muted text-green px-2 py-0.5 rounded-full">
+                      {overviewRegions.find(r => r.id === overviewRegionId)?.name || 'Region'}
+                    </span>
+                  )}
+                  {overviewScope === 'edition' && overviewEditionId && (
+                    <span className="text-[10px] font-semibold bg-green-muted text-green px-2 py-0.5 rounded-full">
+                      {overviewEditions.find(e => e.id === overviewEditionId)?.name || 'Edition'}
+                    </span>
+                  )}
+                  {overviewGender !== 'all' && (
+                    <span className="text-[10px] font-semibold bg-purple-muted text-purple px-2 py-0.5 rounded-full">
+                      {overviewGender}
+                    </span>
+                  )}
+                </div>
+              )}
 
               {/* Overview Metrics Cards */}
               <OverviewCards
                 data={overviewData}
-                activeFilter={null}
+                activeFilter={overviewScope !== 'all' || overviewGender !== 'all' ? JSON.stringify({ scope: overviewScope, regionId: overviewRegionId, editionId: overviewEditionId, gender: overviewGender }) : null}
               />
 
               {/* Render dynamic charts / graphs mock (Phase 2 preview placeholder) */}
@@ -2931,6 +3064,9 @@ export default function Home() {
                     </div>
                     <p className="text-xs text-text-secondary leading-relaxed">
                       Historical demographics survey or direct Kobo export sheets from past market activities.
+                    </p>
+                    <p className="text-[10px] text-text-tertiary italic leading-relaxed">
+                      Note: CSV must be exported from the standard Quonnect KoboCollect form. Older form exports may have missing fields.
                     </p>
                     <div className="inline-block bg-bg-elevated border border-border-light rounded px-2.5 py-1 text-[10px] text-text-secondary font-mono">
                       name · phone · business_name · category · employees
