@@ -1,10 +1,12 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useLiveMetrics } from '@/hooks/useLiveMetrics';
 import { useRegion } from '@/context/RegionContext';
 import { AdminShell } from '@/components/layout/AdminShell';
+import { importCSV } from '@/utils/csvImport';
+import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 export interface Market {
   id: string;
@@ -12,7 +14,6 @@ export interface Market {
   type: 'flagship' | 'regional' | 'pilot';
   vendorsCount: number;
 }
-import { OverviewCards, OverviewData } from '@/components/dashboard/OverviewCards';
 import { LiveCounter } from '@/components/dashboard/LiveCounter';
 import { AlertBanner } from '@/components/dashboard/AlertBanner';
 import { FilterBar, FilterState } from '@/components/dashboard/FilterBar';
@@ -52,7 +53,9 @@ import {
   Loader2,
   CheckCircle2,
   AlertCircle,
-  CreditCard
+  CreditCard,
+  ArrowUpRight,
+  RotateCcw,
 } from 'lucide-react';
 
 // ==========================================
@@ -196,6 +199,328 @@ export default function Home() {
 
   // Overview live counts
   const [overviewCounts, setOverviewCounts] = useState({ paidVendors: 0, walkins: 0, surveyResponses: 0 });
+
+  // Overview filter bar state
+  const [overviewScope, setOverviewScope] = useState<'all' | 'region' | 'edition'>('all');
+  const [overviewRegionId, setOverviewRegionId] = useState<string | null>(null);
+  const [overviewEditionId, setOverviewEditionId] = useState<string | null>(null);
+  const [overviewGender, setOverviewGender] = useState<'all' | 'Female' | 'Male'>('all');
+  const [overviewRegions, setOverviewRegions] = useState<{ id: string; name: string }[]>([]);
+  const [overviewEditions, setOverviewEditions] = useState<{ id: string; name: string }[]>([]);
+
+  interface OverviewMetrics {
+    paidVendorCount: number;
+    walkinCount: number;
+    surveyCount: number;
+    genderSplit: { female: number; male: number; femalePct: number | null; malePct: number | null; total: number };
+    avgVendorAge: number;
+    firstTimerCount: number;
+    returningCount: number;
+    firstTimerPct: number | null;
+    returningPct: number | null;
+    retentionPct: number | null;
+    retentionCount: number;
+    retentionTotal: number;
+    editionGrowth: { id: string; name: string; surveyCount: number; paidCount: number; walkinCount: number; firstTimers: number; returning: number }[];
+    sectors: { name: string; count: number; pct: number }[];
+    businessGrowthPct: number | null;
+    totalEmployees: number;
+    topBenefit: string;
+    topChallenge: string;
+    digitalPresencePct: number | null;
+    onlineSalesPct: number | null;
+  }
+
+  const [overviewMetrics, setOverviewMetrics] = useState<OverviewMetrics | null>(null);
+  const [overviewLoading, setOverviewLoading] = useState(false);
+
+  const fetchOverviewMetrics = useCallback(async () => {
+    const supabase = createClient();
+    if (!supabase) return;
+    setOverviewLoading(true);
+
+    try {
+      const scope = overviewScope;
+      const regionId = overviewRegionId;
+      const editionId = overviewEditionId;
+      const edId = activeEdition?.id;
+      const regionForGrowth = scope === 'region' && regionId ? regionId : (activeRegion?.id || null);
+
+      if (!edId && scope === 'edition' && !editionId) {
+        setOverviewMetrics(null);
+        setOverviewLoading(false);
+        return;
+      }
+
+      let effectiveEditionId: string | null = null;
+      if (scope === 'edition' && editionId) effectiveEditionId = editionId;
+      else if (edId) effectiveEditionId = edId;
+
+      const paidQuery = effectiveEditionId
+        ? supabase.from('vendor_registrations').select('*', { count: 'exact', head: true }).eq('market_day_id', effectiveEditionId)
+        : supabase.from('vendor_registrations').select('*', { count: 'exact', head: true });
+      const walkinQuery = effectiveEditionId
+        ? supabase.from('walkins').select('*', { count: 'exact', head: true }).eq('market_day_id', effectiveEditionId)
+        : supabase.from('walkins').select('*', { count: 'exact', head: true });
+      const surveyQuery = effectiveEditionId
+        ? supabase.from('survey_responses').select('*', { count: 'exact', head: true }).eq('context_id', effectiveEditionId)
+        : supabase.from('survey_responses').select('*', { count: 'exact', head: true });
+
+      const [paidRes, walkinRes, surveyRes] = await Promise.all([
+        paidQuery, walkinQuery, surveyQuery,
+      ]);
+
+      const paidCount = paidRes.count ?? 0;
+      const walkinCount = walkinRes.count ?? 0;
+      const surveyCount = surveyRes.count ?? 0;
+
+      let surveyAnswers: any[] = [];
+      let genderFemale = 0;
+      let genderMale = 0;
+      let avgVendorAge = 0;
+      let firstTimerCount = 0;
+      let returningCount = 0;
+      const categoryCounts: Record<string, number> = {};
+      let positiveGrowthCount = 0;
+      let growthTotal = 0;
+      let totalEmployees = 0;
+      const benefitCounts: Record<string, number> = {};
+      const challengeCounts: Record<string, number> = {};
+      let hasSocial = 0;
+      let socialTotal = 0;
+      let hasOnline = 0;
+      let onlineTotal = 0;
+
+      if (effectiveEditionId) {
+        const { data: responsesWithAnswers } = await supabase
+          .from('survey_responses')
+          .select(`
+            id,
+            survey_answers (
+              answer,
+              survey_questions!inner ( csv_column )
+            )
+          `)
+          .eq('context_id', effectiveEditionId);
+
+        const rows = responsesWithAnswers || [];
+
+        if (overviewGender !== 'all') {
+          const genderFilteredRows = rows.filter((sr: any) => {
+            const ga = (sr.survey_answers || []).find((a: any) =>
+              a.survey_questions?.csv_column === 'gender' && a.answer === overviewGender);
+            return !!ga;
+          });
+          surveyAnswers = genderFilteredRows;
+        } else {
+          surveyAnswers = rows;
+        }
+
+        const allFlat = surveyAnswers.flatMap((sr: any) => sr.survey_answers || []);
+
+        const genderAnswers = allFlat.filter((a: any) => a.survey_questions?.csv_column === 'gender');
+        genderFemale = genderAnswers.filter((a: any) => a.answer === 'Female').length;
+        genderMale = genderAnswers.filter((a: any) => a.answer === 'Male').length;
+
+        const ageAnswers = allFlat.filter((a: any) => a.survey_questions?.csv_column === 'age');
+        const validAges = ageAnswers.map((a: any) => parseInt(a.answer)).filter((n: number) => !isNaN(n) && n > 0 && n < 100);
+        avgVendorAge = validAges.length > 0 ? Math.round(validAges.reduce((s: number, n: number) => s + n, 0) / validAges.length) : 0;
+
+        const ftAnswers = allFlat.filter((a: any) => a.survey_questions?.csv_column === 'first_time_at_quonnect');
+        firstTimerCount = ftAnswers.filter((a: any) => a.answer?.toLowerCase() === 'yes').length;
+        returningCount = ftAnswers.filter((a: any) => a.answer?.toLowerCase() === 'no').length;
+
+        allFlat.filter((a: any) => a.survey_questions?.csv_column === 'business_category').forEach((a: any) => {
+          if (a.answer) categoryCounts[a.answer] = (categoryCounts[a.answer] || 0) + 1;
+        });
+
+        const growthAnswers = allFlat.filter((a: any) => a.survey_questions?.csv_column === 'business_growth');
+        growthTotal = growthAnswers.length;
+        positiveGrowthCount = growthAnswers.filter((a: any) =>
+          ['Improved', 'Moderate', 'Stable'].includes(a.answer)).length;
+
+        totalEmployees = allFlat
+          .filter((a: any) => a.survey_questions?.csv_column === 'number_of_employees')
+          .map((a: any) => {
+            const val = a.answer?.trim();
+            if (!val) return 0;
+            if (val.includes('-')) return parseInt(val.split('-')[0]) || 0;
+            const num = parseInt(val);
+            if (!isNaN(num) && num >= 0 && num < 1000) return num;
+            const flt = parseFloat(val);
+            if (!isNaN(flt) && flt >= 0 && flt < 1000) return Math.round(flt);
+            return 0;
+          })
+          .reduce((s: number, n: number) => s + n, 0);
+
+        const employeeSample = allFlat
+          .filter((a: any) => a.survey_questions?.csv_column === 'number_of_employees')
+          .slice(0, 10)
+          .map((a: any) => a.answer);
+        console.log("Employee answers sample:", employeeSample);
+
+        allFlat.filter((a: any) => a.survey_questions?.csv_column === 'quonnect_benefits').forEach((a: any) => {
+          if (a.answer) benefitCounts[a.answer] = (benefitCounts[a.answer] || 0) + 1;
+        });
+
+        allFlat.filter((a: any) => a.survey_questions?.csv_column === 'main_challenges').forEach((a: any) => {
+          if (a.answer) challengeCounts[a.answer] = (challengeCounts[a.answer] || 0) + 1;
+        });
+
+        const socialAnswers = allFlat.filter((a: any) => a.survey_questions?.csv_column === 'active_social_media');
+        socialTotal = socialAnswers.length;
+        hasSocial = socialAnswers.filter((a: any) => a.answer?.toLowerCase() === 'yes').length;
+
+        const onlineAnswers = allFlat.filter((a: any) => a.survey_questions?.csv_column === 'online_sales');
+        onlineTotal = onlineAnswers.length;
+        hasOnline = onlineAnswers.filter((a: any) =>
+          a.answer?.toLowerCase() === 'yes' || a.answer?.toLowerCase() === 'planning to').length;
+      }
+
+      const genderTotal = genderFemale + genderMale;
+      const femalePct: number | null = genderTotal > 0 ? Math.round((genderFemale / genderTotal) * 100) : null;
+      const malePct: number | null = genderTotal > 0 ? Math.round((genderMale / genderTotal) * 100) : null;
+
+      const ftTotal = firstTimerCount + returningCount;
+      const firstTimerPct: number | null = ftTotal > 0 ? Math.round((firstTimerCount / ftTotal) * 100) : null;
+      const returningPct: number | null = ftTotal > 0 ? Math.round((returningCount / ftTotal) * 100) : null;
+
+      const businessGrowthPct: number | null = growthTotal > 0 ? Math.round((positiveGrowthCount / growthTotal) * 100) : null;
+      const digitalPresencePct: number | null = socialTotal > 0 ? Math.round((hasSocial / socialTotal) * 100) : null;
+      const onlineSalesPct: number | null = onlineTotal > 0 ? Math.round((hasOnline / onlineTotal) * 100) : null;
+
+      const categoryTotal = Object.values(categoryCounts).reduce((s, c) => s + c, 0);
+      const sortedCategories = Object.entries(categoryCounts)
+        .sort((a, b) => b[1] - a[1])
+        .map(([name, count]) => ({ name, count, pct: categoryTotal > 0 ? Math.round((count / categoryTotal) * 100) : 0 }));
+
+      const topBenefit = Object.entries(benefitCounts).length > 0
+        ? Object.entries(benefitCounts).sort((a, b) => b[1] - a[1])[0][0]
+        : 'No data for this edition';
+      const topChallenge = Object.entries(challengeCounts).length > 0
+        ? Object.entries(challengeCounts).sort((a, b) => b[1] - a[1])[0][0]
+        : 'No data for this edition';
+
+      let editionGrowth: OverviewMetrics['editionGrowth'] = [];
+      let retentionPct: number | null = null;
+      let retentionCount = 0;
+      let retentionTotal = 0;
+
+      if (regionForGrowth) {
+        const { data: editionsData } = await supabase
+          .from('market_days')
+          .select('id, name, event_date')
+          .eq('region_id', regionForGrowth)
+          .order('event_date');
+
+        if (editionsData && editionsData.length > 0) {
+          const growthPromises = editionsData.map(async (ed: any) => {
+            const [edPaid, edWalk, edSurv] = await Promise.all([
+              supabase.from('vendor_registrations').select('*', { count: 'exact', head: true }).eq('market_day_id', ed.id),
+              supabase.from('walkins').select('*', { count: 'exact', head: true }).eq('market_day_id', ed.id),
+              supabase.from('survey_responses').select('*', { count: 'exact', head: true }).eq('context_id', ed.id),
+            ]);
+
+            let edFirst = 0;
+            let edReturn = 0;
+            const { data: edResponses } = await supabase
+              .from('survey_responses')
+              .select(`
+                survey_answers (answer, survey_questions!inner (csv_column))
+              `)
+              .eq('context_id', ed.id);
+            if (edResponses) {
+              const flat = edResponses.flatMap((sr: any) => sr.survey_answers || []);
+              const ftAns = flat.filter((a: any) => a.survey_questions?.csv_column === 'first_time_at_quonnect');
+              edFirst = ftAns.filter((a: any) => a.answer?.toLowerCase() === 'yes').length;
+              edReturn = ftAns.filter((a: any) => a.answer?.toLowerCase() === 'no').length;
+            }
+
+            return {
+              id: ed.id, name: ed.name,
+              surveyCount: edSurv.count ?? 0,
+              paidCount: edPaid.count ?? 0,
+              walkinCount: edWalk.count ?? 0,
+              firstTimers: edFirst, returning: edReturn,
+            };
+          });
+
+          const allGrowth = await Promise.all(growthPromises);
+          editionGrowth = allGrowth.filter(e => e.surveyCount > 0 || e.walkinCount > 0 || e.paidCount > 0);
+        }
+      }
+
+      if (effectiveEditionId) {
+        const { data: retentionResponses } = await supabase
+          .from('survey_responses')
+          .select(`
+            id,
+            survey_answers(
+              answer,
+              survey_questions!inner(csv_column)
+            )
+          `)
+          .eq('context_id', effectiveEditionId);
+
+        const retentionRows = retentionResponses || [];
+        retentionTotal = retentionRows.length;
+
+        retentionCount = retentionRows.filter((sr: any) => {
+          const answers = sr.survey_answers ?? [];
+          const attendedLast = answers.some((a: any) =>
+            a.survey_questions?.csv_column === 'attended_last_quonnect' &&
+            a.answer?.toLowerCase() === 'yes'
+          );
+          const attendedKampala = answers.some((a: any) =>
+            a.survey_questions?.csv_column === 'regions_attended' &&
+            a.answer?.toLowerCase().includes('kampala')
+          );
+          return attendedLast && attendedKampala;
+        }).length;
+
+        retentionPct = retentionTotal > 0 ? Math.round((retentionCount / retentionTotal) * 100) : null;
+      }
+
+      console.log("Overview metrics:", {
+        walkins: walkinCount,
+        surveys: surveyCount,
+        paid: paidCount,
+        female: genderFemale, male: genderMale, femalePct,
+        avgAge: avgVendorAge,
+        firstTimerCount, returningCount,
+        retention: { count: retentionCount, total: retentionTotal, pct: retentionPct },
+      });
+
+      setOverviewMetrics({
+        paidVendorCount: paidCount,
+        walkinCount,
+        surveyCount,
+        genderSplit: { female: genderFemale, male: genderMale, femalePct, malePct, total: genderTotal },
+        avgVendorAge,
+        firstTimerCount,
+        returningCount,
+        firstTimerPct,
+        returningPct,
+        retentionPct,
+        retentionCount,
+        retentionTotal,
+        editionGrowth,
+        sectors: sortedCategories,
+        businessGrowthPct,
+        totalEmployees,
+        topBenefit,
+        topChallenge,
+        digitalPresencePct,
+        onlineSalesPct,
+      });
+
+      setOverviewCounts({ paidVendors: paidCount, walkins: walkinCount, surveyResponses: surveyCount });
+    } catch (err: any) {
+      console.error('Error fetching overview metrics:', err);
+    } finally {
+      setOverviewLoading(false);
+    }
+  }, [overviewScope, overviewRegionId, overviewEditionId, overviewGender, activeRegion, activeEdition]);
 
   const fetchVendors = async () => {
     try {
@@ -819,14 +1144,6 @@ export default function Home() {
   const [vendorSearch, setVendorSearch] = useState('');
   const [selectedVendorIds, setSelectedVendorIds] = useState<string[]>([]);
   
-  // Overview filter bar state
-  const [overviewScope, setOverviewScope] = useState<'all' | 'region' | 'edition'>('all');
-  const [overviewRegionId, setOverviewRegionId] = useState<string | null>(null);
-  const [overviewEditionId, setOverviewEditionId] = useState<string | null>(null);
-  const [overviewGender, setOverviewGender] = useState<'all' | 'Female' | 'Male'>('all');
-  const [overviewRegions, setOverviewRegions] = useState<{ id: string; name: string }[]>([]);
-  const [overviewEditions, setOverviewEditions] = useState<{ id: string; name: string }[]>([]);
-
   // Fetch regions and editions for overview filter bar dropdowns
   useEffect(() => {
     if (activeNav === 'overview' && mounted) {
@@ -855,6 +1172,12 @@ export default function Home() {
       fetchOverviewFilters();
     }
   }, [activeNav, overviewRegionId, mounted]);
+
+  useEffect(() => {
+    if (activeNav === 'overview' && mounted) {
+      fetchOverviewMetrics();
+    }
+  }, [activeNav, mounted, fetchOverviewMetrics]);
   
   // Drawer Panel & Modal States
   const [selectedVendorId, setSelectedVendorId] = useState<string | null>(null);
@@ -1554,77 +1877,9 @@ export default function Home() {
     return true;
   });
 
-  // Overview Stats Calculation
+  // LiveCounter helper values
   const totalUniqueVendorsCount = vendors.length;
-  const activeVendorsList = vendors.filter(v => v.status === 'active' || v.status === 'loyal');
-  
-  const femaleVendorsCount = vendors.filter(v => v.gender?.toLowerCase() === 'female').length;
-  const womenOwnedPctVal = totalUniqueVendorsCount > 0 
-    ? Math.round((femaleVendorsCount / totalUniqueVendorsCount) * 100)
-    : 0;
-
   const dataCollectedListCount = vendors.filter(v => v.employeeCount && v.businessType).length;
-  const dataCollectedPctVal = totalUniqueVendorsCount > 0
-    ? Math.round((dataCollectedListCount / totalUniqueVendorsCount) * 100)
-    : 0;
-
-  // Ages average calculation
-  const totalVendorAge = vendors.reduce((acc, v) => acc + v.age, 0);
-  const avgVendorAgeVal = totalUniqueVendorsCount > 0 ? Math.round(totalVendorAge / totalUniqueVendorsCount) : 0;
-
-  const totalWalkinAge = walkins.reduce((acc, w) => acc + w.age, 0);
-  const avgWalkinAgeVal = walkins.length > 0 ? Math.round(totalWalkinAge / walkins.length) : 0;
-
-  // Age distributions helpers
-  const getAgeDistribution = (list: any[]) => {
-    const total = list.length;
-    if (total === 0) return { '18-24': 0, '25-29': 0, '30-35': 0, '36+': 0 };
-    
-    const d1 = list.filter(x => x.age >= 18 && x.age <= 24).length;
-    const d2 = list.filter(x => x.age >= 25 && x.age <= 29).length;
-    const d3 = list.filter(x => x.age >= 30 && x.age <= 35).length;
-    const d4 = list.filter(x => x.age >= 36).length;
-
-    return {
-      '18-24': Math.round((d1 / total) * 100),
-      '25-29': Math.round((d2 / total) * 100),
-      '30-35': Math.round((d3 / total) * 100),
-      '36+': Math.round((d4 / total) * 100)
-    };
-  };
-
-  const overviewData: OverviewData = {
-    totalVendors: {
-      value: totalUniqueVendorsCount,
-      change: 12,
-      changeText: '+12% from last edition'
-    },
-    walkinCustomers: {
-      value: runningWalkins,
-      changeText: 'Healthy visitor traffic flow',
-      isChangePositive: true
-    },
-    avgVendorAge: {
-      value: avgVendorAgeVal,
-      distribution: getAgeDistribution(vendors)
-    },
-    avgWalkinAge: {
-      value: avgWalkinAgeVal,
-      distribution: getAgeDistribution(walkins)
-    },
-    returnRate: {
-      value: 84
-    },
-    womenOwnedPct: {
-      value: womenOwnedPctVal,
-      target: 80
-    },
-    dataCollected: {
-      value: dataCollectedPctVal,
-      collected: dataCollectedListCount,
-      total: totalUniqueVendorsCount
-    }
-  };
 
   if (!activeRegion) {
     return (
@@ -1768,257 +2023,42 @@ export default function Home() {
   };
 
   const handleImportCollectedData = async (file: File) => {
-    if (!activeEdition || !activeRegion) {
-      addToast("Please select an active workspace (region & edition) first!", "error");
+    if (!activeEdition?.id) {
+      addToast("Select an edition before importing", "error");
       return;
     }
+
+    const confirmed = window.confirm(
+      `Import to ${activeEdition.name}?\n\nMake sure this is the correct edition.`
+    );
+    if (!confirmed) return;
 
     if (isImporting) return;
     setIsImporting(true);
 
     try {
-      const rawText = await file.text();
-
-      // Standard format is comma-delimited from KoboCollect
-      const rows = parseCSVToObjects(rawText, ',');
-      console.log("Total CSV rows parsed:", rows.length);
-      if (rows.length === 0) {
-        addToast("CSV is empty", "error");
-        setIsImporting(false);
-        return;
-      }
-
-      const firstRow = rows[0];
-      console.log("First row sample:", JSON.stringify(firstRow));
-      console.log("CSV headers:", Object.keys(firstRow));
-
       const supabase = createClient();
       if (!supabase) throw new Error("Supabase not initialized");
 
-      // 1. Fetch form by slug vendor_data_collection
-      const { data: formData, error: fError } = await supabase
-        .from('forms')
-        .select('id')
-        .eq('slug', 'vendor_data_collection')
-        .limit(1)
-        .single();
-
-      if (fError) throw fError;
-      if (!formData) throw new Error("Vendor Data Collection Survey form not found in database.");
-      const formId = formData.id;
-
-      // 2. Fetch all survey questions for this form only
-      const { data: questions } = await supabase
-        .from('survey_questions')
-        .select('id, csv_column, question_text')
-        .eq('form_id', formId);
-
-      if (!questions || questions.length === 0) {
-        throw new Error("No questions found for this form.");
-      }
-
-      // 3. Standard KoboCollect form field extractor
-      const getField = (row: any, ...keys: string[]): string => {
-        for (const key of keys) {
-          const val = row[key];
-          if (val && String(val).trim()) return String(val).trim();
+      const results = await importCSV(
+        file,
+        activeEdition,
+        supabase,
+        (current, total) => {
+          addToast(`Importing ${current} of ${total}...`, "success");
         }
-        return '';
-      };
+      );
 
-      // 4. Standard KoboCollect CSV header → survey_question csv_column mapping
-      const headerToColumn: Record<string, string> = {
-        'full_name': 'full_name',
-        'business_name': 'business_name',
-        'phone_number': 'phone_number',
-        'email': 'email',
-        'gender': 'gender',
-        'age': 'age',
-        'business_category': 'business_category',
-        'how_long_in_business': 'how_long_in_business',
-        'primary_income_source': 'primary_source_of_income',
-        'products_source': 'products_primarily_from',
-        'business_operates_as': 'business_operates_as',
-        'first_time_attendee': 'first_time_at_quonnect',
-        'times_attended': 'times_attended',
-        'attended_last_quonnect': 'attended_last_quonnect',
-        'regions_attended': 'regions_attended',
-        'has_paid_employees': 'paid_employees',
-        'number_of_employees': 'number_of_employees',
-        'female_employees_share': 'female_employees',
-        'youth_employees_share': 'youth_employees',
-        'new_employees_12mo': 'hired_new_employees',
-        'hired_new_employees_12mo': 'new_employees_count',
-        'business_growth_vs_before': 'business_growth',
-        'quonnect_benefits_summary': 'quonnect_benefits',
-        'has_active_social_media': 'active_social_media',
-        'makes_online_sales': 'online_sales',
-        'how_heard_about_quonnect': 'how_did_you_know',
-        'would_recommend_quonnect': 'would_recommend',
-        'main_challenges_summary': 'main_challenges',
-        'sales_impact': 'sales_impact',
-        'revenue_impact': 'revenue_impact',
-      };
+      addToast(
+        `Import complete: ${results.success} vendors imported, ${results.failed} failed`,
+        results.failed > 0 ? "error" : "success"
+      );
 
-      // Normalize for case-insensitive matching
-      const normalizedHeaderMap: Record<string, string> = {};
-      Object.entries(headerToColumn).forEach(([header, csvColumn]) => {
-        normalizedHeaderMap[header.toLowerCase().trim()] = csvColumn;
-      });
-
-      // Build reverse lookup: csv_column → question
-      const questionByCsvColumn: Record<string, any> = {};
-      questions.forEach(q => {
-        if (q.csv_column) questionByCsvColumn[q.csv_column] = q;
-      });
-
-      // Metadata columns to skip
-      const metadataPrefixes = ['_', '/'];
-      const metadataKeywords = ['uuid', 'submission_time', 'validation_status', 'submitted_by', 'start', 'end', 'today', 'deviceid', 'simserial', 'phonenumber', 'instanceid', 'formhub/uuid', 'meta/instanceid'];
-
-      const shouldSkipColumn = (header: string): boolean => {
-        const lower = header.toLowerCase().trim();
-        for (const prefix of metadataPrefixes) {
-          if (lower.startsWith(prefix)) return true;
-        }
-        for (const kw of metadataKeywords) {
-          if (lower === kw || lower.includes(kw)) return true;
-        }
-        if (lower.includes('/')) return true;
-        return false;
-      };
-
-      let count = 0;
-      let totalAnswersCount = 0;
-
-      for (const [index, rowObj] of rows.entries()) {
-        try {
-          const name = getField(rowObj, 'full_name', 'contact_name');
-          const phone = getField(rowObj, 'phone_number', 'phone');
-          const biz = getField(rowObj, 'business_name');
-          const email = getField(rowObj, 'email');
-          const cat = getField(rowObj, 'business_category', 'category') || 'Fashion';
-
-          addToast(`Importing row ${index + 1} of ${rows.length}...`, "success");
-
-          if (!phone || !name) {
-            console.warn(`Row ${index + 1} skipped — missing name or phone. Name: "${name}", Phone: "${phone}"`);
-            continue;
-          }
-
-          // Insert/update vendor via upsert
-          const { data: vendorResult, error: vendorError } = await supabase
-            .from('vendors')
-            .upsert({
-              contact_name: name,
-              phone: phone,
-              business_name: biz,
-              email: email,
-              category: cat,
-              is_active: true
-            }, {
-              onConflict: 'phone',
-              ignoreDuplicates: false
-            })
-            .select()
-            .single();
-
-          if (vendorError) {
-            console.error("Failed at row:", index + 1, vendorError.message, vendorError.code, vendorError.details);
-            break;
-          }
-
-          const vendorId = vendorResult?.id;
-
-          if (vendorId) {
-            // Check if survey response already exists for this vendor and edition
-            const { data: existingResponse } = await supabase
-              .from('survey_responses')
-              .select('id')
-              .eq('form_id', formId)
-              .eq('context_id', activeEdition.id)
-              .eq('vendor_id', vendorId)
-              .limit(1);
-
-            let responseId;
-            if (existingResponse && existingResponse.length > 0) {
-              responseId = existingResponse[0].id;
-            } else {
-              const { data: resData, error: resError } = await supabase
-                .from('survey_responses')
-                .insert({
-                  form_id: formId,
-                  context_type: 'market_day',
-                  context_id: activeEdition.id,
-                  vendor_id: vendorId,
-                  source: 'csv_import',
-                  import_batch: file.name,
-                  submitted_at: new Date().toISOString()
-                })
-                .select()
-                .single();
-
-              if (resError) {
-                console.error("Failed at row:", index + 1, resError.message, resError.code, resError.details);
-                break;
-              }
-              if (resData) {
-                responseId = resData.id;
-              }
-            }
-
-            if (responseId) {
-              // Insert answers using universal header map
-              const answersToInsert: any[] = [];
-              Object.keys(rowObj).forEach(header => {
-                if (shouldSkipColumn(header)) return;
-                const csvColumn = normalizedHeaderMap[header.toLowerCase().trim()];
-                if (!csvColumn) return;
-                const question = questionByCsvColumn[csvColumn];
-                if (!question) return;
-                const value = rowObj[header];
-                if (value === undefined || value === null || value === '') return;
-                answersToInsert.push({
-                  response_id: responseId,
-                  question_id: question.id,
-                  answer: String(value).trim()
-                });
-              });
-
-              console.log("Inserting answers for response:", responseId, "count:", answersToInsert.length);
-
-              if (answersToInsert.length > 0) {
-                for (let c = 0; c < answersToInsert.length; c += 50) {
-                  const chunk = answersToInsert.slice(c, c + 50);
-                  const { error: ansError } = await supabase
-                    .from('survey_answers')
-                    .upsert(chunk, {
-                      onConflict: 'response_id,question_id',
-                      ignoreDuplicates: true
-                    });
-                  if (ansError) {
-                    console.error("Chunk error:", c, ansError.message);
-                    console.error("Failed at row:", index + 1, ansError.message, ansError.code, ansError.details);
-                    break;
-                  }
-                }
-                totalAnswersCount = answersToInsert.length;
-              }
-            }
-            count++;
-          }
-        } catch (err: any) {
-          console.error("Row", index + 1, "failed:", err.message);
-          continue;
-        }
-      }
-
-      addToast(`${count} vendors imported with ${totalAnswersCount} answers each`, "success");
       fetchVendors();
       fetchSurveyResponses();
-    } catch (err: any) {
-      console.error(err);
-      addToast("Import failed: " + err.message, "error");
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err);
+      addToast(`Import failed: ${message}`, "error");
     } finally {
       setIsImporting(false);
     }
@@ -2350,200 +2390,231 @@ export default function Home() {
                 )}
                 <AlertBanner
                   type="success"
-                  title="Completed Target Milestones"
-                  subtitle="Data completeness checks for Kampala April 2026 passed auditing targets (91%)."
+                  title="Data Collection Status"
+                  subtitle={`${overviewCounts.surveyResponses} survey responses collected${overviewCounts.paidVendors > 0 ? ` (${Math.round((overviewCounts.surveyResponses / overviewCounts.paidVendors) * 100)}% of paid vendors)` : ''}.`}
                 />
               </div>
 
-              {/* Live Overview Counts Card */}
-              {activeEdition && (
-                <div className="bg-bg-surface border border-green/20 rounded-lg p-5">
-                  <div className="flex items-center gap-2 mb-4">
-                    <span className="relative flex h-2.5 w-2.5 shrink-0">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-green"></span>
-                    </span>
-                    <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider">{activeRegion?.name} {activeEdition.name}</h3>
-                    <Badge variant="success" size="sm">LIVE</Badge>
+              {/* SECTION 1 — Live Event Snapshot */}
+              {overviewLoading ? (
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-3.5">
+                  {Array.from({ length: 7 }).map((_, idx) => (
+                    <div key={idx} className="bg-bg-surface border border-border rounded-lg p-4.5 animate-pulse h-[130px] flex flex-col justify-between" />
+                  ))}
+                </div>
+              ) : overviewMetrics ? (
+                <>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-3.5">
+                    <div className="bg-bg-surface border border-border rounded-lg p-4.5 flex flex-col justify-between">
+                      <div>
+                        <div className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider flex items-center gap-1.5 mb-2">
+                          <CreditCard className="w-3.5 h-3.5 text-text-secondary" /> Paid Vendors
+                        </div>
+                        <div className="text-2xl font-bold tracking-tight text-text-primary">{overviewMetrics.paidVendorCount}</div>
+                      </div>
+                      <div className="text-[10px] text-text-tertiary mt-1.5">Registered vendors</div>
+                    </div>
+                    <div className="bg-bg-surface border border-border rounded-lg p-4.5 flex flex-col justify-between">
+                      <div>
+                        <div className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider flex items-center gap-1.5 mb-2">
+                          <Footprints className="w-3.5 h-3.5 text-text-secondary" /> Walk-ins
+                        </div>
+                        <div className="text-2xl font-bold tracking-tight text-text-primary">{overviewMetrics.walkinCount}</div>
+                      </div>
+                      <div className="text-[10px] text-text-tertiary mt-1.5">Walk-in guests</div>
+                    </div>
+                    <div className="bg-bg-surface border border-border rounded-lg p-4.5 flex flex-col justify-between">
+                      <div>
+                        <div className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider flex items-center gap-1.5 mb-2">
+                          <ClipboardList className="w-3.5 h-3.5 text-text-secondary" /> Surveys
+                        </div>
+                        <div className="text-2xl font-bold tracking-tight text-text-primary">{overviewMetrics.surveyCount}</div>
+                      </div>
+                      <div className="text-[10px] text-text-tertiary mt-1.5">Survey responses</div>
+                    </div>
+                    <div className="bg-bg-surface border border-border rounded-lg p-4.5 flex flex-col justify-between">
+                      <div>
+                        <div className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider flex items-center gap-1.5 mb-2">
+                          <Users className="w-3.5 h-3.5 text-text-secondary" /> Gender Split
+                        </div>
+                        <div className="text-lg font-bold tracking-tight text-text-primary">
+                          {overviewMetrics.genderSplit.femalePct !== null ? (
+                            <><span className="text-pink-400">{overviewMetrics.genderSplit.femalePct}%</span><span className="text-text-tertiary"> / </span><span className="text-blue">{overviewMetrics.genderSplit.malePct}%</span></>
+                          ) : (
+                            <span className="text-text-tertiary">No data</span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="text-[10px] text-text-tertiary mt-1.5">F / M of {overviewMetrics.genderSplit.total} identified</div>
+                    </div>
+                    <div className="bg-bg-surface border border-border rounded-lg p-4.5 flex flex-col justify-between">
+                      <div>
+                        <div className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider flex items-center gap-1.5 mb-2">
+                          <BarChart3 className="w-3.5 h-3.5 text-text-secondary" /> Avg Vendor Age
+                        </div>
+                        <div className="text-2xl font-bold tracking-tight text-text-primary">{overviewMetrics.avgVendorAge || 'No data'}</div>
+                      </div>
+                      <div className="text-[10px] text-text-tertiary mt-1.5">Years</div>
+                    </div>
+                    <div className="bg-bg-surface border border-border rounded-lg p-4.5 flex flex-col justify-between">
+                      <div>
+                        <div className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider flex items-center gap-1.5 mb-2">
+                          <ArrowUpRight className="w-3.5 h-3.5 text-text-secondary" /> First Timers
+                        </div>
+                        <div className="text-2xl font-bold tracking-tight text-text-primary">
+                          {overviewMetrics.firstTimerPct !== null ? `${overviewMetrics.firstTimerPct}%` : 'No data'}
+                        </div>
+                      </div>
+                      <div className="text-[10px] text-text-tertiary mt-1.5">{overviewMetrics.firstTimerCount} new / {overviewMetrics.returningCount} returning</div>
+                    </div>
+                    <div className="bg-bg-surface border border-border rounded-lg p-4.5 flex flex-col justify-between">
+                      <div>
+                        <div className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider flex items-center gap-1.5 mb-2">
+                          <RotateCcw className="w-3.5 h-3.5 text-text-secondary" /> Kampala Retention
+                        </div>
+                        <div className="text-2xl font-bold tracking-tight text-green">
+                          {overviewMetrics.retentionPct !== null ? `${overviewMetrics.retentionPct}%` : 'No data'}
+                        </div>
+                      </div>
+                      <div className="text-[10px] text-text-tertiary mt-1.5">{overviewMetrics.retentionCount} of {overviewMetrics.retentionTotal} returning Kampala vendors</div>
+                    </div>
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="bg-bg-elevated rounded-lg p-3 text-center">
-                      <CreditCard className="w-5 h-5 text-green mx-auto mb-1.5" />
-                      <span className="block text-2xl font-bold text-text-primary">{overviewCounts.paidVendors}</span>
-                      <span className="block text-[10px] text-text-tertiary uppercase tracking-wider font-bold mt-0.5">Paid Vendors</span>
+
+                  {/* SECTION 2 — Growth Across Editions */}
+                  {overviewMetrics.editionGrowth.length > 0 && (
+                    <div className="bg-bg-surface border border-border rounded-lg p-5">
+                      <h4 className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider mb-4 flex items-center gap-1.5">
+                        <TrendingUp className="w-3.5 h-3.5 text-green" /> <span>Growth Across Editions</span>
+                      </h4>
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <div>
+                          <h5 className="text-[10px] font-semibold text-text-secondary mb-3 uppercase tracking-wider">Vendors per Edition</h5>
+                          <ResponsiveContainer width="100%" height={220}>
+                            <BarChart data={overviewMetrics.editionGrowth} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#1e2a3a" />
+                              <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#8b949e' }} />
+                              <YAxis tick={{ fontSize: 10, fill: '#8b949e' }} />
+                              <Tooltip contentStyle={{ background: '#11161e', border: '1px solid #1e2a3a', borderRadius: 6, fontSize: 12 }} />
+                              <Legend wrapperStyle={{ fontSize: 11 }} />
+                              <Bar dataKey="surveyCount" name="Survey Vendors" fill="#22c55e" radius={[4, 4, 0, 0]} />
+                              <Bar dataKey="paidCount" name="Paid Vendors" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                        <div>
+                          <h5 className="text-[10px] font-semibold text-text-secondary mb-3 uppercase tracking-wider">Walk-ins per Edition</h5>
+                          <ResponsiveContainer width="100%" height={220}>
+                            <BarChart data={overviewMetrics.editionGrowth} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                              <CartesianGrid strokeDasharray="3 3" stroke="#1e2a3a" />
+                              <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#8b949e' }} />
+                              <YAxis tick={{ fontSize: 10, fill: '#8b949e' }} />
+                              <Tooltip contentStyle={{ background: '#11161e', border: '1px solid #1e2a3a', borderRadius: 6, fontSize: 12 }} />
+                              <Legend wrapperStyle={{ fontSize: 11 }} />
+                              <Bar dataKey="walkinCount" name="Walk-ins" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </div>
+                      <div className="mt-6">
+                        <h5 className="text-[10px] font-semibold text-text-secondary mb-3 uppercase tracking-wider">New vs Returning Vendors per Edition</h5>
+                        <ResponsiveContainer width="100%" height={220}>
+                          <BarChart data={overviewMetrics.editionGrowth} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
+                            <CartesianGrid strokeDasharray="3 3" stroke="#1e2a3a" />
+                            <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#8b949e' }} />
+                            <YAxis tick={{ fontSize: 10, fill: '#8b949e' }} />
+                            <Tooltip contentStyle={{ background: '#11161e', border: '1px solid #1e2a3a', borderRadius: 6, fontSize: 12 }} />
+                            <Legend wrapperStyle={{ fontSize: 11 }} />
+                            <Bar dataKey="firstTimers" name="First Timers" stackId="a" fill="#22c55e" radius={[4, 4, 0, 0]} />
+                            <Bar dataKey="returning" name="Returning" stackId="a" fill="#c084fc" radius={[4, 4, 0, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
                     </div>
-                    <div className="bg-bg-elevated rounded-lg p-3 text-center">
-                      <Footprints className="w-5 h-5 text-green mx-auto mb-1.5" />
-                      <span className="block text-2xl font-bold text-text-primary">{overviewCounts.walkins}</span>
-                      <span className="block text-[10px] text-text-tertiary uppercase tracking-wider font-bold mt-0.5">Walk-ins</span>
+                  )}
+
+                  {/* SECTION 3 — Business Sectors */}
+                  {overviewMetrics.sectors.length > 0 && (
+                    <div className="bg-bg-surface border border-border rounded-lg p-5">
+                      <h4 className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider mb-4 flex items-center gap-1.5">
+                        <BarChart3 className="w-3.5 h-3.5 text-green" /> <span>Business Sectors</span>
+                      </h4>
+                      <div className="space-y-3 pt-2">
+                        {overviewMetrics.sectors.map((sector, idx) => {
+                          const colors = ['bg-green', 'bg-purple', 'bg-blue', 'bg-amber', 'bg-red', 'bg-pink-400', 'bg-teal-400', 'bg-indigo-400'];
+                          const color = colors[idx % colors.length];
+                          return (
+                            <div key={sector.name} className="space-y-1">
+                              <div className="flex justify-between text-[11px] font-bold text-text-secondary">
+                                <span>{sector.name}</span>
+                                <span>{sector.pct}%</span>
+                              </div>
+                              <div className="w-full h-2 bg-bg-input rounded-full overflow-hidden">
+                                <div className={`h-full ${color} rounded-full`} style={{ width: `${sector.pct}%` }} />
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
-                    <div className="bg-bg-elevated rounded-lg p-3 text-center">
-                      <ClipboardList className="w-5 h-5 text-green mx-auto mb-1.5" />
-                      <span className="block text-2xl font-bold text-text-primary">{overviewCounts.surveyResponses}</span>
-                      <span className="block text-[10px] text-text-tertiary uppercase tracking-wider font-bold mt-0.5">Survey Data</span>
+                  )}
+
+                  {/* SECTION 4 — Impact Story */}
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3.5">
+                    <div className="bg-bg-surface border border-border rounded-lg p-4.5 flex flex-col justify-between">
+                      <div>
+                        <div className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider mb-2">Business Growth</div>
+                        <div className="text-2xl font-bold tracking-tight text-green">
+                          {overviewMetrics.businessGrowthPct !== null ? `${overviewMetrics.businessGrowthPct}%` : 'No data'}
+                        </div>
+                      </div>
+                      <div className="text-[10px] text-text-tertiary mt-1.5">Reported improvement</div>
+                    </div>
+                    <div className="bg-bg-surface border border-border rounded-lg p-4.5 flex flex-col justify-between">
+                      <div>
+                        <div className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider mb-2">Total Employees</div>
+                        <div className="text-2xl font-bold tracking-tight text-text-primary">{overviewMetrics.totalEmployees.toLocaleString()}</div>
+                      </div>
+                      <div className="text-[10px] text-text-tertiary mt-1.5">Across all vendors</div>
+                    </div>
+                    <div className="bg-bg-surface border border-border rounded-lg p-4.5 flex flex-col justify-between">
+                      <div>
+                        <div className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider mb-2">Top Benefit</div>
+                        <div className="text-sm font-bold tracking-tight text-text-primary">{overviewMetrics.topBenefit}</div>
+                      </div>
+                      <div className="text-[10px] text-text-tertiary mt-1.5">Most cited</div>
+                    </div>
+                    <div className="bg-bg-surface border border-border rounded-lg p-4.5 flex flex-col justify-between">
+                      <div>
+                        <div className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider mb-2">Top Challenge</div>
+                        <div className="text-sm font-bold tracking-tight text-text-primary">{overviewMetrics.topChallenge}</div>
+                      </div>
+                      <div className="text-[10px] text-text-tertiary mt-1.5">Most cited</div>
+                    </div>
+                    <div className="bg-bg-surface border border-border rounded-lg p-4.5 flex flex-col justify-between">
+                      <div>
+                        <div className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider mb-2">Digital Presence</div>
+                        <div className="text-2xl font-bold tracking-tight text-blue">
+                          {overviewMetrics.digitalPresencePct !== null ? `${overviewMetrics.digitalPresencePct}%` : 'No data'}
+                        </div>
+                      </div>
+                      <div className="text-[10px] text-text-tertiary mt-1.5">Have active social media</div>
+                    </div>
+                    <div className="bg-bg-surface border border-border rounded-lg p-4.5 flex flex-col justify-between">
+                      <div>
+                        <div className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider mb-2">Online Sales</div>
+                        <div className="text-2xl font-bold tracking-tight text-amber">
+                          {overviewMetrics.onlineSalesPct !== null ? `${overviewMetrics.onlineSalesPct}%` : 'No data'}
+                        </div>
+                      </div>
+                      <div className="text-[10px] text-text-tertiary mt-1.5">Sell online / planning to</div>
                     </div>
                   </div>
+                </>
+              ) : (
+                <div className="text-center py-12 text-text-tertiary text-xs">
+                  Select an edition or region to load overview metrics.
                 </div>
               )}
-
-              {/* Overview Filter Bar */}
-              <div className="bg-bg-surface border border-border rounded-lg p-4 flex flex-wrap items-center gap-3 select-none">
-                {/* Scope dropdown */}
-                <div className="flex items-center gap-1.5">
-                  <Filter className="w-3.5 h-3.5 text-text-tertiary" />
-                  <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">Scope</span>
-                </div>
-                <select
-                  value={overviewScope}
-                  onChange={(e) => {
-                    const v = e.target.value as 'all' | 'region' | 'edition';
-                    setOverviewScope(v);
-                    if (v === 'all') { setOverviewRegionId(null); setOverviewEditionId(null); }
-                    if (v === 'region') setOverviewEditionId(null);
-                  }}
-                  className="bg-bg-elevated border border-border-light text-text-primary text-xs rounded-md px-3 py-2 cursor-pointer outline-none focus:border-green appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%209l3%203%203-3%22%20stroke%3D%22%238b949e%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[right_10px_center] bg-no-repeat pr-8 min-w-[140px]"
-                >
-                  <option value="all">All Regions</option>
-                  <option value="region">By Region</option>
-                  <option value="edition">By Edition</option>
-                </select>
-
-                {/* Region dropdown — visible when scope is region or edition */}
-                {(overviewScope === 'region' || overviewScope === 'edition') && (
-                  <select
-                    value={overviewRegionId || ''}
-                    onChange={(e) => {
-                      setOverviewRegionId(e.target.value || null);
-                      setOverviewEditionId(null);
-                    }}
-                    className="bg-bg-elevated border border-border-light text-text-primary text-xs rounded-md px-3 py-2 cursor-pointer outline-none focus:border-green appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%209l3%203%203-3%22%20stroke%3D%22%238b949e%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[right_10px_center] bg-no-repeat pr-8 min-w-[140px]"
-                  >
-                    <option value="">All Regions</option>
-                    {overviewRegions.map(r => (
-                      <option key={r.id} value={r.id}>{r.name}</option>
-                    ))}
-                  </select>
-                )}
-
-                {/* Edition dropdown — visible only when scope is edition with region selected */}
-                {overviewScope === 'edition' && overviewRegionId && (
-                  <select
-                    value={overviewEditionId || ''}
-                    onChange={(e) => setOverviewEditionId(e.target.value || null)}
-                    className="bg-bg-elevated border border-border-light text-text-primary text-xs rounded-md px-3 py-2 cursor-pointer outline-none focus:border-green appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%209l3%203%203-3%22%20stroke%3D%22%238b949e%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[right_10px_center] bg-no-repeat pr-8 min-w-[160px]"
-                  >
-                    <option value="">All Editions</option>
-                    {overviewEditions.map(e => (
-                      <option key={e.id} value={e.id}>{e.name}</option>
-                    ))}
-                  </select>
-                )}
-
-                {/* Gender filter — always visible */}
-                <select
-                  value={overviewGender}
-                  onChange={(e) => setOverviewGender(e.target.value as 'all' | 'Female' | 'Male')}
-                  className="bg-bg-elevated border border-border-light text-text-primary text-xs rounded-md px-3 py-2 cursor-pointer outline-none focus:border-green appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%209l3%203%203-3%22%20stroke%3D%22%238b949e%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[right_10px_center] bg-no-repeat pr-8 min-w-[130px]"
-                >
-                  <option value="all">All Genders</option>
-                  <option value="Female">Female</option>
-                  <option value="Male">Male</option>
-                </select>
-
-                {/* Clear button */}
-                {(overviewScope !== 'all' || overviewGender !== 'all') && (
-                  <button
-                    onClick={() => {
-                      setOverviewScope('all');
-                      setOverviewRegionId(null);
-                      setOverviewEditionId(null);
-                      setOverviewGender('all');
-                    }}
-                    className="text-[10px] font-bold text-text-tertiary hover:text-red transition-colors cursor-pointer ml-1"
-                  >
-                    <X className="w-3.5 h-3.5 inline mr-0.5" />
-                    Clear filters
-                  </button>
-                )}
-              </div>
-
-              {/* Active filter badges */}
-              {(overviewScope !== 'all' || overviewGender !== 'all') && (
-                <div className="flex flex-wrap items-center gap-1.5 -mt-3">
-                  {overviewScope !== 'all' && overviewRegionId && (
-                    <span className="text-[10px] font-semibold bg-green-muted text-green px-2 py-0.5 rounded-full">
-                      {overviewRegions.find(r => r.id === overviewRegionId)?.name || 'Region'}
-                    </span>
-                  )}
-                  {overviewScope === 'edition' && overviewEditionId && (
-                    <span className="text-[10px] font-semibold bg-green-muted text-green px-2 py-0.5 rounded-full">
-                      {overviewEditions.find(e => e.id === overviewEditionId)?.name || 'Edition'}
-                    </span>
-                  )}
-                  {overviewGender !== 'all' && (
-                    <span className="text-[10px] font-semibold bg-purple-muted text-purple px-2 py-0.5 rounded-full">
-                      {overviewGender}
-                    </span>
-                  )}
-                </div>
-              )}
-
-              {/* Overview Metrics Cards */}
-              <OverviewCards
-                data={overviewData}
-                activeFilter={overviewScope !== 'all' || overviewGender !== 'all' ? JSON.stringify({ scope: overviewScope, regionId: overviewRegionId, editionId: overviewEditionId, gender: overviewGender }) : null}
-              />
-
-              {/* Render dynamic charts / graphs mock (Phase 2 preview placeholder) */}
-              <div className="w-full select-none">
-                <div className="bg-bg-surface border border-border rounded-lg p-5">
-                  <h4 className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider mb-4 flex items-center gap-1.5">
-                    <BarChart3 className="w-3.5 h-3.5 text-green" /> <span>Business Sector Breakdown</span>
-                  </h4>
-                  <div className="space-y-3 pt-2">
-                    {/* Fashion */}
-                    <div className="space-y-1">
-                      <div className="flex justify-between text-[11px] font-bold text-text-secondary">
-                        <span>Fashion & Knitwear</span>
-                        <span>42%</span>
-                      </div>
-                      <div className="w-full h-2 bg-bg-input rounded-full overflow-hidden">
-                        <div className="h-full bg-green rounded-full" style={{ width: '42%' }} />
-                      </div>
-                    </div>
-                    {/* Beauty */}
-                    <div className="space-y-1">
-                      <div className="flex justify-between text-[11px] font-bold text-text-secondary">
-                        <span>Cosmetics & Beauty</span>
-                        <span>24%</span>
-                      </div>
-                      <div className="w-full h-2 bg-bg-input rounded-full overflow-hidden">
-                        <div className="h-full bg-purple rounded-full" style={{ width: '24%' }} />
-                      </div>
-                    </div>
-                    {/* Food */}
-                    <div className="space-y-1">
-                      <div className="flex justify-between text-[11px] font-bold text-text-secondary">
-                        <span>Catering & Food Processing</span>
-                        <span>18%</span>
-                      </div>
-                      <div className="w-full h-2 bg-bg-input rounded-full overflow-hidden">
-                        <div className="h-full bg-blue rounded-full" style={{ width: '18%' }} />
-                      </div>
-                    </div>
-                    {/* Crafts */}
-                    <div className="space-y-1">
-                      <div className="flex justify-between text-[11px] font-bold text-text-secondary">
-                        <span>Carvings & Handcrafts</span>
-                        <span>16%</span>
-                      </div>
-                      <div className="w-full h-2 bg-bg-input rounded-full overflow-hidden">
-                        <div className="h-full bg-amber rounded-full" style={{ width: '16%' }} />
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              </div>
             </div>
           )}
 
