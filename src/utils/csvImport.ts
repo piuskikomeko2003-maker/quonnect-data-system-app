@@ -62,67 +62,182 @@ const parseCSVToObjects = (
  * that match survey_questions.csv_column in the database.
  */
 const HEADER_MAP: Record<string, string> = {
-  // Standard format (June onwards)
-  full_name: 'full_name',
-  business_name: 'business_name',
-  phone_number: 'phone_number',
-  email: 'email',
-  gender: 'gender',
-  age: 'age',
-  business_category: 'business_category',
-  how_long_in_business: 'how_long_in_business',
-  primary_income_source: 'primary_source_of_income',
-  products_source: 'products_primarily_from',
-  business_operates_as: 'business_operates_as',
-  first_time_attendee: 'first_time_at_quonnect',
-  times_attended: 'times_attended',
-  attended_last_quonnect: 'attended_last_quonnect',
-  regions_attended: 'regions_attended',
-  has_paid_employees: 'paid_employees',
-  number_of_employees: 'number_of_employees',
-  female_employees_share: 'female_employees',
-  youth_employees_share: 'youth_employees',
-  new_employees_12mo: 'hired_new_employees',
-  hired_new_employees_12mo: 'new_employees_count',
-  business_growth_vs_before: 'business_growth',
-  quonnect_benefits_summary: 'quonnect_benefits',
-  has_active_social_media: 'active_social_media',
-  makes_online_sales: 'online_sales',
-  how_heard_about_quonnect: 'how_did_you_know',
-  would_recommend_quonnect: 'would_recommend',
-  main_challenges_summary: 'main_challenges',
-  sales_impact: 'sales_impact',
-  revenue_impact: 'revenue_impact',
 
-  // May/legacy format fallbacks
+  // ── IDENTITY ──────────────────────────────────────────
+  'full_name': 'full_name',
   'full name': 'full_name',
-  'business name': 'business_name',
-  'phone number': 'phone_number',
-  'business category': 'business_category',
-  'how long in business': 'how_long_in_business',
-  'primary source of income?': 'primary_source_of_income',
-  'products primarily from?': 'products_primarily_from',
-  'business operates as?': 'business_operates_as',
-  'first time at quonnect market day?': 'first_time_at_quonnect',
-  'times attended?': 'times_attended',
-  'attended last quonnect?': 'attended_last_quonnect',
-  'paid employees?': 'paid_employees',
-  'female employees?': 'female_employees',
-  'youth(18-35) employees?': 'youth_employees',
-  'hired new employees in past 12 months?': 'hired_new_employees',
-  'how many new employees in the past 12 months?': 'new_employees_count',
-  'compared to before quonnect,business growth?': 'business_growth',
-  'how did you know about quonnect?': 'how_did_you_know',
-  'would you recommend quonnect?': 'would_recommend',
-
-  // April legacy format
   'name of respondant': 'full_name',
+  'name of respondent': 'full_name',
+  'contact name': 'full_name',
+
+  'business_name': 'business_name',
+  'business name': 'business_name',
   'name of business': 'business_name',
+
+  'phone_number': 'phone_number',
+  'phone number': 'phone_number',
+  'phone': 'phone_number',
+  'contact': 'phone_number',
+
+  'email': 'email',
   'email address': 'email',
+
+  // ── DEMOGRAPHICS ──────────────────────────────────────
+  'gender': 'gender',
+  'sex': 'gender',
+
+  'age': 'age',
+
+  // ── BUSINESS PROFILE ──────────────────────────────────
+  'business_category': 'business_category',
+  'business category': 'business_category',
+  'business type': 'business_category',
+  'type of business': 'business_category',
+  'sector': 'business_category',
+
+  'how_long_in_business': 'how_long_in_business',
+  'how long in business': 'how_long_in_business',
   'how long have you been in this business': 'how_long_in_business',
+  'how long have you been in business': 'how_long_in_business',
+  'years in business': 'how_long_in_business',
+
+  'primary_income_source': 'primary_source_of_income',
+  'primary source of income?': 'primary_source_of_income',
+  'primary source of income': 'primary_source_of_income',
+  'is this business your primary source of income?': 'primary_source_of_income',
   'is this your main source of income': 'primary_source_of_income',
+  'primary_source_of_income': 'primary_source_of_income',
+
+  'products_source': 'products_primarily_from',
+  'products primarily from?': 'products_primarily_from',
+  'products primarily from': 'products_primarily_from',
+  'where do your products primarily come from?': 'products_primarily_from',
+  'products_primarily_from': 'products_primarily_from',
+
+  'business_operates_as': 'business_operates_as',
+  'business operates as?': 'business_operates_as',
+  'business operates as': 'business_operates_as',
+  'how does your business operate?': 'business_operates_as',
+  'what is the primary operational model of your business?': 'business_operates_as',
+
+  // ── QUONNECT HISTORY ──────────────────────────────────
+  'first_time_attendee': 'first_time_at_quonnect',
+  'first time at quonnect market day?': 'first_time_at_quonnect',
+  'first time at quonnect market day': 'first_time_at_quonnect',
+  'is this your first time at quonnect market day?': 'first_time_at_quonnect',
   'ls this your first time participating in quonnect': 'first_time_at_quonnect',
+  'is this your first time participating in quonnect': 'first_time_at_quonnect',
+  'first_time_at_quonnect': 'first_time_at_quonnect',
+
+  'times_attended': 'times_attended',
+  'times attended?': 'times_attended',
+  'times attended': 'times_attended',
+  'how many times have you attended quonnect?': 'times_attended',
+  'how often do you showcase your business with us?': 'times_attended',
+  'approximately how many times have you participated': 'times_attended',
+
+  'attended_last_quonnect': 'attended_last_quonnect',
+  'attended last quonnect?': 'attended_last_quonnect',
+  'attended last quonnect': 'attended_last_quonnect',
+  'did you attend the last quonnect market day?': 'attended_last_quonnect',
+
+  'regions_attended': 'regions_attended',
+  'regions attended': 'regions_attended',
+  'which regions have you attended?': 'regions_attended',
+
+  // ── EMPLOYMENT ────────────────────────────────────────
+  'has_paid_employees': 'paid_employees',
+  'paid employees?': 'paid_employees',
+  'paid employees': 'paid_employees',
+  'do you have paid employees?': 'paid_employees',
+  'do you have any employees': 'paid_employees',
+  'paid_employees': 'paid_employees',
+
+  'number_of_employees': 'number_of_employees',
+  'number of employees': 'number_of_employees',
+  'how many employees do you have?': 'number_of_employees',
+  'how_many_employees_do_you_have': 'number_of_employees',
+  'employee count': 'number_of_employees',
+
+  'female_employees_share': 'female_employees',
+  'female employees?': 'female_employees',
+  'female employees': 'female_employees',
+  'what proportion of your employees are female?': 'female_employees',
+  'female_employees': 'female_employees',
+
+  'youth_employees_share': 'youth_employees',
+  'youth(18-35) employees?': 'youth_employees',
+  'youth employees': 'youth_employees',
+  'what proportion of your employees are youth (18-35)?': 'youth_employees',
+  'youth_employees': 'youth_employees',
+
+  'hired_new_employees_12mo': 'hired_new_employees',
+  'hired new employees in past 12 months?': 'hired_new_employees',
+  'hired new employees in past 12 months': 'hired_new_employees',
+  'did you hire new employees in the past 12 months?': 'hired_new_employees',
+  'hired_new_employees': 'hired_new_employees',
+
+  'new_employees_12mo': 'new_employees_count',
+  'how many new employees in the past 12 months?': 'new_employees_count',
+  'how many new employees did you hire in the past 12 months?': 'new_employees_count',
+  'new_employees_count': 'new_employees_count',
+
+  // ── CASUAL HELPERS ────────────────────────────────────
+  'hires_casual_helpers': 'hires_casual_helpers',
+  'do you hire casual helpers just for market days (loading, setup, etc.)?': 'hires_casual_helpers',
+  'do you hire casual helpers just for market days (loading etc.)?': 'hires_casual_helpers',
+  'do you hire casual helpers just for market days (loading': 'hires_casual_helpers',
+  'do you hire casual helpers just for market days?': 'hires_casual_helpers',
+  'do you hire casual helpers': 'hires_casual_helpers',
+  'casual helpers': 'hires_casual_helpers',
+
+  'casual_helpers_count': 'casual_helpers_count',
+  'number of casual helpers hired?': 'casual_helpers_count',
+  'number of casual helpers hired': 'casual_helpers_count',
+  'how many casual helpers do you hire per market day?': 'casual_helpers_count',
+  'casual helpers count': 'casual_helpers_count',
+
+  // ── BUSINESS GROWTH ───────────────────────────────────
+  'business_growth_vs_before': 'business_growth',
+  'compared to before quonnect,business growth?': 'business_growth',
+  'compared to before quonnect, business growth?': 'business_growth',
+  'thinking back over the last 6 months, how would you describe the growth of your business?': 'business_growth',
+  'business_growth': 'business_growth',
+
+  'quonnect_benefits_summary': 'quonnect_benefits',
+  'how has quonnect benefited your business? (select all that apply)': 'quonnect_benefits',
+  'how has quonnect benefited your business?': 'quonnect_benefits',
+  'in what ways has quonnect market day impacted your business? (select all that apply)': 'quonnect_benefits',
+  'quonnect_benefits': 'quonnect_benefits',
+
+  // ── DIGITAL PRESENCE ──────────────────────────────────
+  'has_active_social_media': 'active_social_media',
+  'does your business have active social media?': 'active_social_media',
+  'active social media': 'active_social_media',
+  'active_social_media': 'active_social_media',
+
+  'makes_online_sales': 'online_sales',
+  'do you make online sales?': 'online_sales',
+  'online sales': 'online_sales',
+  'online_sales': 'online_sales',
+
+  // ── FEEDBACK ──────────────────────────────────────────
+  'how_heard_about_quonnect': 'how_did_you_know',
+  'how did you know about quonnect?': 'how_did_you_know',
+  'how did you hear about quonnect?': 'how_did_you_know',
   'how did you hear about quonnect': 'how_did_you_know',
+  'how_did_you_know': 'how_did_you_know',
+
+  'would_recommend_quonnect': 'would_recommend',
+  'would you recommend quonnect?': 'would_recommend',
+  'would you recommend quonnect to others?': 'would_recommend',
+  'would_recommend': 'would_recommend',
+
+  'main_challenges_summary': 'main_challenges',
+  'what are your main business challenges? (select all that apply)': 'main_challenges',
+  'main business challenges': 'main_challenges',
+  'what are the biggest challenges affecting your business growth? (select all that apply)': 'main_challenges',
+  'main_challenges': 'main_challenges',
 };
 
 // ---- Metadata Column Filter ----
@@ -148,6 +263,22 @@ const shouldSkipColumn = (header: string): boolean => {
 
 // ---- Normalization ----
 
+const cleanKey = (key: string) => key
+  .replace(/^["'\s]+|["'\s]+$/g, '')
+  .replace(/\s+/g, ' ')
+  .replace(/\n|\r/g, ' ')
+  .trim()
+  .toLowerCase();
+
+const SKIPPED_HEADERS = new Set([
+  'start', 'end', '_id', '_uuid', 'submission_time',
+  'submitted_by', '__version__', 'root_uuid', '_index',
+  'meta/rootuuid', '_status', '_notes', '_tags',
+  'validation_status', '_submission_time',
+  '_submitted_by', 'kobo_id', 'kobo_uuid',
+  'row_index', 'form_version', 'submission_status',
+]);
+
 /**
  * Takes a raw CSV row and returns a clean canonical object.
  * ONE function for ALL editions. No special cases.
@@ -155,8 +286,7 @@ const shouldSkipColumn = (header: string): boolean => {
 export const normalizeCSVRow = (row: Record<string, string>): Record<string, string> => {
   const clean: Record<string, string> = {};
   Object.entries(row).forEach(([key, val]) => {
-    const cleanKey = key.replace(/^"|"$/g, '').trim().toLowerCase();
-    clean[cleanKey] = String(val ?? '').trim();
+    clean[cleanKey(key)] = String(val ?? '').trim();
   });
 
   const normalized: Record<string, string> = {};
@@ -164,6 +294,16 @@ export const normalizeCSVRow = (row: Record<string, string>): Record<string, str
     const csvColumn = HEADER_MAP[key];
     if (csvColumn) normalized[csvColumn] = val;
   });
+
+  const unmapped = Object.keys(clean).filter((key) =>
+    !HEADER_MAP[key] &&
+    !SKIPPED_HEADERS.has(key) &&
+    !key.includes('/')
+  );
+
+  if (unmapped.length > 0) {
+    console.warn('Unmapped CSV headers (add to headerMap if needed):', unmapped);
+  }
 
   return normalized;
 };
@@ -292,8 +432,7 @@ export const importCSV = async (
       Object.keys(raw).forEach((header) => {
         if (shouldSkipColumn(header)) return;
 
-        const lowerHeader = header.replace(/^"|"$/g, '').trim().toLowerCase();
-        const csvColumn = HEADER_MAP[lowerHeader];
+        const csvColumn = HEADER_MAP[cleanKey(header)];
         if (!csvColumn) return;
 
         const questionId = questionMap[csvColumn];

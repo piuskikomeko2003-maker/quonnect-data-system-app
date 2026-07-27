@@ -36,6 +36,7 @@ export interface Question {
 export interface FormTemplate {
   id: string;
   name: string;
+  slug: string;
   status: 'active' | 'draft' | 'completed';
   questionCount: number;
   lastEdited: string;

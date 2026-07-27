@@ -1,6 +1,7 @@
 import React from 'react';
 import { DynamicQuickEntryForm, DynamicQuickEntryFormProps } from './DynamicQuickEntryForm';
-import { ChevronUp, ChevronDown, Zap, Users, Footprints, Database } from 'lucide-react';
+import { ChevronUp, ChevronDown, Zap, Users, Footprints, Database, Link } from 'lucide-react';
+import { Button } from '../ui/Button';
 
 type QuickEntryTab = 'paid' | 'collection' | 'walkin';
 
@@ -51,6 +52,7 @@ export interface QuickEntryPanelProps {
   onCollectionSubmit: (answers: Record<string, string>) => Promise<void>;
   onWalkinSubmit: (answers: Record<string, string>) => Promise<void>;
   onPhoneLookup: (phone: string, formSlug: string) => Promise<Record<string, string> | null>;
+  onGenerateLink: () => void;
   paidCount: number;
   collectionCount: number;
   walkinCount: number;
@@ -70,6 +72,7 @@ export const QuickEntryPanel: React.FC<QuickEntryPanelProps> = ({
   onCollectionSubmit,
   onWalkinSubmit,
   onPhoneLookup,
+  onGenerateLink,
   paidCount,
   collectionCount,
   walkinCount,
@@ -133,9 +136,24 @@ export const QuickEntryPanel: React.FC<QuickEntryPanelProps> = ({
           <Zap className="w-4.5 h-4.5 text-green animate-pulse" />
           <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider">Quick Entry Panel</h3>
         </div>
-        <button className="text-text-secondary hover:text-text-primary cursor-pointer">
-          {isOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
-        </button>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="secondary"
+            size="sm"
+            onClick={(e) => {
+              e.stopPropagation();
+              onGenerateLink();
+            }}
+            disabled={disabled}
+            className="text-[10px]"
+          >
+            <Link className="w-3.5 h-3.5" />
+            <span>Generate Link</span>
+          </Button>
+          <button className="text-text-secondary hover:text-text-primary cursor-pointer">
+            {isOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
+          </button>
+        </div>
       </div>
 
       <div className={`transition-all duration-300 overflow-hidden ${isOpen ? 'max-h-[1200px] border-t-0' : 'max-h-0 pointer-events-none'}`}>

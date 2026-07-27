@@ -25,6 +25,7 @@ import { FormBuilderPanel } from '@/components/formbuilder/FormBuilderPanel';
 import { FormCard } from '@/components/formbuilder/FormCard';
 import { FormPreview } from '@/components/formbuilder/FormPreview';
 import { MarketConfigurationPanel } from '@/components/dashboard/MarketConfigurationPanel';
+import { DataAuditPanel } from '@/components/dashboard/DataAuditPanel';
 import { Question, FormTemplate } from '@/components/formbuilder/types';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -951,7 +952,7 @@ export default function Home() {
 
       const { data: formsData, error: formsError } = await supabase
         .from('forms')
-        .select('id, name, is_active, created_at');
+        .select('id, name, slug, is_active, created_at');
 
       if (formsError) throw formsError;
 
@@ -959,6 +960,7 @@ export default function Home() {
         const mappedTemplates = formsData.map((f: any) => ({
           id: f.id,
           name: f.name,
+          slug: f.slug,
           status: f.is_active ? ('active' as const) : ('draft' as const),
           questionCount: 0,
           lastEdited: f.created_at ? new Date(f.created_at).toISOString().split('T')[0] : ''
@@ -1363,7 +1365,7 @@ export default function Home() {
       const supabase = createClient();
       if (!supabase) throw new Error("Supabase client is not initialized.");
 
-      const phone = answers.phone || '';
+      const phone = answers.phone || answers.phone_number || '';
       const contactName = answers.contact_name || '';
       const businessName = answers.business_name || '';
       const category = answers.category || '';
@@ -1483,8 +1485,8 @@ export default function Home() {
       const supabase = createClient();
       if (!supabase) throw new Error("Supabase client is not initialized.");
 
-      const phone = answers.phone || '';
-      const contactName = answers.contact_name || answers.name || '';
+      const phone = answers.phone || answers.phone_number || '';
+      const contactName = answers.contact_name || answers.full_name || answers.name || '';
 
       const { data: vendorData, error: vError } = await supabase
         .from('vendors')
@@ -1775,13 +1777,86 @@ export default function Home() {
   };
 
   // Link Generator
-  const handleGenerateLink = (formId: string) => {
+  const handleGenerateLink = async (formId: string) => {
     const template = formTemplates.find(t => t.id === formId);
-    if (template) {
-      const token = Math.random().toString(36).substring(2, 10);
-      setGeneratedLinkUrl(`https://quonnect.org/forms/${token}`);
-      setGeneratedLinkPass('kampala2026market');
+    if (!template) {
+      addToast("Form template not found", "error");
+      return;
+    }
+
+    if (!activeEdition) {
+      addToast("Please select an active edition before generating a link", "error");
+      return;
+    }
+
+    try {
+      const supabase = createClient();
+      if (!supabase) throw new Error("Client not initialized");
+
+      const token = crypto.randomUUID();
+      const baseUrl = window.location.origin;
+      const linkUrl = `${baseUrl}/collect/${token}`;
+
+      const { error: linkError } = await supabase
+        .from('form_links')
+        .insert({
+          token,
+          form_slug: template.slug,
+          edition_id: activeEdition.id,
+        });
+
+      if (linkError) throw linkError;
+
+      setGeneratedLinkUrl(linkUrl);
+      setGeneratedLinkPass(activeEdition.name);
       setIsLinkModalOpen(true);
+    } catch (err: any) {
+      console.error("Failed to generate link:", err);
+      addToast("Failed to generate link: " + (err.message || err), "error");
+    }
+  };
+
+  const handleGenerateQuickEntryLink = async () => {
+    const slugMap: Record<string, string> = {
+      paid: 'paid_vendor_registration',
+      collection: 'vendor_data_collection',
+      walkin: 'walkin_registration',
+    };
+    const slug = slugMap[quickEntryTab];
+    if (!slug) {
+      addToast("Unknown form type", "error");
+      return;
+    }
+
+    if (!activeEdition) {
+      addToast("Please select an active edition before generating a link", "error");
+      return;
+    }
+
+    try {
+      const supabase = createClient();
+      if (!supabase) throw new Error("Client not initialized");
+
+      const token = crypto.randomUUID();
+      const baseUrl = window.location.origin;
+      const linkUrl = `${baseUrl}/collect/${token}`;
+
+      const { error: linkError } = await supabase
+        .from('form_links')
+        .insert({
+          token,
+          form_slug: slug,
+          edition_id: activeEdition.id,
+        });
+
+      if (linkError) throw linkError;
+
+      setGeneratedLinkUrl(linkUrl);
+      setGeneratedLinkPass(activeEdition.name);
+      setIsLinkModalOpen(true);
+    } catch (err: any) {
+      console.error("Failed to generate link:", err);
+      addToast("Failed to generate link: " + (err.message || err), "error");
     }
   };
 
@@ -2960,6 +3035,7 @@ export default function Home() {
                 onCollectionSubmit={handleDynamicCollectionSubmit}
                 onWalkinSubmit={handleDynamicWalkinSubmit}
                 onPhoneLookup={handleDynamicPhoneLookup}
+                onGenerateLink={handleGenerateQuickEntryLink}
                 paidCount={runningCount}
                 collectionCount={dataCollectedListCount}
                 walkinCount={runningWalkins}
@@ -3221,6 +3297,11 @@ export default function Home() {
                 <div className="text-xs text-text-secondary py-2">
                   No recent spreadsheet uploads logged for the selected edition/region.
                 </div>
+              </div>
+
+              {/* Data Audit Panel */}
+              <div className="pt-2">
+                <DataAuditPanel onRefresh={() => { fetchVendors(); fetchSurveyResponses(); }} />
               </div>
             </div>
           )}

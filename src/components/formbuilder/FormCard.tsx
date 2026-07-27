@@ -66,35 +66,38 @@ export const FormCard: React.FC<FormCardProps> = ({
       </div>
 
       {/* Primary actions buttons row */}
-      <div className="flex items-center gap-2 border-t border-border/60 pt-4 mt-3">
+      <div className="flex flex-col gap-2 border-t border-border/60 pt-4 mt-3">
         {!form.comingSoon ? (
           <>
-            <Button 
-              variant="primary" 
-              size="sm" 
-              onClick={() => onEdit(form.id)}
-              className="flex-1 text-[11px]"
-            >
-              <Edit3 className="w-3.5 h-3.5 text-black" />
-              <span>Edit Form</span>
-            </Button>
-            <Button 
-              variant="secondary" 
-              size="sm" 
-              onClick={() => onPreview(form.id)}
-              className="px-2.5"
-              title="Preview Form"
-            >
-              <Eye className="w-3.5 h-3.5" />
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button 
+                variant="primary" 
+                size="sm" 
+                onClick={() => onEdit(form.id)}
+                className="flex-1 text-[11px]"
+              >
+                <Edit3 className="w-3.5 h-3.5 text-black" />
+                <span>Edit Form</span>
+              </Button>
+              <Button 
+                variant="secondary" 
+                size="sm" 
+                onClick={() => onPreview(form.id)}
+                className="px-2.5"
+                title="Preview Form"
+              >
+                <Eye className="w-3.5 h-3.5" />
+              </Button>
+            </div>
             <Button 
               variant="secondary" 
               size="sm" 
               onClick={() => onGenerateLink(form.id)}
-              className="px-2.5"
-              title="Generate Collection Link"
+              fullWidth
+              className="text-[11px]"
             >
               <Link className="w-3.5 h-3.5" />
+              <span>Generate Link</span>
             </Button>
           </>
         ) : (
