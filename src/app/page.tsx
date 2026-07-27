@@ -7,6 +7,7 @@ import { useRegion } from '@/context/RegionContext';
 import { AdminShell } from '@/components/layout/AdminShell';
 import { importCSV } from '@/utils/csvImport';
 import { resolveGender, isGenderColumn, isGenderValue } from '@/utils/gender';
+import { isFirstTimer, isReturning, getAttendanceCount, attendedLastEdition, attendedRegion, isFirstTimerColumn } from '@/utils/retention';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 export interface Market {
@@ -328,9 +329,14 @@ export default function Home() {
         const validAges = ageAnswers.map((a: any) => parseInt(a.answer)).filter((n: number) => !isNaN(n) && n > 0 && n < 100);
         avgVendorAge = validAges.length > 0 ? Math.round(validAges.reduce((s: number, n: number) => s + n, 0) / validAges.length) : 0;
 
-        const ftAnswers = allFlat.filter((a: any) => a.survey_questions?.csv_column === 'first_time_at_quonnect');
-        firstTimerCount = ftAnswers.filter((a: any) => a.answer?.toLowerCase() === 'yes').length;
-        returningCount = ftAnswers.filter((a: any) => a.answer?.toLowerCase() === 'no').length;
+        const ftAnswers = allFlat.filter((a: any) => isFirstTimerColumn(a.survey_questions?.csv_column));
+        firstTimerCount = 0;
+        returningCount = 0;
+        for (const a of ftAnswers) {
+          const answerMap = { [a.survey_questions?.csv_column || '']: a.answer };
+          if (isFirstTimer(answerMap) === true) firstTimerCount++;
+          else if (isReturning(answerMap) === true) returningCount++;
+        }
 
         allFlat.filter((a: any) => a.survey_questions?.csv_column === 'business_category').forEach((a: any) => {
           if (a.answer) categoryCounts[a.answer] = (categoryCounts[a.answer] || 0) + 1;
@@ -433,9 +439,12 @@ export default function Home() {
               .eq('context_id', ed.id);
             if (edResponses) {
               const flat = edResponses.flatMap((sr: any) => sr.survey_answers || []);
-              const ftAns = flat.filter((a: any) => a.survey_questions?.csv_column === 'first_time_at_quonnect');
-              edFirst = ftAns.filter((a: any) => a.answer?.toLowerCase() === 'yes').length;
-              edReturn = ftAns.filter((a: any) => a.answer?.toLowerCase() === 'no').length;
+              const ftAns = flat.filter((a: any) => isFirstTimerColumn(a.survey_questions?.csv_column));
+              for (const a of ftAns) {
+                const am = { [a.survey_questions?.csv_column || '']: a.answer };
+                if (isFirstTimer(am) === true) edFirst++;
+                else if (isReturning(am) === true) edReturn++;
+              }
             }
 
             return {
@@ -469,15 +478,11 @@ export default function Home() {
 
         retentionCount = retentionRows.filter((sr: any) => {
           const answers = sr.survey_answers ?? [];
-          const attendedLast = answers.some((a: any) =>
-            a.survey_questions?.csv_column === 'attended_last_quonnect' &&
-            a.answer?.toLowerCase() === 'yes'
-          );
-          const attendedKampala = answers.some((a: any) =>
-            a.survey_questions?.csv_column === 'regions_attended' &&
-            a.answer?.toLowerCase().includes('kampala')
-          );
-          return attendedLast && attendedKampala;
+          const answerMap: Record<string, string> = {};
+          answers.forEach((a: any) => {
+            if (a.survey_questions?.csv_column) answerMap[a.survey_questions.csv_column] = a.answer;
+          });
+          return attendedLastEdition(answerMap) === true && attendedRegion(activeRegion?.name || '', answerMap);
         }).length;
 
         retentionPct = retentionTotal > 0 ? Math.round((retentionCount / retentionTotal) * 100) : null;
@@ -641,9 +646,12 @@ export default function Home() {
           phone: v.phone || answerMap['phone_number'] || answerMap['phone'] || '',
           businessName: v.business_name || answerMap['business_name'] || '',
           gender: resolveGender(answerMap),
-          status: v.is_active ? ('active' as const) : ('new' as const),
+          status: isFirstTimer(answerMap) === true ? ('new' as const)
+                : getAttendanceCount(answerMap) >= 3 ? ('loyal' as const)
+                : isReturning(answerMap) === true ? ('active' as const)
+                : v.is_active ? ('active' as const) : ('new' as const),
           region: activeRegion.name,
-          attendanceCount: Number(answerMap['times_attended']) || 1,
+          attendanceCount: getAttendanceCount(answerMap),
           lastSeen: activeEdition ? activeEdition.name : 'May 2026',
           age: answerMap['age'] ? parseInt(answerMap['age'], 10) : 0,
           employeeCount: answerMap['employee_count'] || answerMap['employees'] || '',
@@ -2552,7 +2560,7 @@ export default function Home() {
                           {overviewMetrics.retentionPct !== null ? `${overviewMetrics.retentionPct}%` : 'No data'}
                         </div>
                       </div>
-                      <div className="text-[10px] text-text-tertiary mt-1.5">{overviewMetrics.retentionCount} of {overviewMetrics.retentionTotal} returning Kampala vendors</div>
+                      <div className="text-[10px] text-text-tertiary mt-1.5">{overviewMetrics.retentionCount} of {overviewMetrics.retentionTotal} returning {activeRegion?.name || ''} vendors</div>
                     </div>
                   </div>
 
