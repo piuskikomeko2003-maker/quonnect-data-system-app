@@ -6,6 +6,7 @@ import { useLiveMetrics } from '@/hooks/useLiveMetrics';
 import { useRegion } from '@/context/RegionContext';
 import { AdminShell } from '@/components/layout/AdminShell';
 import { importCSV } from '@/utils/csvImport';
+import { resolveGender, isGenderColumn, isGenderValue } from '@/utils/gender';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 export interface Market {
@@ -309,7 +310,7 @@ export default function Home() {
         if (overviewGender !== 'all') {
           const genderFilteredRows = rows.filter((sr: any) => {
             const ga = (sr.survey_answers || []).find((a: any) =>
-              (a.survey_questions?.csv_column === 'gender' || a.survey_questions?.csv_column === 'g') && a.answer === overviewGender);
+              isGenderColumn(a.survey_questions?.csv_column) && isGenderValue(a.answer, overviewGender));
             return !!ga;
           });
           surveyAnswers = genderFilteredRows;
@@ -319,7 +320,7 @@ export default function Home() {
 
         const allFlat = surveyAnswers.flatMap((sr: any) => sr.survey_answers || []);
 
-        const genderAnswers = allFlat.filter((a: any) => a.survey_questions?.csv_column === 'gender' || a.survey_questions?.csv_column === 'g');
+        const genderAnswers = allFlat.filter((a: any) => isGenderColumn(a.survey_questions?.csv_column));
         genderFemale = genderAnswers.filter((a: any) => a.answer === 'Female').length;
         genderMale = genderAnswers.filter((a: any) => a.answer === 'Male').length;
 
@@ -639,7 +640,7 @@ export default function Home() {
           name: v.contact_name || answerMap['full_name'] || answerMap['contact_name'] || 'Unknown',
           phone: v.phone || answerMap['phone_number'] || answerMap['phone'] || '',
           businessName: v.business_name || answerMap['business_name'] || '',
-          gender: answerMap['gender'] || answerMap['g'] || 'Unknown',
+          gender: resolveGender(answerMap),
           status: v.is_active ? ('active' as const) : ('new' as const),
           region: activeRegion.name,
           attendanceCount: Number(answerMap['times_attended']) || 1,
