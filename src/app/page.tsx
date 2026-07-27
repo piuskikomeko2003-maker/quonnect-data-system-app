@@ -28,6 +28,7 @@ import { FormCard } from '@/components/formbuilder/FormCard';
 import { FormPreview } from '@/components/formbuilder/FormPreview';
 import { MarketConfigurationPanel } from '@/components/dashboard/MarketConfigurationPanel';
 import { DataAuditPanel } from '@/components/dashboard/DataAuditPanel';
+import { JobsSupportedPanel } from '@/components/dashboard/JobsSupportedPanel';
 import { Question, FormTemplate } from '@/components/formbuilder/types';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -3325,8 +3326,17 @@ export default function Home() {
             <FormBuilderPanel />
           )}
 
+          {/* JOBS SUPPORTED */}
+          {activeNav === 'jobs' && (
+            <JobsSupportedPanel
+              activeRegion={activeRegion}
+              activeEdition={activeEdition}
+              editions={ctxEditions}
+            />
+          )}
+
           {/* 7. OTHER SYSTEM PLACES (PLACEHOLDERS) */}
-          {!['overview', 'vendors', 'walkins', 'quick-entry', 'formbuilder', 'import-export', 'markets'].includes(activeNav) && (
+          {!['overview', 'vendors', 'walkins', 'quick-entry', 'formbuilder', 'import-export', 'markets', 'jobs'].includes(activeNav) && (
             <div className="py-24 text-center border border-dashed border-border rounded-lg select-none text-left animate-fade-in">
               <ClipboardList className="w-12 h-12 text-green mx-auto mb-3 opacity-80" />
               <h3 className="text-sm font-bold text-text-primary">Module Under Implementation</h3>

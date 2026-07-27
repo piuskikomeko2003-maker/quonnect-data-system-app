@@ -18,7 +18,8 @@ import {
   Store,
   CheckCircle2,
   AlertCircle,
-  CreditCard
+  CreditCard,
+  Briefcase
 } from 'lucide-react';
 import { Badge } from '../ui/Badge';
 import { useRegion, Region, Edition } from '@/context/RegionContext';
@@ -91,6 +92,12 @@ export const AdminShell: React.FC<AdminShellProps> = ({
       ]
     },
     {
+      label: 'Impact',
+      items: [
+        { id: 'jobs', name: 'Jobs Supported', icon: <Briefcase className="w-5 h-5" /> },
+      ]
+    },
+    {
       label: 'System',
       items: [
         { id: 'formbuilder', name: 'Form Builder', icon: <ClipboardList className="w-5 h-5" /> },
@@ -110,6 +117,7 @@ export const AdminShell: React.FC<AdminShellProps> = ({
       case 'import-export': return <UploadCloud className="w-5 h-5" />;
       case 'formbuilder': return <ClipboardList className="w-5 h-5" />;
       case 'markets': return <Store className="w-5 h-5" />;
+      case 'jobs': return <Briefcase className="w-5 h-5" />;
       case 'settings': return <Settings className="w-5 h-5" />;
       default: return <Building2 className="w-5 h-5" />;
     }
