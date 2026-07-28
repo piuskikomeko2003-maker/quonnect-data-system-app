@@ -2999,93 +2999,123 @@ export default function Home() {
           {/* 3.5 PAID VENDORS */}
           {activeNav === 'paid-vendors' && (
             <div className="space-y-5 animate-fade-in text-left">
-              <div className="flex justify-between items-center">
-                <div>
-                  <h1 className="text-xl font-bold tracking-tight text-text-primary">Paid Vendors</h1>
-                  <p className="text-xs text-text-secondary mt-0.5">Vendor registration and payment tracking per edition.</p>
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div className="w-1.5 h-5 bg-green-500 rounded-full" />
+                  <div>
+                    <h1 className="text-xl font-bold tracking-tight text-white">Paid Vendors</h1>
+                    <p className="text-xs text-gray-400 mt-0.5">Vendor registration and payment tracking per edition.</p>
+                  </div>
                 </div>
               </div>
 
               {!activeEdition ? (
-                <div className="bg-bg-surface border border-border rounded-lg p-12 text-center">
-                  <CreditCard className="w-10 h-10 text-text-tertiary mx-auto mb-3" />
-                  <p className="text-sm text-text-secondary font-semibold">Select an edition to view paid vendors</p>
+                <div className="bg-[#0f1117] border border-white/5 rounded-xl p-12 text-center select-none">
+                  <CreditCard className="w-10 h-10 text-gray-500 mx-auto mb-3" />
+                  <p className="text-sm text-gray-300 font-semibold">Select an edition to view paid vendors</p>
                 </div>
               ) : (
                 <>
                   {/* Live Count Cards */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="bg-bg-surface border border-green/20 rounded-lg p-4 flex flex-col">
-                      <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider mb-1">Paid Vendors</span>
-                      <span className="text-2xl font-bold text-green">{paidVendorCounts.paid}</span>
-                      <span className="text-[10px] text-text-secondary mt-1">payment_status = paid</span>
+                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-5 flex flex-col justify-between">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="bg-green-500/10 text-green-400 p-2.5 rounded-lg">
+                          <CreditCard className="w-5 h-5" />
+                        </div>
+                        <span className="text-[10px] font-semibold text-green-400 bg-green-500/10 px-2 py-0.5 rounded-full uppercase tracking-wider">Confirmed</span>
+                      </div>
+                      <div className="text-3xl font-bold text-white tracking-tight">{paidVendorCounts.paid}</div>
+                      <div className="text-xs text-gray-400 uppercase tracking-wider mt-1">Paid Vendors</div>
                     </div>
-                    <div className="bg-bg-surface border border-yellow/20 rounded-lg p-4 flex flex-col">
-                      <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider mb-1">Pending Vendors</span>
-                      <span className="text-2xl font-bold text-yellow">{paidVendorCounts.unpaid}</span>
-                      <span className="text-[10px] text-text-secondary mt-1">unpaid / partial / pending</span>
+
+                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-5 flex flex-col justify-between">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="bg-amber-500/10 text-amber-400 p-2.5 rounded-lg">
+                          <AlertTriangle className="w-5 h-5" />
+                        </div>
+                        <span className="text-[10px] font-semibold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full uppercase tracking-wider">Pending</span>
+                      </div>
+                      <div className="text-3xl font-bold text-white tracking-tight">{paidVendorCounts.unpaid}</div>
+                      <div className="text-xs text-gray-400 uppercase tracking-wider mt-1">Pending / Unpaid</div>
                     </div>
-                    <div className="bg-bg-surface border border-purple/20 rounded-lg p-4 flex flex-col">
-                      <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider mb-1">Total Revenue</span>
-                      <span className="text-2xl font-bold text-purple">UGX {paidVendorCounts.revenue.toLocaleString()}</span>
-                      <span className="text-[10px] text-text-secondary mt-1">sum of amount_paid</span>
+
+                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-5 flex flex-col justify-between">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="bg-purple-500/10 text-purple-400 p-2.5 rounded-lg">
+                          <TrendingUp className="w-5 h-5" />
+                        </div>
+                        <span className="text-[10px] font-semibold text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-full uppercase tracking-wider">Collection</span>
+                      </div>
+                      <div className="text-3xl font-bold text-white tracking-tight">UGX {paidVendorCounts.revenue.toLocaleString()}</div>
+                      <div className="text-xs text-gray-400 uppercase tracking-wider mt-1">Total Revenue</div>
                     </div>
                   </div>
 
                   {/* Paid Vendors Table */}
-                  <div className="bg-bg-surface border border-border rounded-lg overflow-hidden">
+                  <div className="bg-[#0f1117] border border-white/5 rounded-xl overflow-hidden">
+                    <div className="p-4 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
+                      <div className="flex items-center gap-2">
+                        <div className="w-1 h-3.5 bg-green-500 rounded-full" />
+                        <span className="text-xs font-semibold tracking-wider uppercase text-gray-400">
+                          Vendor List ({paidVendors.length})
+                        </span>
+                      </div>
+                    </div>
                     {loadingPaidVendors ? (
                       <div className="p-12 text-center">
-                        <div className="animate-spin w-6 h-6 border-2 border-green border-t-transparent rounded-full mx-auto mb-3" />
-                        <p className="text-xs text-text-tertiary font-medium">Loading paid vendors...</p>
+                        <div className="animate-spin w-6 h-6 border-2 border-green-400 border-t-transparent rounded-full mx-auto mb-3" />
+                        <p className="text-xs text-gray-400 font-medium">Loading paid vendors...</p>
                       </div>
                     ) : paidVendors.length === 0 ? (
-                      <div className="p-12 text-center">
-                        <CreditCard className="w-10 h-10 text-text-tertiary mx-auto mb-3" />
-                        <p className="text-sm text-text-secondary font-semibold">No paid vendors yet for this edition.</p>
-                        <p className="text-xs text-text-tertiary mt-1">Add them via Quick Entry.</p>
+                      <div className="p-12 text-center select-none">
+                        <CreditCard className="w-10 h-10 text-gray-600 mx-auto mb-3" />
+                        <p className="text-sm text-gray-300 font-semibold">No paid vendors yet for this edition.</p>
+                        <p className="text-xs text-gray-500 mt-1">Add them via Quick Entry.</p>
                       </div>
                     ) : (
-                      <table className="w-full border-collapse text-left text-xs">
-                        <thead>
-                          <tr className="bg-bg-elevated border-b border-border">
-                            <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider">Business Name</th>
-                            <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider">Contact Name</th>
-                            <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider">Phone</th>
-                            <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider">Category</th>
-                            <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider text-center">Status</th>
-                            <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider">Stall #</th>
-                            <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider text-right">Amount Paid</th>
-                            <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider">Registered</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-border/40 text-xs">
-                          {paidVendors.map((pv) => (
-                            <tr key={pv.id} className="hover:bg-green-soft/10">
-                              <td className="p-3.5">
-                                <span className="block font-bold text-text-primary">{pv.business_name}</span>
-                              </td>
-                              <td className="p-3.5 text-text-secondary font-medium">{pv.contact_name}</td>
-                              <td className="p-3.5 text-text-secondary font-medium">{pv.phone || '—'}</td>
-                              <td className="p-3.5 text-text-secondary font-semibold">{pv.category || '—'}</td>
-                              <td className="p-3.5 text-center">
-                                <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold ${
-                                  pv.payment_status === 'paid' ? 'bg-green-muted text-green' :
-                                  pv.payment_status === 'waived' ? 'bg-gray-100 text-text-tertiary' :
-                                  'bg-yellow-muted text-yellow'
-                                }`}>
-                                  {pv.payment_status}
-                                </span>
-                              </td>
-                              <td className="p-3.5 text-text-secondary font-medium">{pv.stall_number || '—'}</td>
-                              <td className="p-3.5 text-right text-text-primary font-bold">UGX {Number(pv.amount_paid).toLocaleString()}</td>
-                              <td className="p-3.5 text-text-secondary font-medium">
-                                {pv.created_at ? new Date(pv.created_at).toLocaleString() : '—'}
-                              </td>
+                      <div className="w-full overflow-x-auto">
+                        <table className="w-full border-collapse text-left text-xs">
+                          <thead>
+                            <tr className="bg-white/[0.02] border-b border-white/5">
+                              <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Business Name</th>
+                              <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Contact Name</th>
+                              <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Phone</th>
+                              <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Category</th>
+                              <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest text-center">Status</th>
+                              <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest text-center">Stall #</th>
+                              <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest text-right">Amount Paid</th>
+                              <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Registered</th>
                             </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                          </thead>
+                          <tbody className="divide-y divide-white/5 text-xs">
+                            {paidVendors.map((pv) => (
+                              <tr key={pv.id} className="hover:bg-white/[0.02] transition-colors">
+                                <td className="p-4 font-semibold text-white">
+                                  {pv.business_name || '—'}
+                                </td>
+                                <td className="p-4 text-gray-300 font-medium">{pv.contact_name || '—'}</td>
+                                <td className="p-4 text-gray-400 font-mono text-[11px]">{pv.phone || '—'}</td>
+                                <td className="p-4 text-gray-300 font-medium">{pv.category || '—'}</td>
+                                <td className="p-4 text-center">
+                                  <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                                    pv.payment_status === 'paid' ? 'bg-green-500/10 text-green-400 border border-green-500/20' :
+                                    pv.payment_status === 'waived' ? 'bg-gray-500/10 text-gray-400 border border-white/10' :
+                                    'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                  }`}>
+                                    {pv.payment_status}
+                                  </span>
+                                </td>
+                                <td className="p-4 text-center text-gray-300 font-mono font-medium">{pv.stall_number || '—'}</td>
+                                <td className="p-4 text-right text-white font-bold font-mono">UGX {Number(pv.amount_paid).toLocaleString()}</td>
+                                <td className="p-4 text-gray-400 font-medium">
+                                  {pv.created_at ? new Date(pv.created_at).toLocaleDateString() : '—'}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
                     )}
                   </div>
                 </>

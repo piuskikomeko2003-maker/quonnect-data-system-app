@@ -79,21 +79,21 @@ export const VendorTable: React.FC<VendorTableProps> = ({
   const isAllSelected = vendors.length > 0 && vendors.every((v) => selectedVendorIds.includes(v.id));
 
   return (
-    <div className="w-full bg-bg-surface border border-border rounded-lg overflow-hidden select-none text-left">
+    <div className="w-full bg-[#0f1117] border border-white/5 rounded-xl overflow-hidden select-none text-left">
       {/* Search Header Panel */}
-      <div className="p-4 border-b border-border flex items-center gap-4 bg-bg-elevated/10">
+      <div className="p-4 border-b border-white/5 flex items-center gap-4 bg-white/[0.02]">
         <div className="relative w-full max-w-sm flex items-center">
-          <Search className="absolute left-3.5 w-4 h-4 text-text-tertiary pointer-events-none" />
+          <Search className="absolute left-3.5 w-4 h-4 text-gray-500 pointer-events-none" />
           <input
             type="text"
             placeholder="Search vendors by name, phone, business..."
             value={searchTerm}
             onChange={(e) => onSearchChange(e.target.value)}
-            className="w-full bg-bg-input border border-border-light rounded-md pl-10 pr-3.5 py-2 text-text-primary text-xs font-sans placeholder-text-muted outline-none transition-colors focus:border-green"
+            className="w-full bg-white/5 border border-white/10 rounded-lg pl-10 pr-3.5 py-2 text-white text-xs font-sans placeholder-gray-500 outline-none transition-colors focus:border-green-500"
           />
         </div>
         {selectedVendorIds.length > 0 && (
-          <span className="text-[11px] text-text-secondary font-semibold">
+          <span className="text-[11px] text-green-400 font-semibold">
             {selectedVendorIds.length} vendor(s) selected
           </span>
         )}
@@ -104,72 +104,72 @@ export const VendorTable: React.FC<VendorTableProps> = ({
         {vendors.length === 0 ? (
           /* Empty state */
           <div className="text-center py-12 px-6 flex flex-col items-center justify-center gap-3">
-            <Info className="w-12 h-12 text-green mb-1.5" />
-            <p className="text-sm font-bold text-text-primary">No vendors found</p>
-            <p className="text-xs text-text-secondary max-w-[280px]">
+            <Info className="w-10 h-10 text-green-400 mb-1.5" />
+            <p className="text-sm font-bold text-white">No vendors found</p>
+            <p className="text-xs text-gray-400 max-w-[280px]">
               Try adjusting your search criteria or register a new vendor.
             </p>
           </div>
         ) : (
           <table className="w-full border-collapse">
             <thead>
-              <tr className="bg-bg-elevated border-b border-border">
+              <tr className="bg-white/[0.02] border-b border-white/5">
                 {/* Checkbox selector th */}
-                <th className="p-3.5 w-[50px] text-center border-r border-border/40">
+                <th className="p-3.5 w-[50px] text-center border-r border-white/5">
                   <input
                     type="checkbox"
                     checked={isAllSelected}
                     onChange={(e) => onSelectAll(e.target.checked)}
-                    className="w-4 h-4 rounded border-border-light text-green focus:ring-green bg-bg-input cursor-pointer"
+                    className="w-4 h-4 rounded border-white/10 text-green-500 focus:ring-green-500 bg-white/5 cursor-pointer"
                   />
                 </th>
-                <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider">Name & Phone</th>
-                <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider">Business</th>
-                <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider text-center">Gender</th>
-                <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider text-center">Status</th>
-                <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider text-center">Type</th>
-                <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider">Region</th>
-                <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider text-center">Attendances</th>
-                <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider">Last Seen</th>
+                <th className="p-3.5 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Name & Phone</th>
+                <th className="p-3.5 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Business</th>
+                <th className="p-3.5 text-[10px] font-semibold text-gray-400 uppercase tracking-widest text-center">Gender</th>
+                <th className="p-3.5 text-[10px] font-semibold text-gray-400 uppercase tracking-widest text-center">Status</th>
+                <th className="p-3.5 text-[10px] font-semibold text-gray-400 uppercase tracking-widest text-center">Type</th>
+                <th className="p-3.5 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Region</th>
+                <th className="p-3.5 text-[10px] font-semibold text-gray-400 uppercase tracking-widest text-center">Attendances</th>
+                <th className="p-3.5 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Last Seen</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-border/40 text-xs">
+            <tbody className="divide-y divide-white/5 text-xs">
               {vendors.map((vendor) => {
                 const isSelected = selectedVendorIds.includes(vendor.id);
                 return (
                   <tr
                     key={vendor.id}
                     onClick={() => onRowClick(vendor)}
-                    className={`hover:bg-green-soft cursor-pointer transition-colors ${
-                      isSelected ? 'bg-green-soft/50' : ''
+                    className={`hover:bg-white/[0.02] cursor-pointer transition-colors ${
+                      isSelected ? 'bg-green-500/10' : ''
                     }`}
                   >
                     {/* Checkbox select cell */}
                     <td
-                      onClick={(e) => e.stopPropagation()} // Stop row click trigger
-                      className="p-3.5 text-center border-r border-border/40"
+                      onClick={(e) => e.stopPropagation()}
+                      className="p-3.5 text-center border-r border-white/5"
                     >
                       <input
                         type="checkbox"
                         checked={isSelected}
                         onChange={(e) => onSelectVendor(vendor.id, e.target.checked)}
-                        className="w-4 h-4 rounded border-border-light text-green focus:ring-green bg-bg-input cursor-pointer"
+                        className="w-4 h-4 rounded border-white/10 text-green-500 focus:ring-green-500 bg-white/5 cursor-pointer"
                       />
                     </td>
                     
                     {/* Name & Phone */}
                     <td className="p-3.5">
-                      <span className="block font-bold text-text-primary">{vendor.name}</span>
-                      <span className="block text-[10px] text-text-secondary mt-0.5">{vendor.phone}</span>
+                      <span className="block font-semibold text-white">{vendor.name}</span>
+                      <span className="block text-[10px] text-gray-400 font-mono mt-0.5">{vendor.phone}</span>
                     </td>
                     
                     {/* Business Name */}
-                    <td className="p-3.5 font-semibold text-text-secondary truncate max-w-[150px]">
+                    <td className="p-3.5 font-medium text-gray-300 truncate max-w-[150px]">
                       {vendor.businessName}
                     </td>
                     
                     {/* Gender badge */}
-                    <td className="p-3.5 text-center font-semibold text-text-secondary">
+                    <td className="p-3.5 text-center font-medium text-gray-300">
                       {vendor.gender}
                     </td>
                     
@@ -182,14 +182,14 @@ export const VendorTable: React.FC<VendorTableProps> = ({
                     <td className="p-3.5 text-center">
                       {(() => {
                         const badges: Record<string, { label: string; color: string }> = {
-                          survey: { label: 'Field Data', color: 'bg-blue-500' },
-                          paid: { label: 'Registered', color: 'bg-green-500' },
-                          both: { label: 'Registered + Surveyed', color: 'bg-purple-500' },
-                          unknown: { label: 'Unverified', color: 'bg-gray-400' }
+                          survey: { label: 'Field Data', color: 'bg-blue-500/10 text-blue-400 border border-blue-500/20' },
+                          paid: { label: 'Registered', color: 'bg-green-500/10 text-green-400 border border-green-500/20' },
+                          both: { label: 'Registered + Surveyed', color: 'bg-purple-500/10 text-purple-400 border border-purple-500/20' },
+                          unknown: { label: 'Unverified', color: 'bg-gray-500/10 text-gray-400 border border-white/10' }
                         };
                         const badge = badges[vendor.registrationType || 'unknown'];
                         return (
-                          <span className={`${badge.color} text-white text-[10px] px-2 py-0.5 rounded-full font-semibold whitespace-nowrap`}>
+                          <span className={`${badge.color} text-[10px] px-2.5 py-0.5 rounded-full font-semibold uppercase tracking-wider whitespace-nowrap`}>
                             {badge.label}
                           </span>
                         );
@@ -197,19 +197,19 @@ export const VendorTable: React.FC<VendorTableProps> = ({
                     </td>
                     
                     {/* Region */}
-                    <td className="p-3.5 font-semibold text-text-secondary">
+                    <td className="p-3.5 font-medium text-gray-300">
                       {vendor.region}
                     </td>
                     
                     {/* Attendances Count */}
                     <td className="p-3.5 text-center">
-                      <Badge variant="info" size="sm" className="font-bold">
+                      <span className="inline-block bg-white/5 border border-white/10 text-white text-[11px] font-mono font-bold px-2 py-0.5 rounded-md">
                         {vendor.attendanceCount}
-                      </Badge>
+                      </span>
                     </td>
                     
                     {/* Last Seen */}
-                    <td className="p-3.5 text-text-secondary font-medium">
+                    <td className="p-3.5 text-gray-400 font-medium">
                       {vendor.lastSeen}
                     </td>
                   </tr>
