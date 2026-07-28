@@ -984,7 +984,7 @@ export const FormBuilderPanel: React.FC = () => {
   const selectedForm = forms.find(f => f.id === selectedFormId);
 
   return (
-    <div className="flex flex-col h-[calc(100vh-140px)] md:h-[750px] bg-bg-surface border border-border rounded-lg overflow-hidden select-none text-left relative">
+    <div className="flex flex-col h-[calc(100vh-140px)] md:h-[750px] bg-[#0f1117] border border-white/5 rounded-xl overflow-hidden select-none text-left relative">
       {/* Toast container */}
       <div className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-2 max-w-sm pointer-events-none">
         {toasts.map((toast) => (
@@ -992,19 +992,19 @@ export const FormBuilderPanel: React.FC = () => {
             key={toast.id}
             className={`flex items-center gap-3 p-3.5 rounded-lg shadow-lg text-xs font-semibold text-white animate-slide-up pointer-events-auto border ${
               toast.type === 'success' 
-                ? 'bg-green-soft/90 border-green text-green' 
-                : 'bg-red-soft/90 border-red text-red'
+                ? 'bg-green-500/90 border-green-400 text-white' 
+                : 'bg-red-500/90 border-red-400 text-white'
             }`}
           >
             {toast.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 text-green shrink-0" />
+              <CheckCircle2 className="w-4 h-4 text-white shrink-0" />
             ) : (
-              <AlertCircle className="w-4 h-4 text-red shrink-0" />
+              <AlertCircle className="w-4 h-4 text-white shrink-0" />
             )}
             <span className="flex-1">{toast.message}</span>
             <button 
               onClick={() => setToasts((prev) => prev.filter((t) => t.id !== toast.id))}
-              className="text-text-secondary hover:text-text-primary p-0.5"
+              className="text-gray-300 hover:text-white p-0.5"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -1015,34 +1015,34 @@ export const FormBuilderPanel: React.FC = () => {
       {/* Main Form Builder Section */}
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
         {/* Left Column: Forms List (320px) */}
-        <div className="w-full md:w-[320px] border-b md:border-b-0 md:border-r border-border bg-bg-surface/50 p-4.5 flex flex-col overflow-hidden shrink-0">
+        <div className="w-full md:w-[320px] border-b md:border-b-0 md:border-r border-white/5 bg-white/[0.01] p-4.5 flex flex-col overflow-hidden shrink-0">
           <div className="flex justify-between items-center mb-4 select-none shrink-0">
-            <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider flex items-center gap-2">
-              <ClipboardList className="w-4 h-4 text-green" />
+            <h3 className="text-xs font-semibold text-gray-300 uppercase tracking-widest flex items-center gap-2">
+              <ClipboardList className="w-4 h-4 text-green-400" />
               <span>Surveys Forms</span>
             </h3>
             <Button
               variant="primary"
               size="sm"
               onClick={() => setIsCreateModalOpen(true)}
-              className="px-2"
+              className="px-2.5 bg-green-500 hover:bg-green-600 text-black font-semibold"
             >
               <Plus className="w-3.5 h-3.5 text-black mr-1" />
               <span>New Form</span>
             </Button>
           </div>
 
-          <div className="flex-1 overflow-y-auto space-y-1.5 pr-1">
+          <div className="flex-1 overflow-y-auto space-y-2 pr-1">
             {loadingForms ? (
-              <div className="flex flex-col items-center justify-center py-10 text-text-tertiary gap-2">
-                <Loader2 className="w-6 h-6 animate-spin text-green" />
+              <div className="flex flex-col items-center justify-center py-10 text-gray-500 gap-2">
+                <Loader2 className="w-6 h-6 animate-spin text-green-400" />
                 <span className="text-[10px]">Loading forms...</span>
               </div>
             ) : forms.length === 0 ? (
-              <div className="text-center py-10 px-4 border border-dashed border-border rounded-lg">
-                <BookOpen className="w-8 h-8 text-text-tertiary mx-auto mb-2 opacity-60" />
-                <p className="text-xs font-bold text-text-secondary">No forms found</p>
-                <p className="text-[10px] text-text-tertiary mt-1">Create your first database form to begin.</p>
+              <div className="text-center py-10 px-4 border border-dashed border-white/10 rounded-xl">
+                <BookOpen className="w-8 h-8 text-gray-600 mx-auto mb-2 opacity-60" />
+                <p className="text-xs font-bold text-gray-300">No forms found</p>
+                <p className="text-[10px] text-gray-500 mt-1">Create your first database form to begin.</p>
               </div>
             ) : (
               forms.map((form) => {
@@ -1052,23 +1052,23 @@ export const FormBuilderPanel: React.FC = () => {
                   <div
                     key={form.id}
                     onClick={() => setSelectedFormId(form.id)}
-                    className={`flex items-center justify-between p-3 rounded-lg border transition-all cursor-pointer group ${
+                    className={`flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer group ${
                       isActive 
-                        ? 'bg-green-soft border-green' 
-                        : 'bg-bg-elevated/45 border-border/60 hover:border-green-soft hover:bg-green-soft/10'
+                        ? 'bg-green-500/10 border-green-500/50' 
+                        : 'bg-white/[0.02] border-white/5 hover:border-white/10 hover:bg-white/[0.04]'
                     }`}
                   >
                     <div className="min-w-0 flex-1 pr-2">
-                      <span className={`block font-bold text-xs truncate ${isActive ? 'text-green' : 'text-text-primary'}`}>
+                      <span className={`block font-bold text-xs truncate ${isActive ? 'text-green-400' : 'text-white'}`}>
                         {form.name}
                       </span>
                       <div className="flex items-center gap-2 mt-0.5">
-                        <span className="block text-[10px] text-text-tertiary font-mono truncate">
+                        <span className="block text-[10px] text-gray-500 font-mono truncate">
                           /{form.slug}
                         </span>
-                        <Badge variant="neutral" size="sm" className="font-mono text-[9px] px-1.5 shrink-0">
+                        <span className="inline-block bg-white/5 border border-white/10 text-gray-300 font-mono text-[9px] px-1.5 py-0.2 rounded shrink-0">
                           {qCount} {qCount === 1 ? 'question' : 'questions'}
-                        </Badge>
+                        </span>
                       </div>
                     </div>
                     <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
@@ -1077,12 +1077,12 @@ export const FormBuilderPanel: React.FC = () => {
                           e.stopPropagation();
                           handleDeleteForm(form.id, form.name);
                         }}
-                        className="p-1 rounded bg-bg-elevated hover:bg-red-soft/20 text-text-secondary hover:text-red border border-border-light cursor-pointer"
+                        className="p-1 rounded bg-white/5 hover:bg-red-500/20 text-gray-400 hover:text-red-400 border border-white/10 cursor-pointer"
                         title="Delete Form"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
-                      <ChevronRight className={`w-3.5 h-3.5 ${isActive ? 'text-green' : 'text-text-tertiary'}`} />
+                      <ChevronRight className={`w-3.5 h-3.5 ${isActive ? 'text-green-400' : 'text-gray-500'}`} />
                     </div>
                   </div>
                 );
@@ -1092,31 +1092,31 @@ export const FormBuilderPanel: React.FC = () => {
         </div>
 
         {/* Right Column: Editor Panel */}
-        <div className="flex-1 bg-bg-surface/10 overflow-hidden flex flex-col">
+        <div className="flex-1 bg-transparent overflow-hidden flex flex-col">
           {selectedFormId && selectedForm ? (
             <div className="flex-1 flex flex-col overflow-hidden">
               {/* Form Editor Header */}
-              <div className="p-4 border-b border-border bg-bg-surface flex items-center justify-between shrink-0 select-none">
+              <div className="p-4 border-b border-white/5 bg-[#0f1117] flex items-center justify-between shrink-0 select-none">
                 <div>
-                  <h2 className="text-sm font-bold text-text-primary uppercase tracking-wider">{selectedForm.name}</h2>
-                  <p className="text-[10px] text-text-secondary mt-0.5">{selectedForm.description || "No description provided."}</p>
+                  <h2 className="text-sm font-bold text-white uppercase tracking-wider">{selectedForm.name}</h2>
+                  <p className="text-[10px] text-gray-400 mt-0.5">{selectedForm.description || "No description provided."}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <Button
                     variant="secondary"
                     size="sm"
                     onClick={() => setIsPreviewOpen(true)}
-                    className="text-[11px]"
+                    className="text-[11px] bg-white/5 border border-white/10 text-white hover:bg-white/10"
                     disabled={questions.length === 0}
                   >
-                    <Eye className="w-3.5 h-3.5 text-text-secondary mr-1" />
+                    <Eye className="w-3.5 h-3.5 text-gray-400 mr-1" />
                     <span>Preview Form</span>
                   </Button>
                   <Button
                     variant="secondary"
                     size="sm"
                     onClick={() => setIsAddSectionOpen(!isAddSectionOpen)}
-                    className="text-[11px]"
+                    className="text-[11px] bg-white/5 border border-white/10 text-white hover:bg-white/10"
                   >
                     <Plus className="w-3.5 h-3.5 text-text-secondary mr-1" />
                     <span>Add Section</span>

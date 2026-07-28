@@ -616,27 +616,30 @@ export const MarketConfigurationPanel: React.FC = () => {
       </div>
 
       {/* Header */}
-      <div>
-        <h1 className="text-xl font-bold tracking-tight text-text-primary">Market Day & Event Configurations</h1>
-        <p className="text-xs text-text-secondary mt-0.5">Configure geographical regions, market day locations, and monthly events.</p>
+      <div className="flex items-center gap-2">
+        <div className="w-1.5 h-5 bg-green-500 rounded-full" />
+        <div>
+          <h1 className="text-xl font-bold tracking-tight text-white">Market Day & Event Configurations</h1>
+          <p className="text-xs text-gray-400 mt-0.5">Configure geographical regions, market day locations, and monthly events.</p>
+        </div>
       </div>
 
       {/* STEPPER HEADER */}
-      <div className="bg-bg-surface border border-border rounded-xl p-4.5">
+      <div className="bg-[#0f1117] border border-white/5 rounded-xl p-4.5">
         <div className="max-w-xl mx-auto flex items-center justify-between relative select-none">
           {/* Connector Line */}
-          <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-border -translate-y-1/2 z-0" />
+          <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-white/10 -translate-y-1/2 z-0" />
           <div 
-            className="absolute top-1/2 left-0 h-0.5 bg-green -translate-y-1/2 transition-all duration-300 z-0" 
+            className="absolute top-1/2 left-0 h-0.5 bg-green-500 -translate-y-1/2 transition-all duration-300 z-0" 
             style={{ width: currentStep === 1 ? '0%' : currentStep === 2 ? '50%' : '100%' }}
           />
 
           {/* Step 1 */}
           <div className="relative z-10 flex flex-col items-center gap-1.5 cursor-not-allowed opacity-80" title="Region is selected in the top header">
-            <div className={`w-8 h-8 rounded-full border flex items-center justify-center text-xs transition-all bg-green-soft border-green text-green`}>
-              <Check className="w-4 h-4 text-green font-black" />
+            <div className={`w-8 h-8 rounded-full border flex items-center justify-center text-xs transition-all bg-green-500/10 border-green-500 text-green-400`}>
+              <Check className="w-4 h-4 text-green-400 font-black" />
             </div>
-            <span className="text-[10px] uppercase tracking-wider font-bold text-green flex items-center gap-1">
+            <span className="text-[10px] uppercase tracking-wider font-bold text-green-400 flex items-center gap-1">
               Region ({activeRegion?.name || 'Active'})
             </span>
           </div>
@@ -646,7 +649,7 @@ export const MarketConfigurationPanel: React.FC = () => {
             <div className={`w-8 h-8 rounded-full border flex items-center justify-center text-xs transition-all ${getStepClass(2)}`}>
               {currentStep > 2 ? <Check className="w-4 h-4 text-black font-black" /> : 2}
             </div>
-            <span className={`text-[10px] uppercase tracking-wider font-semibold ${currentStep >= 2 ? 'text-green' : 'text-text-tertiary'}`}>Market Day</span>
+            <span className={`text-[10px] uppercase tracking-wider font-semibold ${currentStep >= 2 ? 'text-green-400' : 'text-gray-500'}`}>Market Day</span>
           </div>
 
           {/* Step 3 */}
@@ -654,61 +657,61 @@ export const MarketConfigurationPanel: React.FC = () => {
             <div className={`w-8 h-8 rounded-full border flex items-center justify-center text-xs transition-all ${getStepClass(3)}`}>
               3
             </div>
-            <span className={`text-[10px] uppercase tracking-wider font-semibold ${currentStep >= 3 ? 'text-green' : 'text-text-tertiary'}`}>Edition</span>
+            <span className={`text-[10px] uppercase tracking-wider font-semibold ${currentStep >= 3 ? 'text-green-400' : 'text-gray-500'}`}>Edition</span>
           </div>
         </div>
       </div>
 
       {/* STEP PANEL CONTENT */}
-      <div className="bg-bg-surface border border-border rounded-xl overflow-hidden min-h-[280px] flex flex-col">
+      <div className="bg-[#0f1117] border border-white/5 rounded-xl overflow-hidden min-h-[280px] flex flex-col">
         
         {/* Step 1: Regions */}
         {currentStep === 1 && (
           <div className="p-5 flex-1 flex flex-col md:flex-row gap-6 animate-fade-in">
             {/* Create Region Form */}
-            <form onSubmit={handleCreateRegion} className="w-full md:w-[320px] space-y-4 shrink-0 border-b md:border-b-0 md:border-r border-border/60 pb-5 md:pb-0 md:pr-6 flex flex-col justify-between">
+            <form onSubmit={handleCreateRegion} className="w-full md:w-[320px] space-y-4 shrink-0 border-b md:border-b-0 md:border-r border-white/5 pb-5 md:pb-0 md:pr-6 flex flex-col justify-between">
               <div className="space-y-3.5">
-                <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider flex items-center gap-2">
-                  <Map className="w-4.5 h-4.5 text-green" />
+                <h3 className="text-xs font-semibold text-gray-300 uppercase tracking-widest flex items-center gap-2">
+                  <Map className="w-4 h-4 text-green-400" />
                   <span>Create Region</span>
                 </h3>
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider block">Region Name</label>
+                  <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest block">Region Name</label>
                   <input 
                     type="text" 
                     placeholder="e.g. Kampala" 
                     value={newRegionName}
                     onChange={handleRegionNameChange}
-                    className="w-full bg-bg-input border border-border-light rounded-md px-3 py-2 text-xs text-text-primary outline-none focus:border-green"
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-green-500"
                     required
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider block">Region Slug</label>
+                  <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest block">Region Slug</label>
                   <input 
                     type="text" 
                     value={newRegionSlug}
                     onChange={(e) => setNewRegionSlug(slugify(e.target.value))}
-                    className="w-full bg-bg-input border border-border-light rounded-md px-3 py-2 text-xs text-text-primary outline-none focus:border-green font-mono"
+                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-green-500 font-mono"
                     required
                   />
                 </div>
               </div>
-              <Button type="submit" variant="primary" fullWidth disabled={isSavingRegion} className="mt-4">
+              <Button type="submit" variant="primary" fullWidth disabled={isSavingRegion} className="mt-4 bg-green-500 hover:bg-green-600 text-black font-semibold">
                 <span>{isSavingRegion ? 'Creating...' : 'Create Region'}</span>
               </Button>
             </form>
 
             {/* Selectable Regions Grid */}
             <div className="flex-1 space-y-3">
-              <h4 className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">Select Existing Region</h4>
+              <h4 className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Select Existing Region</h4>
               {loading ? (
-                <div className="flex items-center gap-2 text-text-tertiary py-10 justify-center">
-                  <Loader2 className="w-5 h-5 animate-spin text-green" />
+                <div className="flex items-center gap-2 text-gray-400 py-10 justify-center">
+                  <Loader2 className="w-5 h-5 animate-spin text-green-400" />
                   <span className="text-xs">Loading regions...</span>
                 </div>
               ) : regions.length === 0 ? (
-                <p className="text-xs text-text-tertiary py-10 text-center">No regions found. Create the first region to begin.</p>
+                <p className="text-xs text-gray-500 py-10 text-center">No regions found. Create the first region to begin.</p>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
                   {regions.map((reg) => {
@@ -721,19 +724,19 @@ export const MarketConfigurationPanel: React.FC = () => {
                           setSelectedMarketName(null);
                           setCurrentStep(2);
                         }}
-                        className={`p-3.5 rounded-lg border transition-all cursor-pointer flex flex-col justify-between gap-2.5 ${
+                        className={`p-3.5 rounded-xl border transition-all cursor-pointer flex flex-col justify-between gap-2.5 ${
                           isSelected
-                            ? 'bg-green-soft border-green'
-                            : 'bg-bg-elevated/45 border-border/80 hover:border-green-soft hover:bg-green-soft/10'
+                            ? 'bg-green-500/10 border-green-500/50'
+                            : 'bg-white/[0.02] border-white/5 hover:border-white/10 hover:bg-white/[0.04]'
                         }`}
                       >
                         <div className="min-w-0">
-                          <span className={`block font-bold text-xs truncate ${isSelected ? 'text-green' : 'text-text-primary'}`}>{reg.name}</span>
-                          <span className="block text-[10px] text-text-tertiary font-mono truncate mt-0.5">/{reg.slug}</span>
+                          <span className={`block font-bold text-xs truncate ${isSelected ? 'text-green-400' : 'text-white'}`}>{reg.name}</span>
+                          <span className="block text-[10px] text-gray-400 font-mono truncate mt-0.5">/{reg.slug}</span>
                         </div>
-                        <div className="flex items-center justify-between border-t border-border/30 pt-2 text-[10px] text-text-secondary select-none">
+                        <div className="flex items-center justify-between border-t border-white/5 pt-2 text-[10px] text-gray-400 select-none">
                           <span>{reg.marketDays.length} Markets</span>
-                          <ChevronRight className="w-3.5 h-3.5 text-text-tertiary" />
+                          <ChevronRight className="w-3.5 h-3.5 text-gray-500" />
                         </div>
                       </div>
                     );
