@@ -20,6 +20,31 @@ interface JobsSupportedPanelProps {
   editions: { id: string; name: string }[];
 }
 
+const CustomJobsTooltip = ({ active, payload, label }: any) => {
+  if (!active || !payload?.length) return null;
+  const total = payload.reduce((sum: number, entry: any) => sum + (Number(entry.value) || 0), 0);
+  return (
+    <div className="bg-[#1a1d24] border border-white/10 rounded-lg p-3 shadow-xl min-w-32 text-xs space-y-2 select-none">
+      <p className="text-xs text-gray-400 border-b border-white/10 pb-1 mb-1">{label}</p>
+      <div className="space-y-1">
+        {payload.map((entry: any, index: number) => (
+          <div key={`item-${index}`} className="flex justify-between items-center gap-4">
+            <span className="flex items-center gap-2 text-gray-300 font-medium">
+              <span className="w-2 h-2 rounded-full inline-block shrink-0" style={{ backgroundColor: entry.color || entry.fill }} />
+              {entry.name}
+            </span>
+            <span className="font-semibold text-white">{Number(entry.value).toLocaleString()}</span>
+          </div>
+        ))}
+      </div>
+      <div className="pt-1.5 border-t border-white/10 flex justify-between items-center font-bold">
+        <span className="text-gray-400">Total Jobs</span>
+        <span className="text-green-400">{total.toLocaleString()}</span>
+      </div>
+    </div>
+  );
+};
+
 export const JobsSupportedPanel: React.FC<JobsSupportedPanelProps> = ({
   activeRegion,
   activeEdition,
@@ -165,39 +190,52 @@ export const JobsSupportedPanel: React.FC<JobsSupportedPanelProps> = ({
         </div>
       ) : (
         <>
-          <div className="bg-bg-surface border border-border rounded-lg p-5">
-            <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider mb-4">
-              Jobs Breakdown Per Edition
-            </h3>
+          <div className="bg-[#0f1117] border border-white/5 rounded-xl p-6">
+            <div className="flex items-center gap-2 mb-6">
+              <div className="w-1 h-4 bg-green-500 rounded-full" />
+              <span className="text-xs font-semibold tracking-widest uppercase text-gray-400">
+                Jobs Breakdown Per Edition
+              </span>
+            </div>
             <ResponsiveContainer width="100%" height={400}>
-              <BarChart data={editionJobs} margin={{ top: 10, right: 30, left: 0, bottom: 20 }}>
-                <CartesianGrid strokeDasharray="3 3" stroke="#21262d" />
+              <BarChart data={editionJobs} margin={{ top: 10, right: 20, left: -10, bottom: 10 }}>
+                <defs>
+                  <linearGradient id="jobsPaidGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#22c55e" stopOpacity={1} />
+                    <stop offset="100%" stopColor="#15803d" stopOpacity={0.85} />
+                  </linearGradient>
+                  <linearGradient id="jobsEmpGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#3b82f6" stopOpacity={1} />
+                    <stop offset="100%" stopColor="#1d4ed8" stopOpacity={0.85} />
+                  </linearGradient>
+                  <linearGradient id="jobsCasualGrad" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="0%" stopColor="#c084fc" stopOpacity={1} />
+                    <stop offset="100%" stopColor="#7e22ce" stopOpacity={0.85} />
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
                 <XAxis
                   dataKey="name"
-                  tick={{ fill: '#8b949e', fontSize: 11 }}
+                  tick={{ fill: '#6b7280', fontSize: 11 }}
                   tickLine={false}
-                  axisLine={{ stroke: '#21262d' }}
+                  axisLine={false}
+                  dy={6}
                 />
                 <YAxis
-                  tick={{ fill: '#8b949e', fontSize: 11 }}
+                  tick={{ fill: '#6b7280', fontSize: 11 }}
                   tickLine={false}
-                  axisLine={{ stroke: '#21262d' }}
+                  axisLine={false}
+                  dx={-4}
                 />
-                <Tooltip
-                  contentStyle={{
-                    background: '#161b22',
-                    border: '1px solid #30363d',
-                    borderRadius: '6px',
-                    fontSize: '11px',
-                    color: '#c9d1d9',
-                  }}
-                />
+                <Tooltip content={<CustomJobsTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.03)' }} />
                 <Legend
-                  wrapperStyle={{ fontSize: '11px', color: '#8b949e' }}
+                  iconType="circle"
+                  iconSize={8}
+                  wrapperStyle={{ fontSize: '11px', color: '#6b7280', paddingTop: '16px' }}
                 />
-                <Bar dataKey="paidVendors" name="Paid Vendors" stackId="a" fill="#22c55e" radius={[4, 4, 0, 0]} />
-                <Bar dataKey="employees" name="Employees" stackId="a" fill="#3b82f6" radius={[0, 0, 0, 0]} />
-                <Bar dataKey="casualWorkers" name="Casual Workers" stackId="a" fill="#c084fc" radius={[4, 4, 0, 0]} />
+                <Bar dataKey="paidVendors" name="Paid Vendors" stackId="a" fill="url(#jobsPaidGrad)" />
+                <Bar dataKey="employees" name="Employees" stackId="a" fill="url(#jobsEmpGrad)" />
+                <Bar dataKey="casualWorkers" name="Casual Workers" stackId="a" fill="url(#jobsCasualGrad)" radius={[4, 4, 0, 0]} />
               </BarChart>
             </ResponsiveContainer>
           </div>

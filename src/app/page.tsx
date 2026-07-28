@@ -62,6 +62,28 @@ import {
   RotateCcw,
 } from 'lucide-react';
 
+const CustomGrowthTooltip = ({ active, payload, label }: any) => {
+  if (!active || !payload?.length) return null;
+  return (
+    <div className="bg-[#1a1d24] border border-white/10 rounded-lg p-3 shadow-xl min-w-32 text-xs space-y-1.5 select-none">
+      <p className="text-xs text-gray-400 mb-2 border-b border-white/10 pb-1">{label}</p>
+      <div className="space-y-1">
+        {payload.map((entry: any, i: number) => (
+          <div key={i} className="flex items-center justify-between gap-3">
+            <span className="flex items-center gap-1.5 text-gray-300 font-medium">
+              <span className="w-2 h-2 rounded-full inline-block shrink-0" style={{ background: entry.color || entry.fill }} />
+              {entry.name}
+            </span>
+            <span className="text-xs font-semibold text-white">
+              {Number(entry.value).toLocaleString()}
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+};
+
 // ==========================================
 // 1. PROJECT BUSINESS CONSTANTS
 // ==========================================
@@ -2482,135 +2504,199 @@ export default function Home() {
 
               {/* SECTION 1 — Live Event Snapshot */}
               {overviewLoading ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-3.5">
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
                   {Array.from({ length: 7 }).map((_, idx) => (
-                    <div key={idx} className="bg-bg-surface border border-border rounded-lg p-4.5 animate-pulse h-[130px] flex flex-col justify-between" />
+                    <div key={idx} className="bg-[#0f1117] border border-white/5 rounded-xl p-5 animate-pulse h-[130px] flex flex-col justify-between" />
                   ))}
                 </div>
               ) : overviewMetrics ? (
                 <>
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-7 gap-3.5">
-                    <div className="bg-bg-surface border border-border rounded-lg p-4.5 flex flex-col justify-between">
-                      <div>
-                        <div className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider flex items-center gap-1.5 mb-2">
-                          <CreditCard className="w-3.5 h-3.5 text-text-secondary" /> Paid Vendors
+                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-5 flex flex-col justify-between">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="bg-green-500/10 text-green-400 p-2 rounded-lg">
+                          <CreditCard className="w-4 h-4" />
                         </div>
-                        <div className="text-2xl font-bold tracking-tight text-text-primary">{overviewMetrics.paidVendorCount}</div>
                       </div>
-                      <div className="text-[10px] text-text-tertiary mt-1.5">Registered vendors</div>
+                      <div className="text-3xl font-bold text-white tracking-tight">{overviewMetrics.paidVendorCount}</div>
+                      <div className="text-xs text-gray-500 uppercase tracking-wider mt-1">Paid Vendors</div>
                     </div>
-                    <div className="bg-bg-surface border border-border rounded-lg p-4.5 flex flex-col justify-between">
-                      <div>
-                        <div className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider flex items-center gap-1.5 mb-2">
-                          <Footprints className="w-3.5 h-3.5 text-text-secondary" /> Walk-ins
+
+                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-5 flex flex-col justify-between">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="bg-amber-500/10 text-amber-400 p-2 rounded-lg">
+                          <Footprints className="w-4 h-4" />
                         </div>
-                        <div className="text-2xl font-bold tracking-tight text-text-primary">{overviewMetrics.walkinCount}</div>
                       </div>
-                      <div className="text-[10px] text-text-tertiary mt-1.5">Walk-in guests</div>
+                      <div className="text-3xl font-bold text-white tracking-tight">{overviewMetrics.walkinCount}</div>
+                      <div className="text-xs text-gray-500 uppercase tracking-wider mt-1">Walk-ins</div>
                     </div>
-                    <div className="bg-bg-surface border border-border rounded-lg p-4.5 flex flex-col justify-between">
-                      <div>
-                        <div className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider flex items-center gap-1.5 mb-2">
-                          <ClipboardList className="w-3.5 h-3.5 text-text-secondary" /> Surveys
+
+                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-5 flex flex-col justify-between">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="bg-blue-500/10 text-blue-400 p-2 rounded-lg">
+                          <ClipboardList className="w-4 h-4" />
                         </div>
-                        <div className="text-2xl font-bold tracking-tight text-text-primary">{overviewMetrics.surveyCount}</div>
                       </div>
-                      <div className="text-[10px] text-text-tertiary mt-1.5">Survey responses</div>
+                      <div className="text-3xl font-bold text-white tracking-tight">{overviewMetrics.surveyCount}</div>
+                      <div className="text-xs text-gray-500 uppercase tracking-wider mt-1">Surveys</div>
                     </div>
-                    <div className="bg-bg-surface border border-border rounded-lg p-4.5 flex flex-col justify-between">
-                      <div>
-                        <div className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider flex items-center gap-1.5 mb-2">
-                          <Users className="w-3.5 h-3.5 text-text-secondary" /> Gender Split
-                        </div>
-                        <div className="text-lg font-bold tracking-tight text-text-primary">
-                          {overviewMetrics.genderSplit.femalePct !== null ? (
-                            <><span className="text-pink-400">{overviewMetrics.genderSplit.femalePct}%</span><span className="text-text-tertiary"> / </span><span className="text-blue">{overviewMetrics.genderSplit.malePct}%</span></>
-                          ) : (
-                            <span className="text-text-tertiary">No data</span>
-                          )}
+
+                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-5 flex flex-col justify-between">
+                      <div className="flex items-start justify-between mb-2">
+                        <div className="bg-purple-500/10 text-purple-400 p-2 rounded-lg">
+                          <Users className="w-4 h-4" />
                         </div>
                       </div>
-                      <div className="text-[10px] text-text-tertiary mt-1.5">F / M of {overviewMetrics.genderSplit.total} identified</div>
+                      <div className="text-xs text-gray-500 uppercase tracking-wider mt-1 mb-1">Gender Split</div>
+                      {overviewMetrics.genderSplit.femalePct !== null ? (
+                        <div className="mt-2">
+                          <div className="flex rounded-full overflow-hidden h-1.5 bg-white/5">
+                            <div 
+                              style={{ width: `${overviewMetrics.genderSplit.femalePct}%` }} 
+                              className="bg-purple-500 transition-all duration-700" 
+                            />
+                            <div 
+                              style={{ width: `${overviewMetrics.genderSplit.malePct}%` }} 
+                              className="bg-cyan-500 transition-all duration-700" 
+                            />
+                          </div>
+                          <div className="flex justify-between mt-1.5">
+                            <span className="text-xs text-purple-400 font-semibold">{overviewMetrics.genderSplit.femalePct}% F</span>
+                            <span className="text-xs text-cyan-400 font-semibold">{overviewMetrics.genderSplit.malePct}% M</span>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-xs text-gray-500">No data</div>
+                      )}
                     </div>
-                    <div className="bg-bg-surface border border-border rounded-lg p-4.5 flex flex-col justify-between">
-                      <div>
-                        <div className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider flex items-center gap-1.5 mb-2">
-                          <BarChart3 className="w-3.5 h-3.5 text-text-secondary" /> Avg Vendor Age
+
+                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-5 flex flex-col justify-between">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="bg-emerald-500/10 text-emerald-400 p-2 rounded-lg">
+                          <BarChart3 className="w-4 h-4" />
                         </div>
-                        <div className="text-2xl font-bold tracking-tight text-text-primary">{overviewMetrics.avgVendorAge || 'No data'}</div>
                       </div>
-                      <div className="text-[10px] text-text-tertiary mt-1.5">Years</div>
+                      <div className="text-3xl font-bold text-white tracking-tight">{overviewMetrics.avgVendorAge || 'N/A'}</div>
+                      <div className="text-xs text-gray-500 uppercase tracking-wider mt-1">Avg Age</div>
                     </div>
-                    <div className="bg-bg-surface border border-border rounded-lg p-4.5 flex flex-col justify-between">
-                      <div>
-                        <div className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider flex items-center gap-1.5 mb-2">
-                          <ArrowUpRight className="w-3.5 h-3.5 text-text-secondary" /> First Timers
-                        </div>
-                        <div className="text-2xl font-bold tracking-tight text-text-primary">
-                          {overviewMetrics.firstTimerPct !== null ? `${overviewMetrics.firstTimerPct}%` : 'No data'}
+
+                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-5 flex flex-col justify-between">
+                      <div className="flex items-start justify-between mb-3">
+                        <div className="bg-green-500/10 text-green-400 p-2 rounded-lg">
+                          <ArrowUpRight className="w-4 h-4" />
                         </div>
                       </div>
-                      <div className="text-[10px] text-text-tertiary mt-1.5">{overviewMetrics.firstTimerCount} new / {overviewMetrics.returningCount} returning</div>
+                      <div className="text-3xl font-bold text-white tracking-tight">
+                        {overviewMetrics.firstTimerPct !== null ? `${overviewMetrics.firstTimerPct}%` : 'N/A'}
+                      </div>
+                      <div className="text-xs text-gray-500 uppercase tracking-wider mt-1">First Timers</div>
                     </div>
-                    <div className="bg-bg-surface border border-border rounded-lg p-4.5 flex flex-col justify-between">
-                      <div>
-                        <div className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider flex items-center gap-1.5 mb-2">
-                          <RotateCcw className="w-3.5 h-3.5 text-text-secondary" /> Kampala Retention
-                        </div>
-                        <div className="text-2xl font-bold tracking-tight text-green">
-                          {overviewMetrics.retentionPct !== null ? `${overviewMetrics.retentionPct}%` : 'No data'}
+
+                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-5 flex flex-col justify-between">
+                      <div className="flex items-start justify-between mb-1">
+                        <div className="bg-green-500/10 text-green-400 p-2 rounded-lg">
+                          <RotateCcw className="w-4 h-4" />
                         </div>
                       </div>
-                      <div className="text-[10px] text-text-tertiary mt-1.5">{overviewMetrics.retentionCount} of {overviewMetrics.retentionTotal} returning {activeRegion?.name || ''} vendors</div>
+                      <div className="text-xs text-gray-500 uppercase tracking-wider">
+                        Retention
+                      </div>
+                      {overviewMetrics.retentionPct !== null ? (
+                        <div className="relative flex items-center justify-center my-1">
+                          <svg viewBox="0 0 36 36" className="w-16 h-16 -rotate-90">
+                            <circle cx="18" cy="18" r="15.9" fill="none"
+                              stroke="rgba(255,255,255,0.05)" strokeWidth="2.5" />
+                            <circle cx="18" cy="18" r="15.9" fill="none"
+                              stroke="#22c55e" strokeWidth="2.5"
+                              strokeDasharray={`${overviewMetrics.retentionPct} ${100 - overviewMetrics.retentionPct}`}
+                              strokeLinecap="round" />
+                          </svg>
+                          <div className="absolute text-center">
+                            <div className="text-lg font-bold text-white">{overviewMetrics.retentionPct}%</div>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="text-xs text-gray-500">No data</div>
+                      )}
                     </div>
                   </div>
 
                   {/* SECTION 2 — Growth Across Editions */}
                   {overviewMetrics.editionGrowth.length > 0 && (
-                    <div className="bg-bg-surface border border-border rounded-lg p-5">
-                      <h4 className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider mb-4 flex items-center gap-1.5">
-                        <TrendingUp className="w-3.5 h-3.5 text-green" /> <span>Growth Across Editions</span>
-                      </h4>
+                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-6">
+                      <div className="flex items-center gap-2 mb-6">
+                        <div className="w-1 h-4 bg-green-500 rounded-full" />
+                        <span className="text-xs font-semibold tracking-widest uppercase text-gray-400">
+                          Growth Across Editions
+                        </span>
+                      </div>
                       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         <div>
-                          <h5 className="text-[10px] font-semibold text-text-secondary mb-3 uppercase tracking-wider">Vendors per Edition</h5>
+                          <h5 className="text-[10px] font-semibold text-gray-400 mb-3 uppercase tracking-wider">Vendors per Edition</h5>
                           <ResponsiveContainer width="100%" height={220}>
-                            <BarChart data={overviewMetrics.editionGrowth} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
-                              <CartesianGrid strokeDasharray="3 3" stroke="#1e2a3a" />
-                              <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#8b949e' }} />
-                              <YAxis tick={{ fontSize: 10, fill: '#8b949e' }} />
-                              <Tooltip contentStyle={{ background: '#11161e', border: '1px solid #1e2a3a', borderRadius: 6, fontSize: 12 }} />
-                              <Legend wrapperStyle={{ fontSize: 11 }} />
-                              <Bar dataKey="surveyCount" name="Survey Vendors" fill="#22c55e" radius={[4, 4, 0, 0]} />
-                              <Bar dataKey="paidCount" name="Paid Vendors" fill="#3b82f6" radius={[4, 4, 0, 0]} />
+                            <BarChart data={overviewMetrics.editionGrowth} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+                              <defs>
+                                <linearGradient id="surveyVendorsGrad" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="0%" stopColor="#22c55e" stopOpacity={1} />
+                                  <stop offset="100%" stopColor="#15803d" stopOpacity={0.85} />
+                                </linearGradient>
+                                <linearGradient id="paidVendorsGrad" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="0%" stopColor="#3b82f6" stopOpacity={1} />
+                                  <stop offset="100%" stopColor="#1d4ed8" stopOpacity={0.85} />
+                                </linearGradient>
+                              </defs>
+                              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+                              <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} dy={5} />
+                              <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} dx={-2} />
+                              <Tooltip content={<CustomGrowthTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.03)' }} />
+                              <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '11px', color: '#6b7280', paddingTop: '16px' }} />
+                              <Bar dataKey="surveyCount" name="Survey Vendors" fill="url(#surveyVendorsGrad)" radius={[4, 4, 0, 0]} />
+                              <Bar dataKey="paidCount" name="Paid Vendors" fill="url(#paidVendorsGrad)" radius={[4, 4, 0, 0]} />
                             </BarChart>
                           </ResponsiveContainer>
                         </div>
                         <div>
-                          <h5 className="text-[10px] font-semibold text-text-secondary mb-3 uppercase tracking-wider">Walk-ins per Edition</h5>
+                          <h5 className="text-[10px] font-semibold text-gray-400 mb-3 uppercase tracking-wider">Walk-ins per Edition</h5>
                           <ResponsiveContainer width="100%" height={220}>
-                            <BarChart data={overviewMetrics.editionGrowth} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
-                              <CartesianGrid strokeDasharray="3 3" stroke="#1e2a3a" />
-                              <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#8b949e' }} />
-                              <YAxis tick={{ fontSize: 10, fill: '#8b949e' }} />
-                              <Tooltip contentStyle={{ background: '#11161e', border: '1px solid #1e2a3a', borderRadius: 6, fontSize: 12 }} />
-                              <Legend wrapperStyle={{ fontSize: 11 }} />
-                              <Bar dataKey="walkinCount" name="Walk-ins" fill="#f59e0b" radius={[4, 4, 0, 0]} />
+                            <BarChart data={overviewMetrics.editionGrowth} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+                              <defs>
+                                <linearGradient id="walkinsGrad" x1="0" y1="0" x2="0" y2="1">
+                                  <stop offset="0%" stopColor="#f59e0b" stopOpacity={1} />
+                                  <stop offset="100%" stopColor="#b45309" stopOpacity={0.85} />
+                                </linearGradient>
+                              </defs>
+                              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+                              <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} dy={5} />
+                              <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} dx={-2} />
+                              <Tooltip content={<CustomGrowthTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.03)' }} />
+                              <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '11px', color: '#6b7280', paddingTop: '16px' }} />
+                              <Bar dataKey="walkinCount" name="Walk-ins" fill="url(#walkinsGrad)" radius={[4, 4, 0, 0]} />
                             </BarChart>
                           </ResponsiveContainer>
                         </div>
                       </div>
                       <div className="mt-6">
-                        <h5 className="text-[10px] font-semibold text-text-secondary mb-3 uppercase tracking-wider">New vs Returning Vendors per Edition</h5>
+                        <h5 className="text-[10px] font-semibold text-gray-400 mb-3 uppercase tracking-wider">New vs Returning Vendors per Edition</h5>
                         <ResponsiveContainer width="100%" height={220}>
-                          <BarChart data={overviewMetrics.editionGrowth} margin={{ top: 5, right: 10, left: 0, bottom: 5 }}>
-                            <CartesianGrid strokeDasharray="3 3" stroke="#1e2a3a" />
-                            <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#8b949e' }} />
-                            <YAxis tick={{ fontSize: 10, fill: '#8b949e' }} />
-                            <Tooltip contentStyle={{ background: '#11161e', border: '1px solid #1e2a3a', borderRadius: 6, fontSize: 12 }} />
-                            <Legend wrapperStyle={{ fontSize: 11 }} />
-                            <Bar dataKey="firstTimers" name="First Timers" stackId="a" fill="#22c55e" radius={[4, 4, 0, 0]} />
-                            <Bar dataKey="returning" name="Returning" stackId="a" fill="#c084fc" radius={[4, 4, 0, 0]} />
+                          <BarChart data={overviewMetrics.editionGrowth} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+                            <defs>
+                              <linearGradient id="firstTimerGrad" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="#22c55e" stopOpacity={1} />
+                                <stop offset="100%" stopColor="#15803d" stopOpacity={0.85} />
+                              </linearGradient>
+                              <linearGradient id="returningGrad" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="#c084fc" stopOpacity={1} />
+                                <stop offset="100%" stopColor="#7e22ce" stopOpacity={0.85} />
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+                            <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} dy={5} />
+                            <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} dx={-2} />
+                            <Tooltip content={<CustomGrowthTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.03)' }} />
+                            <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '11px', color: '#6b7280', paddingTop: '16px' }} />
+                            <Bar dataKey="firstTimers" name="First Timers" stackId="a" fill="url(#firstTimerGrad)" />
+                            <Bar dataKey="returning" name="Returning" stackId="a" fill="url(#returningGrad)" radius={[4, 4, 0, 0]} />
                           </BarChart>
                         </ResponsiveContainer>
                       </div>
@@ -2619,79 +2705,80 @@ export default function Home() {
 
                   {/* SECTION 3 — Business Sectors */}
                   {overviewMetrics.sectors.length > 0 && (
-                    <div className="bg-bg-surface border border-border rounded-lg p-5">
-                      <h4 className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider mb-4 flex items-center gap-1.5">
-                        <BarChart3 className="w-3.5 h-3.5 text-green" /> <span>Business Sectors</span>
-                      </h4>
-                      <div className="space-y-3 pt-2">
-                        {overviewMetrics.sectors.map((sector, idx) => {
-                          const colors = ['bg-green', 'bg-purple', 'bg-blue', 'bg-amber', 'bg-red', 'bg-pink-400', 'bg-teal-400', 'bg-indigo-400'];
-                          const color = colors[idx % colors.length];
-                          return (
-                            <div key={sector.name} className="space-y-1">
-                              <div className="flex justify-between text-[11px] font-bold text-text-secondary">
-                                <span>{sector.name}</span>
-                                <span>{sector.pct}%</span>
-                              </div>
-                              <div className="w-full h-2 bg-bg-input rounded-full overflow-hidden">
-                                <div className={`h-full ${color} rounded-full`} style={{ width: `${sector.pct}%` }} />
-                              </div>
+                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-6">
+                      <div className="flex items-center gap-2 mb-6">
+                        <div className="w-1 h-4 bg-green-500 rounded-full" />
+                        <span className="text-xs font-semibold tracking-widest uppercase text-gray-400">
+                          Business Sectors
+                        </span>
+                      </div>
+                      <div className="space-y-3 pt-1">
+                        {overviewMetrics.sectors.map((sector) => (
+                          <div key={sector.name} className="flex items-center gap-3 mb-3">
+                            <span className="text-xs text-gray-400 w-24 shrink-0 truncate">
+                              {sector.name}
+                            </span>
+                            <div className="flex-1 bg-white/5 rounded-full h-1.5 overflow-hidden">
+                              <div
+                                className="h-full rounded-full transition-all duration-700"
+                                style={{
+                                  width: `${sector.pct}%`,
+                                  background: `linear-gradient(90deg, #22c55e, #16a34a)`
+                                }}
+                              />
                             </div>
-                          );
-                        })}
+                            <span className="text-xs font-semibold text-white w-8 text-right">
+                              {sector.pct}%
+                            </span>
+                          </div>
+                        ))}
                       </div>
                     </div>
                   )}
 
                   {/* SECTION 4 — Impact Story */}
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3.5">
-                    <div className="bg-bg-surface border border-border rounded-lg p-4.5 flex flex-col justify-between">
-                      <div>
-                        <div className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider mb-2">Business Growth</div>
-                        <div className="text-2xl font-bold tracking-tight text-green">
-                          {overviewMetrics.businessGrowthPct !== null ? `${overviewMetrics.businessGrowthPct}%` : 'No data'}
-                        </div>
+                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-5">
+                      <div className="text-xs text-gray-500 uppercase tracking-wider mb-3">Business Growth</div>
+                      <div className="text-3xl font-bold text-green-400">
+                        {overviewMetrics.businessGrowthPct !== null ? `${overviewMetrics.businessGrowthPct}%` : 'N/A'}
                       </div>
-                      <div className="text-[10px] text-text-tertiary mt-1.5">Reported improvement</div>
+                      <div className="text-xs text-gray-600 mt-1">Reported improvement</div>
                     </div>
-                    <div className="bg-bg-surface border border-border rounded-lg p-4.5 flex flex-col justify-between">
-                      <div>
-                        <div className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider mb-2">Total Employees</div>
-                        <div className="text-2xl font-bold tracking-tight text-text-primary">{overviewMetrics.totalEmployees.toLocaleString()}</div>
+                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-5">
+                      <div className="text-xs text-gray-500 uppercase tracking-wider mb-3">Total Employees</div>
+                      <div className="text-3xl font-bold text-white">
+                        {overviewMetrics.totalEmployees.toLocaleString()}
                       </div>
-                      <div className="text-[10px] text-text-tertiary mt-1.5">Across all vendors</div>
+                      <div className="text-xs text-gray-600 mt-1">Across all vendors</div>
                     </div>
-                    <div className="bg-bg-surface border border-border rounded-lg p-4.5 flex flex-col justify-between">
-                      <div>
-                        <div className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider mb-2">Top Benefit</div>
-                        <div className="text-sm font-bold tracking-tight text-text-primary">{overviewMetrics.topBenefit}</div>
+                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-5">
+                      <div className="text-xs text-gray-500 uppercase tracking-wider mb-3">Top Benefit</div>
+                      <div className="text-xl font-bold text-white truncate">
+                        {overviewMetrics.topBenefit}
                       </div>
-                      <div className="text-[10px] text-text-tertiary mt-1.5">Most cited</div>
+                      <div className="text-xs text-gray-600 mt-1">Most cited</div>
                     </div>
-                    <div className="bg-bg-surface border border-border rounded-lg p-4.5 flex flex-col justify-between">
-                      <div>
-                        <div className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider mb-2">Top Challenge</div>
-                        <div className="text-sm font-bold tracking-tight text-text-primary">{overviewMetrics.topChallenge}</div>
+                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-5">
+                      <div className="text-xs text-gray-500 uppercase tracking-wider mb-3">Top Challenge</div>
+                      <div className="text-xl font-bold text-white truncate">
+                        {overviewMetrics.topChallenge}
                       </div>
-                      <div className="text-[10px] text-text-tertiary mt-1.5">Most cited</div>
+                      <div className="text-xs text-gray-600 mt-1">Most cited</div>
                     </div>
-                    <div className="bg-bg-surface border border-border rounded-lg p-4.5 flex flex-col justify-between">
-                      <div>
-                        <div className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider mb-2">Digital Presence</div>
-                        <div className="text-2xl font-bold tracking-tight text-blue">
-                          {overviewMetrics.digitalPresencePct !== null ? `${overviewMetrics.digitalPresencePct}%` : 'No data'}
-                        </div>
+                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-5">
+                      <div className="text-xs text-gray-500 uppercase tracking-wider mb-3">Digital Presence</div>
+                      <div className="text-3xl font-bold text-blue-400">
+                        {overviewMetrics.digitalPresencePct !== null ? `${overviewMetrics.digitalPresencePct}%` : 'N/A'}
                       </div>
-                      <div className="text-[10px] text-text-tertiary mt-1.5">Have active social media</div>
+                      <div className="text-xs text-gray-600 mt-1">Active social media</div>
                     </div>
-                    <div className="bg-bg-surface border border-border rounded-lg p-4.5 flex flex-col justify-between">
-                      <div>
-                        <div className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider mb-2">Online Sales</div>
-                        <div className="text-2xl font-bold tracking-tight text-amber">
-                          {overviewMetrics.onlineSalesPct !== null ? `${overviewMetrics.onlineSalesPct}%` : 'No data'}
-                        </div>
+                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-5">
+                      <div className="text-xs text-gray-500 uppercase tracking-wider mb-3">Online Sales</div>
+                      <div className="text-3xl font-bold text-amber-400">
+                        {overviewMetrics.onlineSalesPct !== null ? `${overviewMetrics.onlineSalesPct}%` : 'N/A'}
                       </div>
-                      <div className="text-[10px] text-text-tertiary mt-1.5">Sell online / planning to</div>
+                      <div className="text-xs text-gray-600 mt-1">Online sales active</div>
                     </div>
                   </div>
                 </>
