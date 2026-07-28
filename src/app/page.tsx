@@ -3126,23 +3126,26 @@ export default function Home() {
           {/* 4. QUICK ENTRY PANEL */}
           {activeNav === 'quick-entry' && (
             <div className="space-y-5 animate-fade-in text-left max-w-2xl mx-auto">
-              <div>
-                <h1 className="text-xl font-bold tracking-tight text-text-primary">Quick Entry Panel</h1>
-                <p className="text-xs text-text-secondary mt-0.5">Admin-side data entry forms for fast registration workflows.</p>
+              <div className="flex items-center gap-2">
+                <div className="w-1.5 h-5 bg-green-500 rounded-full" />
+                <div>
+                  <h1 className="text-xl font-bold tracking-tight text-white">Quick Entry Panel</h1>
+                  <p className="text-xs text-gray-400 mt-0.5">Admin-side data entry forms for fast registration workflows.</p>
+                </div>
               </div>
 
               {/* Active Workspace summary */}
-              <div className="bg-bg-surface border border-border rounded-lg p-4 flex items-center justify-between select-none">
+              <div className="bg-[#0f1117] border border-white/5 rounded-xl p-4 flex items-center justify-between select-none">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-green-soft/10 text-green flex items-center justify-center font-bold">
-                    <Map className="w-4.5 h-4.5" />
+                  <div className="w-8 h-8 rounded-lg bg-green-500/10 text-green-400 flex items-center justify-center font-bold">
+                    <Map className="w-4 h-4" />
                   </div>
                   <div>
-                    <label className="text-[9px] font-bold text-text-tertiary uppercase tracking-wider block">Active Workspace</label>
-                    <span className="text-xs font-bold text-text-primary flex items-center gap-1.5 mt-0.5">
+                    <label className="text-[9px] font-semibold text-gray-400 uppercase tracking-widest block">Active Workspace</label>
+                    <span className="text-xs font-bold text-white flex items-center gap-1.5 mt-0.5">
                       {activeRegion ? activeRegion.name : 'No Region'} 
-                      <span className="text-text-tertiary font-normal">/</span> 
-                      <span className="text-green">{activeEdition ? activeEdition.name : 'No Edition'}</span>
+                      <span className="text-gray-500 font-normal">/</span> 
+                      <span className="text-green-400">{activeEdition ? activeEdition.name : 'No Edition'}</span>
                     </span>
                   </div>
                 </div>
@@ -3184,19 +3187,19 @@ export default function Home() {
               />
 
               {/* Live Session Activity Feed */}
-              <div className="bg-bg-surface border border-border rounded-lg overflow-hidden mt-6 animate-fade-in select-none">
-                <div className="p-4 bg-bg-elevated/40 border-b border-border flex items-center justify-between">
+              <div className="bg-[#0f1117] border border-white/5 rounded-xl overflow-hidden mt-6 animate-fade-in select-none">
+                <div className="p-4 bg-white/[0.02] border-b border-white/5 flex items-center justify-between">
                   <div className="flex items-center gap-2">
                     <span className="relative flex h-2 w-2">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-green"></span>
+                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                      <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
                     </span>
-                    <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider">Live Session Entries</h3>
+                    <h3 className="text-xs font-semibold text-gray-300 uppercase tracking-widest">Live Session Entries</h3>
                   </div>
                   {recentActivities.length > 0 && (
                     <button 
                       onClick={() => setRecentActivities([])}
-                      className="text-[10px] font-bold text-red hover:underline cursor-pointer transition-all"
+                      className="text-[10px] font-semibold text-red-400 hover:underline cursor-pointer transition-all"
                     >
                       Clear Log
                     </button>
@@ -3205,24 +3208,24 @@ export default function Home() {
                 
                 <div className="p-4 max-h-[380px] overflow-y-auto space-y-2.5">
                   {recentActivities.length === 0 ? (
-                    <div className="text-center py-8 border border-dashed border-border rounded-md bg-bg-surface/10">
-                      <p className="text-xs text-text-secondary">No entries recorded this session yet.</p>
-                      <p className="text-[10px] text-text-tertiary mt-1">Newly submitted registrations will appear here in real-time.</p>
+                    <div className="text-center py-8 border border-dashed border-white/10 rounded-lg bg-white/[0.01]">
+                      <p className="text-xs text-gray-400">No entries recorded this session yet.</p>
+                      <p className="text-[10px] text-gray-500 mt-1">Newly submitted registrations will appear here in real-time.</p>
                     </div>
                   ) : (
                     recentActivities.map((activity) => {
                       const getIcon = () => {
                         switch (activity.type) {
-                          case 'paid': return <Users className="w-4 h-4 text-green" />;
-                          case 'collection': return <Database className="w-4 h-4 text-blue" />;
-                          case 'walkin': return <Footprints className="w-4 h-4 text-purple" />;
+                          case 'paid': return <Users className="w-4 h-4 text-green-400" />;
+                          case 'collection': return <Database className="w-4 h-4 text-blue-400" />;
+                          case 'walkin': return <Footprints className="w-4 h-4 text-purple-400" />;
                         }
                       };
                       const getBadgeColor = () => {
                         switch (activity.type) {
-                          case 'paid': return 'bg-green-muted text-green border-green/20';
-                          case 'collection': return 'bg-blue-muted text-blue border-blue/20';
-                          case 'walkin': return 'bg-purple-muted text-purple border-purple/20';
+                          case 'paid': return 'bg-green-500/10 text-green-400 border-green-500/20';
+                          case 'collection': return 'bg-blue-500/10 text-blue-400 border-blue-500/20';
+                          case 'walkin': return 'bg-purple-500/10 text-purple-400 border-purple-500/20';
                         }
                       };
                       const getLabel = () => {
@@ -3236,32 +3239,32 @@ export default function Home() {
                       return (
                         <div 
                           key={activity.id} 
-                          className="flex items-center justify-between p-3 rounded-lg border border-border-light bg-bg-elevated/40 hover:bg-bg-elevated/70 transition-all duration-200"
+                          className="flex items-center justify-between p-3.5 rounded-lg border border-white/5 bg-white/[0.02] hover:bg-white/[0.04] transition-all"
                         >
                           <div className="flex items-center gap-3">
-                            <div className="p-2 rounded-md bg-bg-surface border border-border-light flex items-center justify-center">
+                            <div className="p-2 rounded-lg bg-[#161922] border border-white/10 flex items-center justify-center">
                               {getIcon()}
                             </div>
                             <div className="space-y-0.5">
                               <div className="flex items-center gap-2">
-                                <span className="font-semibold text-text-primary text-xs">{activity.name}</span>
-                                <span className={`text-[9px] font-bold uppercase tracking-wider px-1.5 py-0.5 rounded border ${getBadgeColor()}`}>
+                                <span className="font-semibold text-white text-xs">{activity.name}</span>
+                                <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${getBadgeColor()}`}>
                                   {getLabel()}
                                 </span>
                               </div>
-                              <div className="text-[10px] text-text-secondary flex items-center gap-1.5">
+                              <div className="text-[10px] text-gray-400 flex items-center gap-1.5">
                                 <span>{activity.detail}</span>
                                 {activity.phone && (
                                   <>
-                                    <span className="text-text-tertiary">•</span>
-                                    <span>{activity.phone}</span>
+                                    <span className="text-gray-600">•</span>
+                                    <span className="font-mono">{activity.phone}</span>
                                   </>
                                 )}
                               </div>
                             </div>
                           </div>
                           <div className="text-right">
-                            <span className="text-[10px] font-mono font-medium text-text-tertiary">{activity.timestamp}</span>
+                            <span className="text-[10px] font-mono font-medium text-gray-500">{activity.timestamp}</span>
                           </div>
                         </div>
                       );
@@ -3272,30 +3275,31 @@ export default function Home() {
             </div>
           )}
 
-
-
           {/* IMPORT/EXPORT PANEL */}
           {activeNav === 'import-export' && (
             <div className="space-y-6 animate-fade-in text-left">
               <div className="flex justify-between items-center flex-wrap gap-4">
-                <div>
-                  <h1 className="text-xl font-bold tracking-tight text-text-primary">Data Import & Export Pipeline</h1>
-                  <p className="text-xs text-text-secondary mt-0.5">Upload external CSV records or extract compiled event data sheets.</p>
+                <div className="flex items-center gap-2">
+                  <div className="w-1.5 h-5 bg-green-500 rounded-full" />
+                  <div>
+                    <h1 className="text-xl font-bold tracking-tight text-white">Data Import & Export Pipeline</h1>
+                    <p className="text-xs text-gray-400 mt-0.5">Upload external CSV records or extract compiled event data sheets.</p>
+                  </div>
                 </div>
               </div>
 
               {/* Active Workspace summary */}
-              <div className="bg-bg-surface border border-border rounded-lg p-4 flex items-center justify-between select-none max-w-xl">
+              <div className="bg-[#0f1117] border border-white/5 rounded-xl p-4 flex items-center justify-between select-none max-w-xl">
                 <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-green-soft/10 text-green flex items-center justify-center font-bold">
-                    <Map className="w-4.5 h-4.5" />
+                  <div className="w-8 h-8 rounded-lg bg-green-500/10 text-green-400 flex items-center justify-center font-bold">
+                    <Map className="w-4 h-4" />
                   </div>
                   <div>
-                    <label className="text-[9px] font-bold text-text-tertiary uppercase tracking-wider block">Active Workspace</label>
-                    <span className="text-xs font-bold text-text-primary flex items-center gap-1.5 mt-0.5">
+                    <label className="text-[9px] font-semibold text-gray-400 uppercase tracking-widest block">Active Workspace</label>
+                    <span className="text-xs font-bold text-white flex items-center gap-1.5 mt-0.5">
                       {activeRegion ? activeRegion.name : 'No Region'} 
-                      <span className="text-text-tertiary font-normal">/</span> 
-                      <span className="text-green">{activeEdition ? activeEdition.name : 'No Edition'}</span>
+                      <span className="text-gray-500 font-normal">/</span> 
+                      <span className="text-green-400">{activeEdition ? activeEdition.name : 'No Edition'}</span>
                     </span>
                   </div>
                 </div>
@@ -3323,59 +3327,59 @@ export default function Home() {
               {/* Upload Cards Grid */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5 select-none">
                 {/* Card 1: Kobo data */}
-                <div className="bg-bg-surface border border-border rounded-xl p-5 flex flex-col justify-between relative overflow-hidden">
+                <div className="bg-[#0f1117] border border-white/5 rounded-xl p-6 flex flex-col justify-between relative overflow-hidden">
                   {!activeEdition && (
-                    <div className="absolute inset-0 bg-bg-surface/85 backdrop-blur-xs flex items-center justify-center p-4 text-center z-10">
-                      <span className="text-xs text-text-secondary font-semibold">Select active edition to upload</span>
+                    <div className="absolute inset-0 bg-[#0f1117]/85 backdrop-blur-xs flex items-center justify-center p-4 text-center z-10">
+                      <span className="text-xs text-gray-400 font-semibold">Select active edition to upload</span>
                     </div>
                   )}
                   <div className="space-y-3">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-10 h-10 rounded-full bg-blue-muted text-blue flex items-center justify-center">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center">
                         <Database className="w-5 h-5 animate-pulse" />
                       </div>
-                      <h3 className="font-bold text-sm text-text-primary">Upload Collected Data (Kobo / CSV)</h3>
+                      <h3 className="font-bold text-sm text-white">Upload Collected Data (Kobo / CSV)</h3>
                     </div>
-                    <p className="text-xs text-text-secondary leading-relaxed">
+                    <p className="text-xs text-gray-400 leading-relaxed">
                       Historical demographics survey or direct Kobo export sheets from past market activities.
                     </p>
-                    <p className="text-[10px] text-text-tertiary italic leading-relaxed">
+                    <p className="text-[10px] text-gray-500 italic leading-relaxed">
                       Note: CSV must be exported from the standard Quonnect KoboCollect form. Older form exports may have missing fields.
                     </p>
-                    <div className="inline-block bg-bg-elevated border border-border-light rounded px-2.5 py-1 text-[10px] text-text-secondary font-mono">
+                    <div className="inline-block bg-white/5 border border-white/10 rounded-md px-3 py-1.5 text-[10px] text-gray-300 font-mono">
                       name · phone · business_name · category · employees
                     </div>
                   </div>
                   <div className="pt-5">
-                    <Button variant="primary" fullWidth onClick={() => fileInputRef1.current?.click()} disabled={isImporting}>
+                    <Button variant="primary" fullWidth onClick={() => fileInputRef1.current?.click()} disabled={isImporting} className="bg-green-500 hover:bg-green-600 text-black font-semibold">
                       <span>{isImporting ? "Importing..." : "Upload CSV"}</span>
                     </Button>
                   </div>
                 </div>
 
                 {/* Card 2: Walk-in records */}
-                <div className="bg-bg-surface border border-border rounded-xl p-5 flex flex-col justify-between relative overflow-hidden">
+                <div className="bg-[#0f1117] border border-white/5 rounded-xl p-6 flex flex-col justify-between relative overflow-hidden">
                   {!activeEdition && (
-                    <div className="absolute inset-0 bg-bg-surface/85 backdrop-blur-xs flex items-center justify-center p-4 text-center z-10">
-                      <span className="text-xs text-text-secondary font-semibold">Select active edition to upload</span>
+                    <div className="absolute inset-0 bg-[#0f1117]/85 backdrop-blur-xs flex items-center justify-center p-4 text-center z-10">
+                      <span className="text-xs text-gray-400 font-semibold">Select active edition to upload</span>
                     </div>
                   )}
                   <div className="space-y-3">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-10 h-10 rounded-full bg-amber-muted text-amber flex items-center justify-center">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center">
                         <Footprints className="w-5 h-5 animate-pulse" />
                       </div>
-                      <h3 className="font-bold text-sm text-text-primary">Upload Walk-in Records</h3>
+                      <h3 className="font-bold text-sm text-white">Upload Walk-in Records</h3>
                     </div>
-                    <p className="text-xs text-text-secondary leading-relaxed">
+                    <p className="text-xs text-gray-400 leading-relaxed">
                       Visitor log sheets compiled manually or through gate-keeping forms outside the network range.
                     </p>
-                    <div className="inline-block bg-bg-elevated border border-border-light rounded px-2.5 py-1 text-[10px] text-text-secondary font-mono">
+                    <div className="inline-block bg-white/5 border border-white/10 rounded-md px-3 py-1.5 text-[10px] text-gray-300 font-mono">
                       Full Name · Phone Number · Email · Business Type · Age
                     </div>
                   </div>
                   <div className="pt-5">
-                    <Button variant="primary" fullWidth onClick={() => fileInputRef2.current?.click()}>
+                    <Button variant="primary" fullWidth onClick={() => fileInputRef2.current?.click()} className="bg-green-500 hover:bg-green-600 text-black font-semibold">
                       <span>Upload CSV</span>
                     </Button>
                   </div>
@@ -3383,45 +3387,45 @@ export default function Home() {
               </div>
 
               {/* Clear Edition Data Section */}
-              <div className="bg-bg-surface border border-red/20 rounded-xl p-5 select-none flex flex-col md:flex-row items-center justify-between gap-4">
+              <div className="bg-[#0f1117] border border-red-500/20 rounded-xl p-6 select-none flex flex-col md:flex-row items-center justify-between gap-4">
                 <div className="space-y-1 text-left flex-1">
-                  <h3 className="font-bold text-sm text-red">Clear responses for active edition</h3>
-                  <p className="text-xs text-text-secondary leading-normal max-w-xl">
-                    Delete existing survey responses and imported vendor records associated with <span className="font-bold text-text-primary">{activeEdition ? activeEdition.name : 'the selected edition'}</span>. This lets you re-import clean CSV files without duplicates.
+                  <h3 className="font-bold text-sm text-red-400">Clear responses for active edition</h3>
+                  <p className="text-xs text-gray-400 leading-normal max-w-xl">
+                    Delete existing survey responses and imported vendor records associated with <span className="font-bold text-white">{activeEdition ? activeEdition.name : 'the selected edition'}</span>. This lets you re-import clean CSV files without duplicates.
                   </p>
                 </div>
                 <div className="shrink-0">
-                  <Button variant="danger" onClick={handleClearEditionData} disabled={!activeEdition}>
+                  <Button variant="danger" onClick={handleClearEditionData} disabled={!activeEdition} className="bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20">
                     <span>Clear & Reset Data</span>
                   </Button>
                 </div>
               </div>
 
               {/* Export Sheets Panel */}
-              <div className="bg-bg-surface border border-border rounded-xl p-5 select-none space-y-4">
+              <div className="bg-[#0f1117] border border-white/5 rounded-xl p-6 select-none space-y-4">
                 <div>
-                  <h3 className="font-bold text-sm text-text-primary">Export Active Region Data Sheets</h3>
-                  <p className="text-xs text-text-secondary mt-0.5">
-                    Download complete data spreadsheets filtered for active region: <span className="font-bold text-green">{activeRegion ? activeRegion.name : 'No active region'}</span>.
+                  <h3 className="font-bold text-sm text-white">Export Active Region Data Sheets</h3>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    Download complete data spreadsheets filtered for active region: <span className="font-bold text-green-400">{activeRegion ? activeRegion.name : 'No active region'}</span>.
                   </p>
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-                  <Button variant="secondary" onClick={handleExportVendors} disabled={!activeRegion}>
+                  <Button variant="secondary" onClick={handleExportVendors} disabled={!activeRegion} className="bg-white/5 border border-white/10 text-white hover:bg-white/10">
                     <span>Export Vendors CSV</span>
                   </Button>
-                  <Button variant="secondary" onClick={handleExportWalkins} disabled={!activeRegion}>
+                  <Button variant="secondary" onClick={handleExportWalkins} disabled={!activeRegion} className="bg-white/5 border border-white/10 text-white hover:bg-white/10">
                     <span>Export Walk-ins CSV</span>
                   </Button>
-                  <Button variant="secondary" onClick={handleExportResponses} disabled={!activeRegion}>
+                  <Button variant="secondary" onClick={handleExportResponses} disabled={!activeRegion} className="bg-white/5 border border-white/10 text-white hover:bg-white/10">
                     <span>Export Survey Responses CSV</span>
                   </Button>
                 </div>
               </div>
 
               {/* Recent Uploads Table */}
-              <div className="bg-bg-surface border border-border rounded-lg p-5 select-none">
-                <div className="font-bold text-xs text-text-primary mb-3">Recent Uploads Log</div>
-                <div className="text-xs text-text-secondary py-2">
+              <div className="bg-[#0f1117] border border-white/5 rounded-xl p-6 select-none">
+                <div className="font-bold text-xs text-white mb-3">Recent Uploads Log</div>
+                <div className="text-xs text-gray-400 py-2">
                   No recent spreadsheet uploads logged for the selected edition/region.
                 </div>
               </div>

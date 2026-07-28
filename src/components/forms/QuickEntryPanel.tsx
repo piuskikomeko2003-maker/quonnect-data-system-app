@@ -127,14 +127,14 @@ export const QuickEntryPanel: React.FC<QuickEntryPanelProps> = ({
   };
 
   return (
-    <div className="bg-bg-surface border border-border rounded-lg overflow-hidden transition-all duration-300 select-none">
+    <div className="bg-[#0f1117] border border-white/5 rounded-xl overflow-hidden transition-all duration-300 select-none">
       <div 
         onClick={onToggleCollapse}
-        className="p-4 bg-bg-elevated/40 border-b border-border flex items-center justify-between cursor-pointer hover:bg-bg-elevated/60"
+        className="p-4 bg-white/[0.02] border-b border-white/5 flex items-center justify-between cursor-pointer hover:bg-white/[0.04]"
       >
         <div className="flex items-center gap-2">
-          <Zap className="w-4.5 h-4.5 text-green animate-pulse" />
-          <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider">Quick Entry Panel</h3>
+          <Zap className="w-4 h-4 text-green-400 animate-pulse" />
+          <h3 className="text-xs font-semibold tracking-widest text-gray-300 uppercase">Quick Entry Panel</h3>
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -145,27 +145,27 @@ export const QuickEntryPanel: React.FC<QuickEntryPanelProps> = ({
               onGenerateLink();
             }}
             disabled={disabled}
-            className="text-[10px]"
+            className="text-[10px] bg-white/5 border border-white/10 text-white hover:bg-white/10"
           >
             <Link className="w-3.5 h-3.5" />
             <span>Generate Link</span>
           </Button>
-          <button className="text-text-secondary hover:text-text-primary cursor-pointer">
+          <button className="text-gray-400 hover:text-white cursor-pointer p-1">
             {isOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </button>
         </div>
       </div>
 
       <div className={`transition-all duration-300 overflow-hidden ${isOpen ? 'max-h-[1200px] border-t-0' : 'max-h-0 pointer-events-none'}`}>
-        <div className="flex border-b border-border p-1 bg-bg-elevated/10">
+        <div className="flex border-b border-white/5 p-1.5 bg-white/[0.02] gap-1">
           {(['paid', 'collection', 'walkin'] as QuickEntryTab[]).map((tab) => (
             <button
               key={tab}
               onClick={() => !disabled && onTabChange(tab)}
-              className={`flex-1 py-2 text-xs font-semibold rounded-md transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+              className={`flex-1 py-2.5 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-2 cursor-pointer ${
                 activeTab === tab
-                  ? 'bg-bg-surface text-green border border-border-light shadow-card font-bold'
-                  : 'text-text-secondary hover:text-text-primary'
+                  ? 'bg-white/10 text-green-400 border border-white/10 font-bold shadow-sm'
+                  : 'text-gray-400 hover:text-white'
               } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
               disabled={disabled}
             >
@@ -175,13 +175,13 @@ export const QuickEntryPanel: React.FC<QuickEntryPanelProps> = ({
           ))}
         </div>
 
-        <div className="p-5 bg-bg-surface/30 relative min-h-[250px] max-h-[70vh] overflow-y-auto">
+        <div className="p-5 bg-transparent relative min-h-[250px] max-h-[70vh] overflow-y-auto">
           {disabled && (
-            <div className="absolute inset-0 bg-bg-surface/80 backdrop-blur-[2px] z-50 flex items-center justify-center select-none p-6">
-              <div className="bg-bg border border-border rounded-xl p-6 text-center max-w-[280px] shadow-lg animate-fade-in">
-                <ChevronDown className="w-8 h-8 text-amber mx-auto mb-3 animate-pulse rotate-180" />
-                <h4 className="text-sm font-bold text-text-primary mb-1.5">Quick Entry Locked</h4>
-                <p className="text-[11px] text-text-secondary leading-relaxed">
+            <div className="absolute inset-0 bg-[#0f1117]/85 backdrop-blur-[2px] z-50 flex items-center justify-center select-none p-6">
+              <div className="bg-[#161922] border border-white/10 rounded-xl p-6 text-center max-w-[280px] shadow-2xl animate-fade-in">
+                <ChevronDown className="w-8 h-8 text-amber-400 mx-auto mb-3 animate-pulse rotate-180" />
+                <h4 className="text-sm font-bold text-white mb-1.5">Quick Entry Locked</h4>
+                <p className="text-[11px] text-gray-400 leading-relaxed">
                   Select an active event edition from the header/sidebar to start quick entry.
                 </p>
               </div>
