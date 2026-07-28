@@ -85,6 +85,9 @@ const HEADER_MAP: Record<string, string> = {
   // ── DEMOGRAPHICS ──────────────────────────────────────
   'gender': 'gender',
   'sex': 'gender',
+  'gender?': 'gender',
+  'what is your gender?': 'gender',
+  'what is your gender': 'gender',
 
   'age': 'age',
 
@@ -263,12 +266,36 @@ const shouldSkipColumn = (header: string): boolean => {
 
 // ---- Normalization ----
 
-const cleanKey = (key: string) => key
-  .replace(/^["'\s]+|["'\s]+$/g, '')
+const cleanKey = (key: string): string => key
+  .replace(/^["'\u201C\u201D\s]+|["'\u201C\u201D\s]+$/g, '')
   .replace(/\s+/g, ' ')
-  .replace(/\n|\r/g, ' ')
+  .replace(/[\n\r]/g, ' ')
   .trim()
   .toLowerCase();
+
+const normalizeAnswer = (csvColumn: string, value: string): string => {
+  const v = value.trim();
+  
+  if (csvColumn === 'gender') {
+    const lower = v.toLowerCase();
+    if (['female', 'f', 'woman', 'w'].includes(lower)) return 'Female';
+    if (['male', 'm', 'man'].includes(lower)) return 'Male';
+    return v;
+  }
+
+  if (csvColumn === 'attended_last_quonnect' || 
+      csvColumn === 'first_time_at_quonnect' ||
+      csvColumn === 'paid_employees' ||
+      csvColumn === 'active_social_media' ||
+      csvColumn === 'hires_casual_helpers') {
+    const lower = v.toLowerCase();
+    if (['yes', 'true', '1', 'y'].includes(lower)) return 'Yes';
+    if (['no', 'false', '0', 'n'].includes(lower)) return 'No';
+    return v;
+  }
+
+  return v;
+};
 
 const SKIPPED_HEADERS = new Set([
   'start', 'end', '_id', '_uuid', 'submission_time',
@@ -372,7 +399,15 @@ export const importCSV = async (
     onProgress?.(i + 1, rows.length);
 
     try {
-      const normalized = normalizeCSVRow(raw);
+      const clean = normalizeCSVRow(raw);
+      const genderKeys = ['gender', 'sex', '"gender"', "'gender'"];
+      const foundGender = genderKeys.find(k => clean[k]);
+      console.log(
+        `Row ${i+1} gender:`,
+        foundGender ? `found as '${foundGender}' = '${clean[foundGender]}'` : 'NOT FOUND',
+        '| normalized:', normalizeAnswer('gender', clean['gender'] || '')
+      );
+      const normalized = clean;
 
       if (!normalized.full_name && !normalized.business_name) {
         console.warn(`Row ${i + 1}: skipping — no name or business`);
@@ -444,7 +479,7 @@ export const importCSV = async (
         answers.push({
           response_id: response.id,
           question_id: questionId,
-          answer: String(value).trim(),
+          answer: normalizeAnswer(csvColumn, String(value)),
         });
       });
 

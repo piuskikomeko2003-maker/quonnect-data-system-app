@@ -9,13 +9,30 @@ const supabase = createClient(
 const [name, id, csvPath] = process.argv.slice(2);
 if (!name || !id || !csvPath) { console.error('Usage: node import-one.mjs <name> <id> <csvPath>'); process.exit(1); }
 
-const cleanKey = (k) => k.replace(/^["'\s]+|["'\s]+$/g, '').replace(/\s+/g, ' ').replace(/\n|\r/g, ' ').trim().toLowerCase();
+const cleanKey = (k) => k.replace(/^["'\u201C\u201D\s]+|["'\u201C\u201D\s]+$/g, '').replace(/\s+/g, ' ').replace(/[\n\r]/g, ' ').trim().toLowerCase();
+
+const normalizeAnswer = (csvColumn, value) => {
+  const v = String(value ?? '').trim();
+  if (csvColumn === 'gender') {
+    const lower = v.toLowerCase();
+    if (['female', 'f', 'woman', 'w'].includes(lower)) return 'Female';
+    if (['male', 'm', 'man'].includes(lower)) return 'Male';
+    return v;
+  }
+  if (['attended_last_quonnect', 'first_time_at_quonnect', 'paid_employees', 'active_social_media', 'hires_casual_helpers'].includes(csvColumn)) {
+    const lower = v.toLowerCase();
+    if (['yes', 'true', '1', 'y'].includes(lower)) return 'Yes';
+    if (['no', 'false', '0', 'n'].includes(lower)) return 'No';
+    return v;
+  }
+  return v;
+};
 
 const HM = {
   'full_name':'full_name','full name':'full_name','name of respondant':'full_name','name of respondent':'full_name','contact name':'full_name',
   'business_name':'business_name','business name':'business_name','name of business':'business_name',
   'phone_number':'phone_number','phone number':'phone_number','phone':'phone_number','contact':'phone_number',
-  'email':'email','email address':'email','gender':'gender','sex':'gender','age':'age',
+  'email':'email','email address':'email','gender':'gender','sex':'gender','gender?':'gender','what is your gender?':'gender','what is your gender':'gender','age':'age',
   'business_category':'business_category','business category':'business_category','business type':'business_category','type of business':'business_category','sector':'business_category',
   'how_long_in_business':'how_long_in_business','how long in business':'how_long_in_business','how long have you been in this business':'how_long_in_business','how long have you been in business':'how_long_in_business','years in business':'how_long_in_business',
   'primary_income_source':'primary_source_of_income','primary source of income?':'primary_source_of_income','primary source of income':'primary_source_of_income','is this business your primary source of income?':'primary_source_of_income','is this your main source of income':'primary_source_of_income','primary_source_of_income':'primary_source_of_income',
@@ -103,7 +120,7 @@ async function main() {
       if(re){bad++;if(bad<=3)console.error(`Row${i+1} response:`,re.message);continue;}
 
       const ans=[];
-      for(const h of Object.keys(raw)){const ck=cleanKey(h),cc=HM[ck];if(!cc)continue;const qi=QM[cc];if(!qi)continue;const val=raw[h];if(!val)continue;ans.push({response_id:rr.id,question_id:qi,answer:String(val).trim()});}
+      for(const h of Object.keys(raw)){const ck=cleanKey(h),cc=HM[ck];if(!cc)continue;const qi=QM[cc];if(!qi)continue;const val=raw[h];if(!val)continue;ans.push({response_id:rr.id,question_id:qi,answer:normalizeAnswer(cc, val)});}
       for(let j=0;j<ans.length;j+=50)await supabase.from('survey_answers').upsert(ans.slice(j,j+50),{onConflict:'response_id,question_id',ignoreDuplicates:true});
       ok++;
       if(ok%50===0)process.stdout.write(`${ok} `);
