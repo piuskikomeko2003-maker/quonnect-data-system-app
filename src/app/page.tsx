@@ -7,7 +7,7 @@ import { useRegion } from '@/context/RegionContext';
 import { AdminShell } from '@/components/layout/AdminShell';
 import { importCSV } from '@/utils/csvImport';
 import { resolveGender, isGenderColumn, isGenderValue } from '@/utils/gender';
-import { isFirstTimer, isReturning, getAttendanceCount, attendedLastEdition, attendedRegion, isFirstTimerColumn } from '@/utils/retention';
+import { isFirstTimer, isReturning, getAttendanceCount, attendedLastEdition, attendedRegion, isFirstTimerColumn, isAttendedLastColumn } from '@/utils/retention';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 export interface Market {
@@ -345,21 +345,41 @@ export default function Home() {
         const allFlat = surveyAnswers.flatMap((sr: any) => sr.survey_answers || []);
 
         const genderAnswers = allFlat.filter((a: any) => isGenderColumn(a.survey_questions?.csv_column));
-        genderFemale = genderAnswers.filter((a: any) => a.answer === 'Female').length;
-        genderMale = genderAnswers.filter((a: any) => a.answer === 'Male').length;
+        // Use normalizeGender for case-insensitive matching — handles 'Male', 'MALE', 'male', 'M', etc.
+        genderFemale = genderAnswers.filter((a: any) => isGenderValue(a.answer, 'Female')).length;
+        genderMale = genderAnswers.filter((a: any) => isGenderValue(a.answer, 'Male')).length;
 
         const ageAnswers = allFlat.filter((a: any) => a.survey_questions?.csv_column === 'age');
         const validAges = ageAnswers.map((a: any) => parseInt(a.answer)).filter((n: number) => !isNaN(n) && n > 0 && n < 100);
         avgVendorAge = validAges.length > 0 ? Math.round(validAges.reduce((s: number, n: number) => s + n, 0) / validAges.length) : 0;
 
-        const ftAnswers = allFlat.filter((a: any) => isFirstTimerColumn(a.survey_questions?.csv_column));
+        // New vs Returning: uses BOTH first_time_at_quonnect AND attended_last_quonnect signals.
+        // Vendor is a first-timer if: first_time_at_quonnect = 'Yes'
+        // Vendor is returning if: first_time_at_quonnect = 'No' OR attended_last_quonnect = 'Yes'
+        // Iterate by survey_response (row) so we build a complete per-vendor answerMap.
+        const retentionAnswersBySr: Map<string, Record<string, string>> = new globalThis.Map();
+        surveyAnswers.forEach((sr: any) => {
+          const srId = sr.id;
+          if (!srId) return;
+          const amForSr: Record<string, string> = {};
+          (sr.survey_answers || []).forEach((a: any) => {
+            const col = a.survey_questions?.csv_column;
+            if (col && (isFirstTimerColumn(col) || isAttendedLastColumn(col))) {
+              amForSr[col] = a.answer;
+            }
+          });
+          if (Object.keys(amForSr).length > 0) {
+            retentionAnswersBySr.set(srId, amForSr);
+          }
+        });
+
         firstTimerCount = 0;
         returningCount = 0;
-        for (const a of ftAnswers) {
-          const answerMap = { [a.survey_questions?.csv_column || '']: a.answer };
+        for (const answerMap of retentionAnswersBySr.values()) {
           if (isFirstTimer(answerMap) === true) firstTimerCount++;
           else if (isReturning(answerMap) === true) returningCount++;
         }
+
 
         allFlat.filter((a: any) => a.survey_questions?.csv_column === 'business_category').forEach((a: any) => {
           if (a.answer) categoryCounts[a.answer] = (categoryCounts[a.answer] || 0) + 1;
@@ -480,7 +500,10 @@ export default function Home() {
           });
 
           const allGrowth = await Promise.all(growthPromises);
-          editionGrowth = allGrowth.filter(e => e.surveyCount > 0 || e.walkinCount > 0 || e.paidCount > 0);
+          // W5 FIX: Include all editions including those with 0 data so newly created
+          // editions appear in the chart immediately (as 0 bars) rather than being
+          // invisible until the first import.
+          editionGrowth = allGrowth;
         }
       }
 
@@ -505,7 +528,19 @@ export default function Home() {
           answers.forEach((a: any) => {
             if (a.survey_questions?.csv_column) answerMap[a.survey_questions.csv_column] = a.answer;
           });
-          return attendedLastEdition(answerMap) === true && attendedRegion(activeRegion?.name || '', answerMap);
+
+          // Retention rule (from REGION_SCOPE.md and user spec):
+          // A vendor is retained if they are confirmed to have attended a PREVIOUS edition.
+          // We check:
+          //   1. attended_last_quonnect = 'Yes'  (explicit answer about last edition)
+          //   2. isReturning() = true             (catches first_time_at_quonnect = 'No' AND
+          //                                        times_attended >= 2 as additional signals)
+          //
+          // We do NOT require attendedRegion() match — all data in this edition already belongs
+          // to this region (edition is scoped to the active region). Requiring the vendor to
+          // ALSO select the region name in a separate field was double-filtering that caused
+          // retention to always read 0% when regions_attended wasn't filled.
+          return attendedLastEdition(answerMap) === true || isReturning(answerMap) === true;
         }).length;
 
         retentionPct = retentionTotal > 0 ? Math.round((retentionCount / retentionTotal) * 100) : null;
@@ -953,22 +988,40 @@ export default function Home() {
   };
 
   const fetchMarketDays = async () => {
+    // F4 FIX: Filter by activeRegion.id so Quick Entry only shows editions
+    // from the active region. Previously returned ALL market_days globally,
+    // which meant Quick Entry could write to any region's edition.
     try {
       const supabase = createClient();
       if (!supabase) return;
+
+      if (!activeRegion?.id) {
+        setEditions([]);
+        setQuickEntryEdition('');
+        return;
+      }
+
       const { data, error } = await supabase
         .from('market_days')
-        .select('id, name, status');
+        .select('id, name, edition, status, event_date')
+        .eq('region_id', activeRegion.id)
+        .order('event_date', { ascending: false });
 
       if (error) throw error;
 
       if (data) {
         const mappedEditions = data.map((md: any) => ({
           id: md.id,
-          name: md.name
+          name: md.edition || md.name || 'Untitled Edition',
         }));
         setEditions(mappedEditions);
-        if (mappedEditions.length > 0) {
+        // Prefer the activeEdition if set, otherwise default to the most recent
+        const preferred = activeEdition?.id
+          ? mappedEditions.find((e: any) => e.id === activeEdition.id)
+          : null;
+        if (preferred) {
+          setQuickEntryEdition(preferred.id);
+        } else if (mappedEditions.length > 0) {
           setQuickEntryEdition(mappedEditions[0].id);
         }
       }
@@ -1105,6 +1158,9 @@ export default function Home() {
             (payload) => {
               console.log('Realtime update: survey_responses table', payload);
               fetchSurveyResponses();
+              // W6 FIX: Also refresh Overview charts so gender, age, sectors, growth %
+              // update in real-time after Quick Entry or CSV import — not just the count chips.
+              fetchOverviewMetrics();
             }
           )
           .subscribe();
@@ -1706,31 +1762,16 @@ export default function Home() {
     }
   };
 
+  // F1 FIX: This function was dead code — it inserted without is_active, used
+  // alert() instead of toast, and never refreshed or switched to the new region.
+  // The "Create Market" section in the JSX now uses <MarketConfigurationPanel />
+  // which handles the full region/edition creation flow correctly.
+  // Stubbed here to avoid removing potentially wired references.
   const handleCreateMarket = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newMarketName.trim()) return;
-    try {
-      const supabase = createClient();
-      if (!supabase) throw new Error("Supabase client is not initialized.");
-      
-      const { error } = await supabase
-        .from('regions')
-        .insert({
-          name: newMarketName.trim(),
-          slug: newMarketName.trim().toLowerCase().replace(/\s+/g, '-')
-        });
-        
-      if (error) throw error;
-      
-      setNewMarketName('');
-      setNewMarketCity('');
-      setNewMarketVendors('');
-      alert('Market created successfully!');
-    } catch (err: any) {
-      console.error("Error creating market:", err);
-      alert("Error creating market: " + (err.message || err));
-    }
+    addToast('Use the Create Market panel to create regions and editions.', 'error');
   };
+
 
   const handleCreateEdition = async (e: React.FormEvent) => {
     e.preventDefault();

@@ -56,7 +56,7 @@ interface Toast {
 }
 
 export const MarketConfigurationPanel: React.FC = () => {
-  const { activeRegion } = useRegion();
+  const { activeRegion, setActiveEdition, refreshRegions } = useRegion();
   const [regions, setRegions] = useState<Region[]>([]);
   const [loading, setLoading] = useState(true);
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -462,11 +462,23 @@ export const MarketConfigurationPanel: React.FC = () => {
         throw error;
       }
 
-      addToast(`Edition "${newEditionName}" created successfully!`, "success");
+      // F3 FIX: Auto-select the new edition in the global context so the header,
+      // import panel, quick entry, and all data fetches immediately use it.
+      // Previously the user had to manually switch editions after creation.
+      setActiveEdition({
+        id: data.id,
+        name: data.edition || data.name || newEditionName.trim(),
+        date: data.event_date || newEditionDate,
+        venue: data.notes || newEditionVenue.trim(),
+        is_active: data.status === 'upcoming' || data.status === 'active',
+      });
+
+      addToast(`Edition "${newEditionName}" created and activated!`, "success");
       setNewEditionName('');
       setNewEditionDate('');
       setNewEditionVenue('');
       setNewEditionIsActive(true);
+      await refreshRegions();
       fetchRegionsData();
     } catch (err: any) {
       console.error("Error creating edition:", err?.message, err?.code, err?.details, JSON.stringify(err));

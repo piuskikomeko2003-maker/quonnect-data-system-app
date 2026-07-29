@@ -83,11 +83,23 @@ const HEADER_MAP: Record<string, string> = {
   'email address': 'email',
 
   // ── DEMOGRAPHICS ──────────────────────────────────────
+  // Gender — covers all common CSV header styles:
+  // - KoboToolbox short field name: "gender"
+  // - Google Forms text: "What is your gender?"
+  // - KoboToolbox long label with underscores (after underscore→space): "what is your gender"
+  // - Short variants: "sex", "g"
   'gender': 'gender',
-  'sex': 'gender',
   'gender?': 'gender',
-  'what is your gender?': 'gender',
+  'sex': 'gender',
+  'g': 'gender',
   'what is your gender': 'gender',
+  'what is your gender?': 'gender',
+  'gender of respondent': 'gender',
+  'respondent gender': 'gender',
+  'sex of respondent': 'gender',
+  'please indicate your gender': 'gender',
+  'your gender': 'gender',
+  'male female other': 'gender',
 
   'age': 'age',
 
@@ -123,30 +135,70 @@ const HEADER_MAP: Record<string, string> = {
   'how does your business operate?': 'business_operates_as',
   'what is the primary operational model of your business?': 'business_operates_as',
 
-  // ── QUONNECT HISTORY ──────────────────────────────────
+  // Quonnect attendance history — broadest possible coverage
+  // KoboToolbox exports use snake_case field names; Google Forms uses full labels.
+  // cleanKey normalises underscores→spaces so all snake_case variants reach here
+  // as their space-delimited equivalent.
   'first_time_attendee': 'first_time_at_quonnect',
-  'first time at quonnect market day?': 'first_time_at_quonnect',
   'first time at quonnect market day': 'first_time_at_quonnect',
+  'first time at quonnect market day?': 'first_time_at_quonnect',
+  'is this your first time at quonnect market day': 'first_time_at_quonnect',
   'is this your first time at quonnect market day?': 'first_time_at_quonnect',
   'ls this your first time participating in quonnect': 'first_time_at_quonnect',
   'is this your first time participating in quonnect': 'first_time_at_quonnect',
+  'first time at quonnect': 'first_time_at_quonnect',
+  'is this your first time': 'first_time_at_quonnect',
+  'first quonnect': 'first_time_at_quonnect',
   'first_time_at_quonnect': 'first_time_at_quonnect',
 
-  'times_attended': 'times_attended',
-  'times attended?': 'times_attended',
+  // times_attended — how many editions
   'times attended': 'times_attended',
+  'times attended?': 'times_attended',
+  'how many times have you attended quonnect': 'times_attended',
   'how many times have you attended quonnect?': 'times_attended',
+  'how many times attended': 'times_attended',
+  'how often do you showcase your business with us': 'times_attended',
   'how often do you showcase your business with us?': 'times_attended',
   'approximately how many times have you participated': 'times_attended',
+  'number of times attended': 'times_attended',
+  'times you have attended quonnect': 'times_attended',
+  'times_attended': 'times_attended',
+  'how many times have you attended': 'times_attended',
+  'no of times attended': 'times_attended',
+  'attendance count': 'times_attended',
 
-  'attended_last_quonnect': 'attended_last_quonnect',
-  'attended last quonnect?': 'attended_last_quonnect',
+  // attended_last_quonnect — critical for retention
   'attended last quonnect': 'attended_last_quonnect',
+  'attended last quonnect?': 'attended_last_quonnect',
+  'attended last edition': 'attended_last_quonnect',
+  'did you attend the last quonnect market day': 'attended_last_quonnect',
   'did you attend the last quonnect market day?': 'attended_last_quonnect',
+  'did you attend the previous quonnect': 'attended_last_quonnect',
+  'did you attend the previous quonnect?': 'attended_last_quonnect',
+  'did you attend the last edition': 'attended_last_quonnect',
+  'did you attend the previous edition': 'attended_last_quonnect',
+  'did you attend last quonnect': 'attended_last_quonnect',
+  'did you participate in the last quonnect': 'attended_last_quonnect',
+  'attended previous quonnect': 'attended_last_quonnect',
+  'attended previous edition': 'attended_last_quonnect',
+  'attended_last_quonnect': 'attended_last_quonnect',
+  'previous quonnect attendance': 'attended_last_quonnect',
+  'were you at the last quonnect': 'attended_last_quonnect',
 
-  'regions_attended': 'regions_attended',
+  // regions_attended — critical for retention
   'regions attended': 'regions_attended',
+  'regions attended?': 'regions_attended',
+  'which regions have you attended': 'regions_attended',
   'which regions have you attended?': 'regions_attended',
+  'which quonnect regions have you attended': 'regions_attended',
+  'which quonnect regions have you attended?': 'regions_attended',
+  'quonnect regions attended': 'regions_attended',
+  'which region': 'regions_attended',
+  'region attended': 'regions_attended',
+  'regions_attended': 'regions_attended',
+  'which regions': 'regions_attended',
+  'regions you have attended': 'regions_attended',
+  'which locations have you attended': 'regions_attended',
 
   // ── EMPLOYMENT ────────────────────────────────────────
   'has_paid_employees': 'paid_employees',
@@ -231,10 +283,18 @@ const HEADER_MAP: Record<string, string> = {
   'how did you hear about quonnect': 'how_did_you_know',
   'how_did_you_know': 'how_did_you_know',
 
-  'would_recommend_quonnect': 'would_recommend',
+  // would_recommend — critical for feedback
+  'would recommend': 'would_recommend',
+  'would recommend quonnect': 'would_recommend',
+  'would you recommend quonnect': 'would_recommend',
   'would you recommend quonnect?': 'would_recommend',
+  'would you recommend quonnect to others': 'would_recommend',
   'would you recommend quonnect to others?': 'would_recommend',
+  'recommend quonnect': 'would_recommend',
+  'recommend to others': 'would_recommend',
+  'would_recommend_quonnect': 'would_recommend',
   'would_recommend': 'would_recommend',
+  'nps': 'would_recommend',
 
   'main_challenges_summary': 'main_challenges',
   'what are your main business challenges? (select all that apply)': 'main_challenges',
@@ -266,31 +326,52 @@ const shouldSkipColumn = (header: string): boolean => {
 
 // ---- Normalization ----
 
+/**
+ * Normalises a raw CSV header key to a canonical lookup form.
+ * Strategy applied in order:
+ *  1. Strip surrounding quotes and smart-quotes
+ *  2. Collapse multi-whitespace to single space
+ *  3. Replace underscores with spaces (KoboToolbox exports field labels with _)
+ *  4. Trim and lowercase
+ *
+ * KoboToolbox exports column headers as either:
+ *   a) Short field name: "attended_last_quonnect"  → "attended last quonnect"  ✓ in HEADER_MAP
+ *   b) Full label with _: "Did_you_attend_the_last_Quonnect_Market_Day_"  → "did you attend the last quonnect market day" ✓
+ */
 const cleanKey = (key: string): string => key
-  .replace(/^["'\u201C\u201D\s]+|["'\u201C\u201D\s]+$/g, '')
-  .replace(/\s+/g, ' ')
-  .replace(/[\n\r]/g, ' ')
+  .replace(/^["'\u201C\u201D\s]+|["'\u201C\u201D\s]+$/g, '') // strip surrounding quotes/spaces
+  .replace(/[\n\r]/g, ' ')                                   // newlines → space
+  .replace(/_/g, ' ')                                        // underscores → space (KoboToolbox)
+  .replace(/\s+/g, ' ')                                      // collapse multi-space
   .trim()
   .toLowerCase();
 
 const normalizeAnswer = (csvColumn: string, value: string): string => {
   const v = value.trim();
-  
+
   if (csvColumn === 'gender') {
+    // Normalize to canonical 'Female' / 'Male' / 'Other'.
+    // Handles: f, F, female, FEMALE, woman, Woman, m, M, male, MALE, man, Man, o, other
+    // Also handles values already stored from Quick Entry (passed through without normalisation)
     const lower = v.toLowerCase();
-    if (['female', 'f', 'woman', 'w'].includes(lower)) return 'Female';
+    if (['female', 'f', 'woman', 'w', 'fem'].includes(lower)) return 'Female';
     if (['male', 'm', 'man'].includes(lower)) return 'Male';
-    return v;
+    if (['other', 'o', 'non-binary', 'nonbinary', 'prefer not to say', 'pnts'].includes(lower)) return 'Other';
+    return v; // leave untouched if not recognized — resolveGender handles case-insensitive lookup
   }
 
-  if (csvColumn === 'attended_last_quonnect' || 
-      csvColumn === 'first_time_at_quonnect' ||
-      csvColumn === 'paid_employees' ||
-      csvColumn === 'active_social_media' ||
-      csvColumn === 'hires_casual_helpers') {
+  if (
+    csvColumn === 'attended_last_quonnect' ||
+    csvColumn === 'first_time_at_quonnect' ||
+    csvColumn === 'paid_employees' ||
+    csvColumn === 'active_social_media' ||
+    csvColumn === 'online_sales' ||
+    csvColumn === 'hired_new_employees' ||
+    csvColumn === 'hires_casual_helpers'
+  ) {
     const lower = v.toLowerCase();
-    if (['yes', 'true', '1', 'y'].includes(lower)) return 'Yes';
-    if (['no', 'false', '0', 'n'].includes(lower)) return 'No';
+    if (['yes', 'true', '1', 'y', 'yeah', 'yep', 'definitely'].includes(lower)) return 'Yes';
+    if (['no', 'false', '0', 'n', 'nope', 'never'].includes(lower)) return 'No';
     return v;
   }
 
@@ -399,70 +480,129 @@ export const importCSV = async (
     onProgress?.(i + 1, rows.length);
 
     try {
-      const clean = normalizeCSVRow(raw);
-      const genderKeys = ['gender', 'sex', '"gender"', "'gender'"];
-      const foundGender = genderKeys.find(k => clean[k]);
-      console.log(
-        `Row ${i+1} gender:`,
-        foundGender ? `found as '${foundGender}' = '${clean[foundGender]}'` : 'NOT FOUND',
-        '| normalized:', normalizeAnswer('gender', clean['gender'] || '')
-      );
-      const normalized = clean;
+      const normalized = normalizeCSVRow(raw);
 
       if (!normalized.full_name && !normalized.business_name) {
         console.warn(`Row ${i + 1}: skipping — no name or business`);
         continue;
       }
 
-      // Upsert vendor
-      const { data: vendorResult, error: vendorError } = await supabase
-        .from('vendors')
-        .upsert(
-          {
-            contact_name: normalized.full_name || '',
-            business_name: normalized.business_name || '',
-            phone: normalized.phone_number || '',
-            email: normalized.email || '',
-            category: normalized.business_category || '',
-            is_active: true,
-          },
-          { onConflict: 'phone', ignoreDuplicates: false }
-        )
-        .select('id')
-        .single();
+      // ── H1 FIX: Guard empty phone ──────────────────────────────────────────
+      // If phone is blank, use INSERT (no conflict key available).
+      // If phone is present, use UPSERT on phone to merge existing vendor records.
+      // Rationale: upsert on phone='' causes the second blank-phone vendor to
+      // silently overwrite the first one's name/business/email — data corruption.
+      const vendorPayload = {
+        contact_name: normalized.full_name || '',
+        business_name: normalized.business_name || '',
+        phone: normalized.phone_number?.trim() || '',
+        email: normalized.email || '',
+        category: normalized.business_category || '',
+        is_active: true,
+      };
 
-      if (vendorError) {
+      let vendorResult: { id: string } | null = null;
+      let vendorError: any = null;
+
+      if (!normalized.phone_number?.trim()) {
+        // No phone — plain INSERT, each row is a distinct vendor record
+        const { data, error } = await supabase
+          .from('vendors')
+          .insert(vendorPayload)
+          .select('id')
+          .single();
+        vendorResult = data;
+        vendorError = error;
+      } else {
+        // Phone present — UPSERT to merge/update existing vendor by phone
+        const { data, error } = await supabase
+          .from('vendors')
+          .upsert(vendorPayload, { onConflict: 'phone', ignoreDuplicates: false })
+          .select('id')
+          .single();
+        vendorResult = data;
+        vendorError = error;
+      }
+
+      if (vendorError || !vendorResult) {
         results.failed++;
         results.errors.push(
-          `Row ${i + 1}: vendor error — ${vendorError.message}`
+          `Row ${i + 1}: vendor error — ${vendorError?.message || 'no data returned'}`
         );
         continue;
       }
 
-      // Insert survey_response
-      const { data: response, error: responseError } = await supabase
+      // ── H2 FIX: Deduplicate survey_responses without requiring a DB constraint ──
+      // Strategy: check if a response already exists for this vendor + edition.
+      // If yes → reuse the existing response row (answers will upsert on top).
+      // If no  → insert a fresh response row.
+      // This prevents re-importing the same CSV from inflating chart metrics 2×,
+      // and works WITHOUT requiring a UNIQUE constraint on (vendor_id, context_id).
+      let responseId: string | null = null;
+
+      const { data: existingResponse } = await supabase
         .from('survey_responses')
-        .insert({
-          form_id: formId,
-          context_type: 'market_day',
-          context_id: activeEdition.id,
-          vendor_id: vendorResult.id,
-          source: 'csv_import',
-          import_batch: file.name,
-        })
         .select('id')
-        .single();
+        .eq('vendor_id', vendorResult.id)
+        .eq('context_id', activeEdition.id)
+        .maybeSingle();
 
-      if (responseError) {
+      if (existingResponse?.id) {
+        // Response already exists — reuse it (idempotent re-import)
+        responseId = existingResponse.id;
+      } else {
+        // No existing response — insert a new one
+        const { data: newResponse, error: responseError } = await supabase
+          .from('survey_responses')
+          .insert({
+            form_id: formId,
+            context_type: 'market_day',
+            context_id: activeEdition.id,
+            vendor_id: vendorResult.id,
+            source: 'csv_import',
+            import_batch: file.name,
+          })
+          .select('id')
+          .single();
+
+        if (responseError || !newResponse) {
+          results.failed++;
+          results.errors.push(
+            `Row ${i + 1}: response error — ${responseError?.message || 'no response returned'}`
+          );
+          continue;
+        }
+        responseId = newResponse.id;
+      }
+
+      if (!responseId) {
         results.failed++;
-        results.errors.push(
-          `Row ${i + 1}: response error — ${responseError.message}`
-        );
+        results.errors.push(`Row ${i + 1}: could not obtain a response ID`);
         continue;
       }
+
 
       // Build answers — iterate raw row headers via HEADER_MAP
       const answers: { response_id: string; question_id: string; answer: string }[] = [];
+
+      // Diagnostic: log the full header mapping for the first row only
+      if (i === 0) {
+        console.log('=== IMPORT DIAGNOSTIC (Row 1) ===');
+        console.log('Raw headers:', Object.keys(raw));
+        console.log('questionMap csv_columns:', Object.keys(questionMap));
+        Object.keys(raw).forEach((header) => {
+          const cleaned = cleanKey(header);
+          const csvCol = HEADER_MAP[cleaned];
+          const qId = csvCol ? questionMap[csvCol] : undefined;
+          const val = raw[header];
+          const skipped = shouldSkipColumn(header);
+          if (!skipped && csvCol) {
+            console.log(`  ✅ "${header}" → cleanKey="${cleaned}" → csv="${csvCol}" → qId=${qId ? 'YES' : 'MISSING'} → val="${String(val).substring(0, 30)}"`);
+          } else if (!skipped && !csvCol) {
+            console.log(`  ❌ "${header}" → cleanKey="${cleaned}" → NO MATCH in HEADER_MAP`);
+          }
+        });
+      }
 
       Object.keys(raw).forEach((header) => {
         if (shouldSkipColumn(header)) return;
@@ -477,7 +617,7 @@ export const importCSV = async (
         if (value === undefined || value === null || value === '') return;
 
         answers.push({
-          response_id: response.id,
+          response_id: responseId,
           question_id: questionId,
           answer: normalizeAnswer(csvColumn, String(value)),
         });
@@ -490,7 +630,7 @@ export const importCSV = async (
           .from('survey_answers')
           .upsert(chunk, {
             onConflict: 'response_id,question_id',
-            ignoreDuplicates: true,
+            ignoreDuplicates: false, // Update existing answers on re-import (e.g., corrected gender values)
           });
 
         if (answerError) {
