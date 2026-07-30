@@ -10,7 +10,9 @@ import {
   Loader2,
   Sparkles,
   AlertCircle,
-  ExternalLink
+  ExternalLink,
+  WifiOff,
+  CloudOff,
 } from 'lucide-react';
 
 interface FormQuestion {
@@ -43,11 +45,18 @@ interface SectionLogic {
   target_section_id: string;
 }
 
+export interface FormDataCache {
+  questions: FormQuestion[];
+  sections: { id: string; name: string; sort_order: number }[];
+  questionRules: QuestionLogic[];
+  sectionRules: SectionLogic[];
+}
+
 export interface DynamicQuickEntryFormProps {
   formSlug: string;
   activeEdition: { id: string; name: string } | null;
-  onSubmit: (answers: Record<string, string>) => Promise<void>;
-  onPhoneLookup?: (phone: string) => Promise<Record<string, string> | null>;
+  onSubmit: (answers: Record<string, string>) => Promise<{ synced: boolean; message?: string; name?: string }>;
+  onPhoneLookup?: (phone: string) => Promise<{ data: Record<string, string>; autofilledFields: string[] } | null>;
   successState: {
     show: boolean;
     name?: string;
@@ -59,6 +68,8 @@ export interface DynamicQuickEntryFormProps {
   formSubtitle?: string;
   countLabel: string;
   lookupEnabled?: boolean;
+  cachedData?: FormDataCache;
+  onFormDataCached?: (data: FormDataCache) => void;
 }
 
 export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
@@ -73,18 +84,24 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
   formSubtitle,
   countLabel,
   lookupEnabled = false,
+  cachedData,
+  onFormDataCached,
 }) => {
-  const [questions, setQuestions] = useState<FormQuestion[]>([]);
+  const [questions, setQuestions] = useState<FormQuestion[]>(cachedData?.questions || []);
   const [sectionQuestions, setSectionQuestions] = useState<Record<string, FormQuestion[]>>({});
-  const [sections, setSections] = useState<{ id: string; name: string; sort_order: number }[]>([]);
-  const [questionRules, setQuestionRules] = useState<QuestionLogic[]>([]);
-  const [sectionRules, setSectionRules] = useState<SectionLogic[]>([]);
+  const [sections, setSections] = useState<{ id: string; name: string; sort_order: number }[]>(cachedData?.sections || []);
+  const [questionRules, setQuestionRules] = useState<QuestionLogic[]>(cachedData?.questionRules || []);
+  const [sectionRules, setSectionRules] = useState<SectionLogic[]>(cachedData?.sectionRules || []);
   const [answers, setAnswers] = useState<Record<string, string>>({});
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(!cachedData);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [lookupStatus, setLookupStatus] = useState<'idle' | 'searching' | 'returning' | 'new'>('idle');
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
+  const [touchedFields, setTouchedFields] = useState<Set<string>>(new Set());
+  const [autofilledFields, setAutofilledFields] = useState<Set<string>>(new Set());
+  const [syncFeedback, setSyncFeedback] = useState<{ message: string; type: 'success' | 'info' | 'error' } | null>(null);
+  const [offlineSave, setOfflineSave] = useState<{ show: boolean; name?: string }>({ show: false });
 
   const fetchFormData = useCallback(async () => {
     setLoading(true);
@@ -131,11 +148,12 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
           secMap.set(q.section_id, {
             id: q.section_id,
             name: sec.name,
-            sort_order: sec.sort_order
+            sort_order: sec.sort_order,
           });
         }
       });
-      setSections(Array.from(secMap.values()).sort((a, b) => a.sort_order - b.sort_order));
+      const secs = Array.from(secMap.values()).sort((a, b) => a.sort_order - b.sort_order);
+      setSections(secs);
 
       const secQuestionsMap: Record<string, FormQuestion[]> = {};
       qs.forEach(q => {
@@ -145,29 +163,73 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
       });
       setSectionQuestions(secQuestionsMap);
 
+      let fetchedQL: QuestionLogic[] = [];
+      let fetchedSL: SectionLogic[] = [];
       if (qs.length > 0) {
         const qIds = qs.map(q => q.id);
         const [{ data: qlData }, { data: slData }] = await Promise.all([
           supabase.from('question_logic').select('*').in('source_question_id', qIds),
-          supabase.from('section_logic').select('*').in('source_question_id', qIds)
+          supabase.from('section_logic').select('*').in('source_question_id', qIds),
         ]);
-        setQuestionRules(qlData || []);
-        setSectionRules(slData || []);
+        fetchedQL = qlData || [];
+        fetchedSL = slData || [];
+        setQuestionRules(fetchedQL);
+        setSectionRules(fetchedSL);
+      }
+
+      if (onFormDataCached) {
+        onFormDataCached({
+          questions: qs,
+          sections: secs,
+          questionRules: fetchedQL,
+          sectionRules: fetchedSL,
+        });
       }
     } catch (err: unknown) {
-      console.error('Error loading form:', err);
-      setLoadError(err instanceof Error ? err.message : 'Failed to load form');
+      const isNetworkError =
+        err instanceof TypeError ||
+        (err instanceof Error &&
+          (err.message.includes('fetch') ||
+            err.message.includes('network') ||
+            err.message.includes('Failed to fetch')));
+      if (isNetworkError && cachedData && questions.length > 0) {
+        setLoadError(null);
+      } else {
+        console.error('Error loading form:', err);
+        setLoadError(err instanceof Error ? err.message : 'Failed to load form');
+      }
     } finally {
       setLoading(false);
     }
-  }, [formSlug]);
+  }, [formSlug, onFormDataCached, cachedData, questions.length]);
+
+  useEffect(() => {
+    if (cachedData && cachedData.questions.length > 0) {
+      setQuestions(cachedData.questions);
+      setSections(cachedData.sections);
+      setQuestionRules(cachedData.questionRules);
+      setSectionRules(cachedData.sectionRules);
+      setLoading(false);
+      setLoadError(null);
+
+      const secQuestionsMap: Record<string, FormQuestion[]> = {};
+      cachedData.questions.forEach(q => {
+        const secId = q.section_id || '__none__';
+        if (!secQuestionsMap[secId]) secQuestionsMap[secId] = [];
+        secQuestionsMap[secId].push(q);
+      });
+      setSectionQuestions(secQuestionsMap);
+    }
+  }, [cachedData]);
 
   useEffect(() => {
     fetchFormData();
   }, [fetchFormData]);
 
   const checkRuleCondition = useCallback((sourceQId: string, operator: string, compVal: string): boolean => {
-    const answerVal = answers[sourceQId] || '';
+    const sourceQuestion = questions.find(q => q.id === sourceQId);
+    if (!sourceQuestion) return false;
+    const answerVal = answers[sourceQuestion.csv_column] || '';
     const cleanAns = answerVal.toString().toLowerCase().trim();
     const cleanComp = compVal.toString().toLowerCase().trim();
 
@@ -183,7 +245,7 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
       case 'is_blank': return answerVal === '';
       default: return false;
     }
-  }, [answers]);
+  }, [answers, questions]);
 
   const isSectionVisible = useCallback((sectionId: string): boolean => {
     const rules = sectionRules.filter(r => r.target_section_id === sectionId);
@@ -224,6 +286,16 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
   const handleAnswerChange = (csvColumn: string, value: string) => {
     setAnswers(prev => ({ ...prev, [csvColumn]: value }));
     setValidationErrors([]);
+    setTouchedFields(prev => {
+      const next = new Set(prev);
+      next.add(csvColumn);
+      return next;
+    });
+    setAutofilledFields(prev => {
+      const next = new Set(prev);
+      next.delete(csvColumn);
+      return next;
+    });
 
     if ((csvColumn === 'phone' || csvColumn === 'phone_number') && lookupEnabled && onPhoneLookup) {
       const digits = value.replace(/\D/g, '');
@@ -232,7 +304,8 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
         onPhoneLookup(digits).then(result => {
           if (result) {
             setLookupStatus('returning');
-            setAnswers(prev => ({ ...prev, ...result }));
+            setAnswers(prev => ({ ...prev, ...result.data }));
+            setAutofilledFields(new Set(result.autofilledFields));
           } else {
             setLookupStatus('new');
           }
@@ -258,6 +331,14 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
     setValidationErrors([]);
   };
 
+  const handleFieldBlur = (csvColumn: string) => {
+    setTouchedFields(prev => {
+      const next = new Set(prev);
+      next.add(csvColumn);
+      return next;
+    });
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!activeEdition) return;
@@ -275,10 +356,41 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
     }
 
     setSubmitting(true);
+    setSyncFeedback(null);
     try {
-      await onSubmit(answers);
+      const result = await onSubmit(answers);
+      if (!result.synced) {
+        const name = result.name ||
+          answers.contact_name || answers.full_name || answers.name || '';
+        setAnswers({});
+        setValidationErrors([]);
+        setTouchedFields(new Set());
+        setLookupStatus('idle');
+        setSyncFeedback(null);
+        setOfflineSave({ show: true, name: name || 'New Entry' });
+      }
     } catch (err: unknown) {
-      console.error('Submit error:', err);
+      const isNetworkError =
+        err instanceof TypeError ||
+        (err instanceof Error &&
+          (err.message.includes('fetch') ||
+            err.message.includes('network') ||
+            err.message.includes('Failed to fetch')));
+      if (isNetworkError) {
+        const name = answers.contact_name || answers.full_name || answers.name || '';
+        setAnswers({});
+        setValidationErrors([]);
+        setTouchedFields(new Set());
+        setLookupStatus('idle');
+        setSyncFeedback(null);
+        setOfflineSave({ show: true, name: name || 'New Entry' });
+      } else {
+        setSyncFeedback({
+          message: err instanceof Error ? err.message : 'Submission error',
+          type: 'error',
+        });
+        console.error('Submit error:', err);
+      }
     } finally {
       setSubmitting(false);
     }
@@ -288,8 +400,44 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
     setAnswers({});
     setValidationErrors([]);
     setLookupStatus('idle');
+    setSyncFeedback(null);
+    setOfflineSave({ show: false });
+    setTouchedFields(new Set());
+    setAutofilledFields(new Set());
     successState.onAddAnother();
   };
+
+  const resetOfflineForm = () => {
+    setAnswers({});
+    setValidationErrors([]);
+    setLookupStatus('idle');
+    setSyncFeedback(null);
+    setOfflineSave({ show: false });
+    setTouchedFields(new Set());
+    setAutofilledFields(new Set());
+    (window as unknown as { _offlineCountIncrement?: () => void })._offlineCountIncrement?.();
+  };
+
+  if (offlineSave.show) {
+    return (
+      <div className="bg-bg-surface border border-border rounded-lg p-8 text-center flex flex-col items-center justify-center min-h-[380px] select-none text-left">
+        <div className="w-16 h-16 bg-amber/10 text-amber rounded-full flex items-center justify-center mb-5">
+          <CloudOff className="w-8 h-8" />
+        </div>
+        <h3 className="text-base font-bold text-text-primary mb-1">Saved Offline</h3>
+        <p className="text-xs text-text-secondary mb-2 max-w-[280px]">
+          Recorded <span className="text-amber font-bold">{offlineSave.name || 'New Entry'}</span> locally.
+        </p>
+        <p className="text-[10px] text-amber bg-amber/10 border border-amber/20 rounded px-3 py-1.5 mb-6 max-w-[280px]">
+          Pending sync — will upload automatically when back online
+        </p>
+        <Button variant="primary" onClick={resetOfflineForm} className="w-full">
+          <Plus className="w-4 h-4 text-black" />
+          <span>Add Another Entry</span>
+        </Button>
+      </div>
+    );
+  }
 
   if (successState.show) {
     return (
@@ -507,6 +655,32 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
           </div>
         )}
 
+        {syncFeedback && (
+          <div
+            className={`rounded-md p-3.5 flex items-start gap-2.5 animate-fade-in select-none ${
+              syncFeedback.type === 'info'
+                ? 'bg-amber/10 border border-amber/20 text-amber'
+                : syncFeedback.type === 'error'
+                  ? 'bg-red-soft/10 border border-red/20 text-red'
+                  : 'bg-green-soft border border-green/20 text-green'
+            }`}
+          >
+            {syncFeedback.type === 'info' ? (
+              <WifiOff className="w-4 h-4 shrink-0 mt-0.5" />
+            ) : syncFeedback.type === 'error' ? (
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+            ) : (
+              <Check className="w-4 h-4 shrink-0 mt-0.5" />
+            )}
+            <div className="text-[11px] leading-tight text-left">
+              <strong className="block font-bold">
+                {syncFeedback.type === 'info' ? 'Offline Mode' : syncFeedback.type === 'error' ? 'Error' : 'Synced'}
+              </strong>
+              <span className="text-text-secondary font-medium">{syncFeedback.message}</span>
+            </div>
+          </div>
+        )}
+
         {validationErrors.length > 0 && (
           <div className="bg-red-soft/10 border border-red/20 rounded-md p-3 animate-fade-in">
             {validationErrors.map((err, i) => (
@@ -520,13 +694,20 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
 
         {sections.length === 0 ? (
           <div className="space-y-4">
-            {questions.filter(q => isQuestionVisible(q)).map(q => (
-              <QuestionField
-                key={q.id}
-                question={q}
-                renderField={renderQuestionField}
-              />
-            ))}
+            {questions
+              .filter(q => isQuestionVisible(q))
+              .sort((a, b) => a.sort_order - b.sort_order)
+              .map(q => (
+                <QuestionField
+                  key={q.id}
+                  question={q}
+                  renderField={renderQuestionField}
+                  isTouched={touchedFields.has(q.csv_column)}
+                  hasError={!answers[q.csv_column]}
+                  isPrefilled={autofilledFields.has(q.csv_column)}
+                  onFieldBlur={() => handleFieldBlur(q.csv_column)}
+                />
+              ))}
           </div>
         ) : (
           sections.filter(s => isSectionVisible(s.id)).map(section => {
@@ -546,6 +727,10 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
                     key={q.id}
                     question={q}
                     renderField={renderQuestionField}
+                    isTouched={touchedFields.has(q.csv_column)}
+                    hasError={!answers[q.csv_column]}
+                    isPrefilled={autofilledFields.has(q.csv_column)}
+                    onFieldBlur={() => handleFieldBlur(q.csv_column)}
                   />
                 ))}
               </div>
@@ -560,6 +745,10 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
                 key={q.id}
                 question={q}
                 renderField={renderQuestionField}
+                isTouched={touchedFields.has(q.csv_column)}
+                hasError={!answers[q.csv_column]}
+                isPrefilled={autofilledFields.has(q.csv_column)}
+                onFieldBlur={() => handleFieldBlur(q.csv_column)}
               />
             ))}
           </div>
@@ -607,16 +796,33 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
 const QuestionField: React.FC<{
   question: FormQuestion;
   renderField: (q: FormQuestion) => React.ReactNode;
-}> = ({ question, renderField }) => {
+  isTouched?: boolean;
+  hasError?: boolean;
+  isPrefilled?: boolean;
+  onFieldBlur?: () => void;
+}> = ({ question, renderField, isTouched, hasError, isPrefilled, onFieldBlur }) => {
+  const showError = isTouched && hasError && question.is_required;
   return (
-    <div>
-      <label className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider flex items-center justify-between mb-1.5 select-none">
-        <span>{question.question_text}</span>
-        <span className="text-[9px] font-medium text-text-muted bg-bg-hover px-1.5 py-0.5 rounded uppercase">
+    <div onBlur={onFieldBlur}>
+      <label className={`text-[11px] font-semibold uppercase tracking-wider flex items-center justify-between mb-1.5 select-none ${showError ? 'text-red' : 'text-text-tertiary'}`}>
+        <span className="flex items-center gap-1.5">
+          {question.question_text}
+          {isPrefilled && (
+            <span className="text-[9px] font-medium text-amber bg-amber/10 px-1.5 py-0.5 rounded uppercase border border-amber/20">
+              Pre-filled
+            </span>
+          )}
+        </span>
+        <span className={`text-[9px] font-medium px-1.5 py-0.5 rounded uppercase ${showError ? 'text-red bg-red/10' : 'text-text-muted bg-bg-hover'}`}>
           {question.is_required ? 'Required' : 'Optional'}
         </span>
       </label>
-      {renderField(question)}
+      <div className={showError ? '[&_input]:border-red [&_select]:border-red [&_button]:border-red' : ''}>
+        {renderField(question)}
+      </div>
+      {showError && (
+        <p className="text-[10px] text-red mt-1">This field is required</p>
+      )}
     </div>
   );
 };

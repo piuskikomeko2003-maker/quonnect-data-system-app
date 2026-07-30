@@ -1584,12 +1584,28 @@ export default function Home() {
 
       if (vError) throw vError;
 
+      let vendorId: string;
       if (!vendorData || vendorData.length === 0) {
-        addToast("Paid registration not found. Please register this vendor using the Paid Vendor form first.", "error");
-        throw new Error("Vendor not found");
+        const businessName = answers.business_name || '';
+        const { data: newVendor, error: vErr } = await supabase
+          .from('vendors')
+          .insert({
+            business_name: businessName || contactName || 'Unknown Vendor',
+            contact_name: contactName,
+            phone,
+            email: answers.email || '',
+            category: answers.business_category || '',
+            is_active: true,
+          })
+          .select();
+        if (vErr || !newVendor || newVendor.length === 0) {
+          addToast('Failed to create vendor', 'error');
+          throw new Error('Vendor creation failed');
+        }
+        vendorId = newVendor[0].id;
+      } else {
+        vendorId = vendorData[0].id;
       }
-
-      const vendorId = vendorData[0].id;
 
       const { data: formData, error: fError } = await supabase
         .from('forms')
@@ -1642,6 +1658,21 @@ export default function Home() {
       if (answersToInsert.length > 0) {
         const { error: ansError } = await supabase.from('survey_answers').insert(answersToInsert);
         if (ansError) throw ansError;
+      }
+
+      // Auto-create walk-in record — surveyed vendor counts as present
+      const { error: walkErr } = await supabase.from('walkins').insert({
+        id: responseId,
+        market_day_id: activeEdition.id,
+        full_name: contactName,
+        phone,
+        email: answers.email || '',
+        business_type: answers.business_category || '',
+        age: answers.age ? parseInt(answers.age) : null,
+        recorded_at: new Date().toISOString(),
+      });
+      if (walkErr) {
+        console.error('Auto-walkin insert failed:', walkErr);
       }
 
       fetchSurveyResponses();

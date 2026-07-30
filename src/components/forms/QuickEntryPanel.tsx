@@ -86,8 +86,14 @@ export const QuickEntryPanel: React.FC<QuickEntryPanelProps> = ({
         return {
           formSlug: 'paid_vendor_registration',
           activeEdition,
-          onSubmit: onPaidSubmit,
-          onPhoneLookup: (phone) => onPhoneLookup(phone, 'paid_vendor_registration'),
+          onSubmit: async (answers) => {
+            await onPaidSubmit(answers);
+            return { synced: true };
+          },
+          onPhoneLookup: async (phone) => {
+            const result = await onPhoneLookup(phone, 'paid_vendor_registration');
+            return result ? { data: result, autofilledFields: Object.keys(result) } : null;
+          },
           successState: paidSuccessState,
           runningCount: paidCount,
           formIcon: TAB_FORMS.paid.icon,
@@ -100,8 +106,14 @@ export const QuickEntryPanel: React.FC<QuickEntryPanelProps> = ({
         return {
           formSlug: 'vendor_data_collection',
           activeEdition,
-          onSubmit: onCollectionSubmit,
-          onPhoneLookup: (phone) => onPhoneLookup(phone, 'vendor_data_collection'),
+          onSubmit: async (answers) => {
+            await onCollectionSubmit(answers);
+            return { synced: true };
+          },
+          onPhoneLookup: async (phone) => {
+            const result = await onPhoneLookup(phone, 'vendor_data_collection');
+            return result ? { data: result, autofilledFields: Object.keys(result) } : null;
+          },
           successState: collectionSuccessState,
           runningCount: collectionCount,
           formIcon: TAB_FORMS.collection.icon,
@@ -114,7 +126,10 @@ export const QuickEntryPanel: React.FC<QuickEntryPanelProps> = ({
         return {
           formSlug: 'walkin_registration',
           activeEdition,
-          onSubmit: onWalkinSubmit,
+          onSubmit: async (answers) => {
+            await onWalkinSubmit(answers);
+            return { synced: true };
+          },
           successState: walkinSuccessState,
           runningCount: walkinCount,
           formIcon: TAB_FORMS.walkin.icon,
