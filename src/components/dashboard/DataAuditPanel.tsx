@@ -450,7 +450,8 @@ export const DataAuditPanel: React.FC<DataAuditPanelProps> = ({ onRefresh }) => 
           </div>
 
           <div className="bg-bg-surface border border-border rounded-lg overflow-hidden select-none">
-            <table className="w-full text-left text-xs">
+            <div className="overflow-x-auto">
+            <table className="w-full text-left text-xs min-w-[500px]">
               <thead>
                 <tr className="border-b border-border bg-bg-elevated/40">
                   <th className="p-3 text-[10px] font-bold text-text-tertiary uppercase">Name</th>
@@ -489,6 +490,7 @@ export const DataAuditPanel: React.FC<DataAuditPanelProps> = ({ onRefresh }) => 
                 ))}
               </tbody>
             </table>
+            </div>
           </div>
         </div>
       )}

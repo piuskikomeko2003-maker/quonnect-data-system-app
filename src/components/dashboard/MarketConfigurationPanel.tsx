@@ -638,11 +638,11 @@ export const MarketConfigurationPanel: React.FC = () => {
 
       {/* STEPPER HEADER */}
       <div className="bg-[#0f1117] border border-white/5 rounded-xl p-4.5">
-        <div className="max-w-xl mx-auto flex items-center justify-between relative select-none">
+        <div className="max-w-xl mx-auto flex items-start justify-between relative select-none">
           {/* Connector Line */}
-          <div className="absolute top-1/2 left-0 right-0 h-0.5 bg-white/10 -translate-y-1/2 z-0" />
+          <div className="absolute top-[16px] left-0 right-0 h-0.5 bg-white/10 z-0" />
           <div 
-            className="absolute top-1/2 left-0 h-0.5 bg-green-500 -translate-y-1/2 transition-all duration-300 z-0" 
+            className="absolute top-[16px] left-0 h-0.5 bg-green-500 transition-all duration-300 z-0" 
             style={{ width: currentStep === 1 ? '0%' : currentStep === 2 ? '50%' : '100%' }}
           />
 

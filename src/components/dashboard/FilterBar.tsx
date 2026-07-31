@@ -70,7 +70,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
         <select
           value={filters.region}
           onChange={(e) => onFiltersChange({ region: e.target.value })}
-          className="bg-bg-elevated border border-border-light text-text-primary text-xs rounded-md px-3.5 py-2 cursor-pointer outline-none transition-colors focus:border-green appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%209l3%203%203-3%22%20stroke%3D%22%238b949e%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[right_10px_center] bg-no-repeat pr-8 min-w-[130px]"
+          className="bg-bg-elevated border border-border-light text-text-primary text-xs rounded-md px-3.5 py-2 cursor-pointer outline-none transition-colors focus:border-green appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%209l3%203%203-3%22%20stroke%3D%22%238b949e%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[right_10px_center] bg-no-repeat pr-8 flex-1 min-w-0 max-w-full"
         >
           {regions.map((r) => (
             <option key={r.value} value={r.value} className="bg-bg-surface">
@@ -83,7 +83,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
         <select
           value={filters.registrationType || 'All'}
           onChange={(e) => onFiltersChange({ registrationType: e.target.value as any })}
-          className="bg-bg-elevated border border-border-light text-text-primary text-xs rounded-md px-3.5 py-2 cursor-pointer outline-none transition-colors focus:border-green appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%209l3%203%203-3%22%20stroke%3D%22%238b949e%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[right_10px_center] bg-no-repeat pr-8 min-w-[180px]"
+          className="bg-bg-elevated border border-border-light text-text-primary text-xs rounded-md px-3.5 py-2 cursor-pointer outline-none transition-colors focus:border-green appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%209l3%203%203-3%22%20stroke%3D%22%238b949e%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[right_10px_center] bg-no-repeat pr-8 flex-1 min-w-0 max-w-full"
         >
           <option value="All" className="bg-bg-surface">All Vendors</option>
           <option value="survey" className="bg-bg-surface">Survey/Field Data Only</option>
@@ -95,7 +95,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
         <select
           value={filters.businessType}
           onChange={(e) => onFiltersChange({ businessType: e.target.value })}
-          className="bg-bg-elevated border border-border-light text-text-primary text-xs rounded-md px-3.5 py-2 cursor-pointer outline-none transition-colors focus:border-green appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%209l3%203%203-3%22%20stroke%3D%22%238b949e%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[right_10px_center] bg-no-repeat pr-8 min-w-[150px]"
+          className="bg-bg-elevated border border-border-light text-text-primary text-xs rounded-md px-3.5 py-2 cursor-pointer outline-none transition-colors focus:border-green appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%209l3%203%203-3%22%20stroke%3D%22%238b949e%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[right_10px_center] bg-no-repeat pr-8 flex-1 min-w-0 max-w-full"
         >
           <option value="All" className="bg-bg-surface">All Business Types</option>
           {businessTypes.map((t) => (
@@ -143,7 +143,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
         </div>
 
         {/* Age Min-Max inputs */}
-        <div className="flex items-center gap-1 bg-bg-elevated border border-border-light rounded-md px-2 py-0.5 min-w-[150px]">
+        <div className="flex items-center gap-1 bg-bg-elevated border border-border-light rounded-md px-2 py-0.5 flex-1 min-w-0 max-w-full">
           <span className="text-[10px] text-text-tertiary uppercase font-bold select-none pr-1">Age</span>
           <input
             type="number"

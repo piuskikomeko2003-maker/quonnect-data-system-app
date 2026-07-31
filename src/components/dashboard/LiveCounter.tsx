@@ -55,7 +55,7 @@ export const LiveCounter: React.FC<LiveCounterProps> = ({
         </div>
 
         {/* Field Data Collected progress */}
-        <div className="flex flex-col min-w-[160px] max-w-[200px] flex-1">
+        <div className="flex flex-col min-w-[120px] max-w-[200px] flex-1">
           <div className="flex justify-between text-[9px] font-semibold text-text-tertiary uppercase tracking-wider mb-1">
             <span>Field Data Collected</span>
             <span className="text-green font-bold">{dataCollectedCount}/{totalPaidVendorsCount} ({dataCollectionPct}%)</span>

@@ -124,12 +124,12 @@ export const VendorTable: React.FC<VendorTableProps> = ({
                   />
                 </th>
                 <th className="p-3.5 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Name & Phone</th>
-                <th className="p-3.5 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Business</th>
-                <th className="p-3.5 text-[10px] font-semibold text-gray-400 uppercase tracking-widest text-center">Gender</th>
+                <th className="hidden sm:table-cell p-3.5 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Business</th>
+                <th className="hidden sm:table-cell p-3.5 text-[10px] font-semibold text-gray-400 uppercase tracking-widest text-center">Gender</th>
                 <th className="p-3.5 text-[10px] font-semibold text-gray-400 uppercase tracking-widest text-center">Status</th>
                 <th className="p-3.5 text-[10px] font-semibold text-gray-400 uppercase tracking-widest text-center">Type</th>
-                <th className="p-3.5 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Region</th>
-                <th className="p-3.5 text-[10px] font-semibold text-gray-400 uppercase tracking-widest text-center">Attendances</th>
+                <th className="hidden sm:table-cell p-3.5 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Region</th>
+                <th className="hidden sm:table-cell p-3.5 text-[10px] font-semibold text-gray-400 uppercase tracking-widest text-center">Attendances</th>
                 <th className="p-3.5 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Last Seen</th>
               </tr>
             </thead>
@@ -164,12 +164,12 @@ export const VendorTable: React.FC<VendorTableProps> = ({
                     </td>
                     
                     {/* Business Name */}
-                    <td className="p-3.5 font-medium text-gray-300 truncate max-w-[150px]">
+                    <td className="hidden sm:table-cell p-3.5 font-medium text-gray-300 truncate max-w-[150px]">
                       {vendor.businessName}
                     </td>
                     
                     {/* Gender badge */}
-                    <td className="p-3.5 text-center font-medium text-gray-300">
+                    <td className="hidden sm:table-cell p-3.5 text-center font-medium text-gray-300">
                       {vendor.gender}
                     </td>
                     
@@ -197,19 +197,19 @@ export const VendorTable: React.FC<VendorTableProps> = ({
                     </td>
                     
                     {/* Region */}
-                    <td className="p-3.5 font-medium text-gray-300">
+                    <td className="hidden sm:table-cell p-3.5 font-medium text-gray-300">
                       {vendor.region}
                     </td>
                     
                     {/* Attendances Count */}
-                    <td className="p-3.5 text-center">
+                    <td className="hidden sm:table-cell p-3.5 text-center">
                       <span className="inline-block bg-white/5 border border-white/10 text-white text-[11px] font-mono font-bold px-2 py-0.5 rounded-md">
                         {vendor.attendanceCount}
                       </span>
                     </td>
                     
                     {/* Last Seen */}
-                    <td className="p-3.5 text-gray-400 font-medium">
+                    <td className="hidden sm:table-cell p-3.5 text-gray-400 font-medium">
                       {vendor.lastSeen}
                     </td>
                   </tr>

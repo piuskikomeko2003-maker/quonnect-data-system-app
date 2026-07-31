@@ -13,13 +13,16 @@ import {
   MapPin,
   Calendar,
   X,
+  LogOut,
   PlusCircle,
   UploadCloud,
   Store,
   CheckCircle2,
   AlertCircle,
   CreditCard,
-  Briefcase
+  Briefcase,
+  ChevronLeft,
+  ChevronRight
 } from 'lucide-react';
 import { Badge } from '../ui/Badge';
 import { useRegion, Region, Edition } from '@/context/RegionContext';
@@ -60,6 +63,7 @@ export const AdminShell: React.FC<AdminShellProps> = ({
   const [isRegionDropdownOpen, setIsRegionDropdownOpen] = useState(false);
   const [isEditionDropdownOpen, setIsEditionDropdownOpen] = useState(false);
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const [isDesktopCollapsed, setIsDesktopCollapsed] = useState(false);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [newRegionName, setNewRegionName] = useState('');
   const [newRegionSlug, setNewRegionSlug] = useState('');
@@ -184,10 +188,10 @@ export const AdminShell: React.FC<AdminShellProps> = ({
   return (
     <div className="flex min-h-screen bg-[#0a0c10] text-white">
       {/* Sidebar: w-[268px] on desktop, w-[60px] on mobile (md breakpoint) */}
-      <aside className={`fixed md:sticky top-0 left-0 h-screen bg-[#0f1117] border-r border-white/5 flex flex-col z-100 transition-all duration-200 ${isMobileMenuOpen ? 'w-[268px]' : 'w-[60px] md:w-[268px]'} md:translate-x-0`}>
+      <aside className={`fixed md:sticky top-0 left-0 h-screen bg-[#0f1117] border-r border-white/5 flex flex-col z-100 transition-all duration-200 ${isMobileMenuOpen ? 'w-[268px]' : isDesktopCollapsed ? 'w-[60px]' : 'w-[60px] md:w-[268px]'} ${!isMobileMenuOpen ? 'md:translate-x-0' : ''}`}>
         {/* Brand logo */}
         <div className="p-5 border-b border-white/5 flex items-center justify-between">
-          <div className={`logo font-black text-xl tracking-tight select-none ${isMobileMenuOpen ? 'block' : 'hidden md:block'}`}>
+          <div className={`logo font-black text-xl tracking-tight select-none ${isMobileMenuOpen ? 'block' : 'hidden'} ${isDesktopCollapsed ? 'md:hidden' : 'md:block'}`}>
             QUON<span className="text-green-400">NECT</span>
             <div className="text-[10px] text-gray-500 tracking-widest font-semibold uppercase mt-0.5">Workspace Mode</div>
           </div>
@@ -197,10 +201,21 @@ export const AdminShell: React.FC<AdminShellProps> = ({
           >
             <Menu className="w-5 h-5" />
           </button>
+          <button
+            onClick={() => setIsDesktopCollapsed(!isDesktopCollapsed)}
+            className="hidden md:flex text-gray-400 hover:text-white cursor-pointer p-1"
+            title={isDesktopCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {isDesktopCollapsed ? (
+              <ChevronRight className="w-4 h-4" />
+            ) : (
+              <ChevronLeft className="w-4 h-4" />
+            )}
+          </button>
         </div>
 
         {/* WORKSPACE SELECTION BLOCK (Region and Edition) */}
-        <div className={`p-3 border-b border-white/5 space-y-2 select-none ${isMobileMenuOpen ? 'block' : 'hidden md:block'}`}>
+        <div className={`p-3 border-b border-white/5 space-y-2 select-none ${isMobileMenuOpen || !isDesktopCollapsed ? 'block' : 'hidden'}`}>
           
           {/* Region Switcher Button */}
           <div className="relative">
@@ -329,7 +344,7 @@ export const AdminShell: React.FC<AdminShellProps> = ({
         <nav className="flex-1 overflow-y-auto py-4 space-y-4">
           {navigationSections.map((section, idx) => (
             <div key={idx}>
-              <div className={`px-5 py-1 text-[9px] font-semibold text-gray-500 uppercase tracking-widest select-none ${isMobileMenuOpen ? 'block' : 'hidden md:block'}`}>
+              <div className={`px-5 py-1 text-[9px] font-semibold text-gray-500 uppercase tracking-widest select-none ${isMobileMenuOpen ? 'block' : 'hidden'} ${isDesktopCollapsed ? 'md:hidden' : 'md:block'}`}>
                 {section.label}
               </div>
               <div className="mt-1 flex flex-col gap-0.5">
@@ -342,6 +357,7 @@ export const AdminShell: React.FC<AdminShellProps> = ({
                         onNavChange(item.id);
                         setIsMobileMenuOpen(false);
                       }}
+                      title={item.name}
                       className={`flex items-center gap-3 py-2 px-3 mx-2 rounded-lg font-medium text-xs border transition-all cursor-pointer ${
                         isActive 
                           ? 'bg-green-500 border-green-400 text-black font-bold shadow-lg' 
@@ -349,7 +365,7 @@ export const AdminShell: React.FC<AdminShellProps> = ({
                       }`}
                     >
                       {getNavIcon(item.id)}
-                      <span className={`flex-1 text-left ${isMobileMenuOpen ? 'block' : 'hidden md:block'}`}>
+                      <span className={`flex-1 text-left ${isMobileMenuOpen ? 'block' : 'hidden'} ${isDesktopCollapsed ? 'md:hidden' : 'md:block'}`}>
                         {item.name}
                       </span>
                       {item.badge && isMobileMenuOpen && (
@@ -366,7 +382,7 @@ export const AdminShell: React.FC<AdminShellProps> = ({
         </nav>
 
         {/* Logged in User widget */}
-        <div className={`p-4 border-t border-white/5 flex items-center gap-3 bg-white/[0.02] ${isMobileMenuOpen ? 'block' : 'hidden md:block'}`}>
+        <div className={`p-4 border-t border-white/5 flex items-center gap-3 bg-white/[0.02] ${isMobileMenuOpen ? 'block' : 'hidden'} ${isDesktopCollapsed ? 'md:hidden' : 'md:block'}`}>
           <div className="w-8 h-8 rounded-lg bg-green-500 text-black flex items-center justify-center font-bold text-xs shrink-0 select-none">
             {user.avatarInitials}
           </div>
@@ -375,12 +391,25 @@ export const AdminShell: React.FC<AdminShellProps> = ({
             <small className="block text-[9px] text-gray-400 truncate">{user.role}</small>
           </div>
           {onLogout && (
-            <button 
-              onClick={onLogout} 
-              className="text-gray-400 hover:text-red-400 cursor-pointer p-1 rounded hover:bg-white/5 shrink-0"
+            <button
+              onClick={onLogout}
+              className="flex items-center gap-1.5 text-gray-400 hover:text-red-400 cursor-pointer p-1 rounded hover:bg-white/5 shrink-0 transition-colors"
               title="Sign Out"
             >
               <X className="w-4 h-4" />
+            </button>
+          )}
+        </div>
+
+        {/* Collapsed sidebar user indicator */}
+        <div className={`p-4 border-t border-white/5 flex items-center justify-center bg-white/[0.02] ${isMobileMenuOpen ? 'hidden' : 'block'} ${isDesktopCollapsed ? 'md:block' : 'md:hidden'}`}>
+          {onLogout && (
+            <button
+              onClick={onLogout}
+              className="text-gray-400 hover:text-red-400 cursor-pointer p-1 rounded hover:bg-white/5 transition-colors"
+              title="Sign Out"
+            >
+              <X className="w-5 h-5" />
             </button>
           )}
         </div>
@@ -397,8 +426,9 @@ export const AdminShell: React.FC<AdminShellProps> = ({
             >
               <Menu className="w-5 h-5" />
             </button>
-            <div className="flex items-center gap-2 text-xs font-bold text-white">
-              <span>Quonnect Data Hub</span>
+            <div className="flex items-center gap-2 text-xs font-bold text-white min-w-0">
+              <span className="hidden sm:inline">Quonnect Data Hub</span>
+              <span className="sm:hidden text-[10px]">QDH</span>
               {activeRegion && (
                 <>
                   <span className="text-text-tertiary">/</span>
@@ -469,13 +499,25 @@ export const AdminShell: React.FC<AdminShellProps> = ({
               )}
             </div>
           </div>
-          <div className="text-[10px] font-bold text-text-tertiary tracking-wider uppercase font-mono select-none">
-            System Online
+          <div className="flex items-center gap-3">
+            <div className="hidden sm:block text-[10px] font-bold text-text-tertiary tracking-wider uppercase font-mono select-none">
+              System Online
+            </div>
+            {onLogout && (
+              <button
+                onClick={onLogout}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-bold text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-md cursor-pointer transition-colors"
+                title="Sign Out"
+              >
+                <LogOut className="w-3.5 h-3.5" />
+                <span className="hidden sm:inline">Sign Out</span>
+              </button>
+            )}
           </div>
         </header>
 
         {/* Dynamic page contents wrapper */}
-        <div className="p-6 max-w-7xl w-full mx-auto flex-1 flex flex-col overflow-y-auto">
+        <div className="p-4 sm:p-6 max-w-7xl w-full mx-auto flex-1 flex flex-col overflow-y-auto">
           {children}
         </div>
       </main>

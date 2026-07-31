@@ -140,7 +140,6 @@ export default function CollectPage() {
         synced = true;
       } catch (err) {
         console.error('Sync retry failed for submission:', sub.id, err);
-        break;
       }
     }
 
@@ -178,9 +177,10 @@ export default function CollectPage() {
   }, [syncPendingSubmissions]);
 
   useEffect(() => {
+    const jitter = Math.floor(Math.random() * 10000) + 25000;
     syncIntervalRef.current = setInterval(() => {
       syncPendingSubmissions();
-    }, 30000);
+    }, jitter);
     return () => {
       if (syncIntervalRef.current) clearInterval(syncIntervalRef.current);
     };
@@ -749,7 +749,7 @@ export default function CollectPage() {
 
   return (
     <div className="min-h-screen bg-[#0d1117] flex flex-col">
-      <header className="border-b border-[#21262d] bg-[#161b22] px-6 py-3 flex items-center justify-between">
+      <header className="border-b border-[#21262d] bg-[#161b22] px-4 sm:px-6 py-3 flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-green-muted/20 border border-green/30 rounded flex items-center justify-center">
             <span className="text-green text-xs font-bold">Q</span>
@@ -759,7 +759,7 @@ export default function CollectPage() {
             <p className="text-[10px] text-[#8b949e]">{edition.name}</p>
           </div>
         </div>
-        <div className="flex items-center gap-3">
+        <div className="flex items-center gap-2 flex-wrap">
           <span className="text-[10px] text-green bg-green-muted/10 px-2 py-1 rounded border border-green/20 font-semibold">
             {syncCounts.pending + syncCounts.synced} collected
           </span>
@@ -778,7 +778,7 @@ export default function CollectPage() {
             </button>
           )}
           {syncCounts.synced > 0 && (
-            <span className="text-[10px] text-[#8b949e] bg-[#21262d] px-2 py-1 rounded border border-[#30363d] font-semibold">
+            <span className="hidden sm:inline text-[10px] text-[#8b949e] bg-[#21262d] px-2 py-1 rounded border border-[#30363d] font-semibold">
               {syncCounts.synced} synced
             </span>
           )}
@@ -801,7 +801,7 @@ export default function CollectPage() {
       </header>
 
       {usingCachedData && (
-        <div className="bg-amber/10 border-b border-amber/20 px-6 py-2 text-center">
+        <div className="bg-amber/10 border-b border-amber/20 px-4 sm:px-6 py-2 text-center">
           <p className="text-[10px] text-amber font-medium flex items-center justify-center gap-1.5">
             <WifiOff className="w-3 h-3" />
             Using cached form — data will sync when back online
@@ -810,7 +810,7 @@ export default function CollectPage() {
       )}
 
       {pendingSubmissions.length > 0 && (
-        <div className="bg-[#161b22] border-b border-[#21262d] px-6 py-3">
+        <div className="bg-[#161b22] border-b border-[#21262d] px-4 sm:px-6 py-3">
           <div className="max-w-[560px] mx-auto">
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-[10px] font-bold text-amber uppercase tracking-wider flex items-center gap-1.5">
@@ -857,7 +857,7 @@ export default function CollectPage() {
         </div>
       )}
 
-      <main className="flex-1 flex items-start justify-center p-6 pt-10">
+      <main className="flex-1 flex items-start justify-center p-3 sm:p-6 pt-10">
         <div className="w-full max-w-[560px]">
           <DynamicQuickEntryForm
             formSlug={linkData.form_slug}

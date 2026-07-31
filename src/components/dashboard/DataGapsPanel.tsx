@@ -211,7 +211,8 @@ export const DataGapsPanel: React.FC = () => {
         .datagaps-module .edition-chip:hover { color: var(--text-primary); }
         .datagaps-module .edition-chip.active { background: var(--bg-elevated); color: var(--green); border: 1px solid var(--border-light); box-shadow: var(--shadow-card); font-weight: 700; }
 
-        .datagaps-module .metric-row { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; margin-bottom: 20px; }
+        .datagaps-module .metric-row { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-bottom: 20px; }
+        @media (min-width: 640px) { .datagaps-module .metric-row { grid-template-columns: repeat(4, 1fr); } }
         .datagaps-module .metric-card { background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-lg); padding: 18px 20px; transition: all var(--transition); position: relative; overflow: hidden; cursor: pointer; text-align: left; }
         .datagaps-module .metric-card:hover { border-color: var(--border-light); box-shadow: var(--shadow-elevated); transform: translateY(-1px); }
         .datagaps-module .metric-card.active-filter { border-color: var(--green); background: var(--green-soft); box-shadow: 0 0 0 1px var(--green); }

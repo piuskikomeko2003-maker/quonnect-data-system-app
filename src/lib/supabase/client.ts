@@ -4,7 +4,13 @@ const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
 export const createClient = () =>
-    createBrowserClient(
-        supabaseUrl!,
-        supabaseKey!,
-    );
+    createBrowserClient(supabaseUrl!, supabaseKey!, {
+      cookieOptions: {
+        path: "/",
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+      },
+      db: {
+        schema: "public",
+      },
+    });

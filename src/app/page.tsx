@@ -3,8 +3,10 @@
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useLiveMetrics } from '@/hooks/useLiveMetrics';
+import { useAuth } from '@/hooks/useAuth';
 import { useRegion } from '@/context/RegionContext';
 import { AdminShell } from '@/components/layout/AdminShell';
+import { UserManagementSettings } from '@/components/settings/UserManagementSettings';
 import { importCSV } from '@/utils/csvImport';
 import { resolveGender, isGenderColumn, isGenderValue } from '@/utils/gender';
 import { isFirstTimer, isReturning, getAttendanceCount, attendedLastEdition, attendedRegion, isFirstTimerColumn, isAttendedLastColumn } from '@/utils/retention';
@@ -140,6 +142,7 @@ export default function Home() {
   const [mounted, setMounted] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const { activeRegion, activeEdition, regions: ctxRegions, switchRegion, loadingRegions, editions: ctxEditions, setActiveEdition } = useRegion();
+  const { email, role, profile, loading: authLoading, signOut } = useAuth();
 
   const [toasts, setToasts] = useState<Array<{ id: string; message: string; type: 'success' | 'error' }>>([]);
 
@@ -227,12 +230,7 @@ export default function Home() {
   const [overviewCounts, setOverviewCounts] = useState({ paidVendors: 0, walkins: 0, surveyResponses: 0 });
 
   // Overview filter bar state
-  const [overviewScope, setOverviewScope] = useState<'all' | 'region' | 'edition'>('all');
-  const [overviewRegionId, setOverviewRegionId] = useState<string | null>(null);
-  const [overviewEditionId, setOverviewEditionId] = useState<string | null>(null);
   const [overviewGender, setOverviewGender] = useState<'all' | 'Female' | 'Male'>('all');
-  const [overviewRegions, setOverviewRegions] = useState<{ id: string; name: string }[]>([]);
-  const [overviewEditions, setOverviewEditions] = useState<{ id: string; name: string }[]>([]);
 
   interface OverviewMetrics {
     paidVendorCount: number;
@@ -266,31 +264,28 @@ export default function Home() {
     setOverviewLoading(true);
 
     try {
-      const scope = overviewScope;
-      const regionId = overviewRegionId;
-      const editionId = overviewEditionId;
       const edId = activeEdition?.id;
-      const regionForGrowth = scope === 'region' && regionId ? regionId : (activeRegion?.id || null);
+      const regionId = activeRegion?.id;
 
-      if (!edId && scope === 'edition' && !editionId) {
+      if (!regionId) {
         setOverviewMetrics(null);
         setOverviewLoading(false);
         return;
       }
 
-      let effectiveEditionId: string | null = null;
-      if (scope === 'edition' && editionId) effectiveEditionId = editionId;
-      else if (edId) effectiveEditionId = edId;
+      let paidQuery;
+      let walkinQuery;
+      let surveyQuery;
 
-      const paidQuery = effectiveEditionId
-        ? supabase.from('vendor_registrations').select('*', { count: 'exact', head: true }).eq('market_day_id', effectiveEditionId)
-        : supabase.from('vendor_registrations').select('*', { count: 'exact', head: true });
-      const walkinQuery = effectiveEditionId
-        ? supabase.from('walkins').select('*', { count: 'exact', head: true }).eq('market_day_id', effectiveEditionId)
-        : supabase.from('walkins').select('*', { count: 'exact', head: true });
-      const surveyQuery = effectiveEditionId
-        ? supabase.from('survey_responses').select('*', { count: 'exact', head: true }).eq('context_id', effectiveEditionId)
-        : supabase.from('survey_responses').select('*', { count: 'exact', head: true });
+      if (edId) {
+        paidQuery = supabase.from('vendor_registrations').select('*', { count: 'exact', head: true }).eq('market_day_id', edId);
+        walkinQuery = supabase.from('walkins').select('*', { count: 'exact', head: true }).eq('market_day_id', edId);
+        surveyQuery = supabase.from('survey_responses').select('*', { count: 'exact', head: true }).eq('context_id', edId);
+      } else {
+        paidQuery = supabase.from('vendor_registrations').select('*, market_days!inner(region_id)', { count: 'exact', head: true }).eq('market_days.region_id', regionId);
+        walkinQuery = supabase.from('walkins').select('*, market_days!inner(region_id)', { count: 'exact', head: true }).eq('market_days.region_id', regionId);
+        surveyQuery = supabase.from('survey_responses').select('*, market_days!inner(region_id)', { count: 'exact', head: true }).eq('market_days.region_id', regionId);
+      }
 
       const [paidRes, walkinRes, surveyRes] = await Promise.all([
         paidQuery, walkinQuery, surveyQuery,
@@ -317,8 +312,8 @@ export default function Home() {
       let hasOnline = 0;
       let onlineTotal = 0;
 
-      if (effectiveEditionId) {
-        const { data: responsesWithAnswers } = await supabase
+      if (edId || regionId) {
+        let responsesQuery = supabase
           .from('survey_responses')
           .select(`
             id,
@@ -326,8 +321,15 @@ export default function Home() {
               answer,
               survey_questions!inner ( csv_column )
             )
-          `)
-          .eq('context_id', effectiveEditionId);
+          `);
+
+        if (edId) {
+          responsesQuery = responsesQuery.eq('context_id', edId);
+        } else {
+          responsesQuery = responsesQuery.eq('context_id.market_days.region_id', regionId);
+        }
+
+        const { data: responsesWithAnswers } = await responsesQuery;
 
         const rows = responsesWithAnswers || [];
 
@@ -457,11 +459,11 @@ export default function Home() {
       let retentionCount = 0;
       let retentionTotal = 0;
 
-      if (regionForGrowth) {
+      if (activeRegion?.id) {
         const { data: editionsData } = await supabase
           .from('market_days')
           .select('id, name, event_date')
-          .eq('region_id', regionForGrowth)
+          .eq('region_id', activeRegion.id)
           .order('event_date');
 
         if (editionsData && editionsData.length > 0) {
@@ -507,8 +509,8 @@ export default function Home() {
         }
       }
 
-      if (effectiveEditionId) {
-        const { data: retentionResponses } = await supabase
+      if (edId || regionId) {
+        let retentionQuery = supabase
           .from('survey_responses')
           .select(`
             id,
@@ -516,8 +518,15 @@ export default function Home() {
               answer,
               survey_questions!inner(csv_column)
             )
-          `)
-          .eq('context_id', effectiveEditionId);
+          `);
+
+        if (edId) {
+          retentionQuery = retentionQuery.eq('context_id', edId);
+        } else {
+          retentionQuery = retentionQuery.eq('context_id.market_days.region_id', regionId);
+        }
+
+        const { data: retentionResponses } = await retentionQuery;
 
         const retentionRows = retentionResponses || [];
         retentionTotal = retentionRows.length;
@@ -585,7 +594,7 @@ export default function Home() {
     } finally {
       setOverviewLoading(false);
     }
-  }, [overviewScope, overviewRegionId, overviewEditionId, overviewGender, activeRegion, activeEdition]);
+  }, [overviewGender, activeRegion, activeEdition]);
 
   const fetchVendors = async () => {
     try {
@@ -1233,35 +1242,6 @@ export default function Home() {
   });
   const [vendorSearch, setVendorSearch] = useState('');
   const [selectedVendorIds, setSelectedVendorIds] = useState<string[]>([]);
-  
-  // Fetch regions and editions for overview filter bar dropdowns
-  useEffect(() => {
-    if (activeNav === 'overview' && mounted) {
-      const fetchOverviewFilters = async () => {
-        const supabase = createClient();
-        if (!supabase) return;
-
-        const { data: regionsData } = await supabase
-          .from('regions')
-          .select('id, name')
-          .eq('is_active', true)
-          .order('name');
-        setOverviewRegions(regionsData || []);
-
-        if (overviewRegionId) {
-          const { data: editionsData } = await supabase
-            .from('market_days')
-            .select('id, name')
-            .eq('region_id', overviewRegionId)
-            .order('name');
-          setOverviewEditions(editionsData || []);
-        } else {
-          setOverviewEditions([]);
-        }
-      };
-      fetchOverviewFilters();
-    }
-  }, [activeNav, overviewRegionId, mounted]);
 
   useEffect(() => {
     if (activeNav === 'overview' && mounted) {
@@ -2526,10 +2506,11 @@ export default function Home() {
         setActiveNav(navId);
       }}
       user={{
-        name: 'Devosh Kamp',
-        role: 'System Administrator',
-        avatarInitials: 'DK'
+        name: email?.split('@')[0] || 'User',
+        role: profile?.role ? profile.role.replace('_', ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : 'Loading...',
+        avatarInitials: email ? email.charAt(0).toUpperCase() : '?'
       }}
+      onLogout={signOut}
       vendorAlertCount={mergeProposals.length}
     >
       {/* ==========================================
@@ -2549,7 +2530,7 @@ export default function Home() {
 
               {/* Live Status Counter Component */}
               <LiveCounter
-                isActiveEdition={overviewScope === 'edition' && !!overviewEditionId}
+                isActiveEdition={!!activeEdition}
                 paidVendorsCount={runningCount}
                 dataCollectedCount={dataCollectedListCount}
                 totalPaidVendorsCount={totalUniqueVendorsCount}
@@ -2578,13 +2559,13 @@ export default function Home() {
               {overviewLoading ? (
                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
                   {Array.from({ length: 7 }).map((_, idx) => (
-                    <div key={idx} className="bg-[#0f1117] border border-white/5 rounded-xl p-5 animate-pulse h-[130px] flex flex-col justify-between" />
+                    <div key={idx} className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 animate-pulse h-[130px] flex flex-col justify-between" />
                   ))}
                 </div>
               ) : overviewMetrics ? (
                 <>
                   <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-5 flex flex-col justify-between">
+                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
                       <div className="flex items-start justify-between mb-3">
                         <div className="bg-green-500/10 text-green-400 p-2 rounded-lg">
                           <CreditCard className="w-4 h-4" />
@@ -2594,7 +2575,7 @@ export default function Home() {
                       <div className="text-xs text-gray-500 uppercase tracking-wider mt-1">Paid Vendors</div>
                     </div>
 
-                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-5 flex flex-col justify-between">
+                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
                       <div className="flex items-start justify-between mb-3">
                         <div className="bg-amber-500/10 text-amber-400 p-2 rounded-lg">
                           <Footprints className="w-4 h-4" />
@@ -2604,7 +2585,7 @@ export default function Home() {
                       <div className="text-xs text-gray-500 uppercase tracking-wider mt-1">Walk-ins</div>
                     </div>
 
-                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-5 flex flex-col justify-between">
+                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
                       <div className="flex items-start justify-between mb-3">
                         <div className="bg-blue-500/10 text-blue-400 p-2 rounded-lg">
                           <ClipboardList className="w-4 h-4" />
@@ -2614,7 +2595,7 @@ export default function Home() {
                       <div className="text-xs text-gray-500 uppercase tracking-wider mt-1">Surveys</div>
                     </div>
 
-                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-5 flex flex-col justify-between">
+                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
                       <div className="flex items-start justify-between mb-2">
                         <div className="bg-purple-500/10 text-purple-400 p-2 rounded-lg">
                           <Users className="w-4 h-4" />
@@ -2643,7 +2624,7 @@ export default function Home() {
                       )}
                     </div>
 
-                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-5 flex flex-col justify-between">
+                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
                       <div className="flex items-start justify-between mb-3">
                         <div className="bg-emerald-500/10 text-emerald-400 p-2 rounded-lg">
                           <BarChart3 className="w-4 h-4" />
@@ -2653,7 +2634,7 @@ export default function Home() {
                       <div className="text-xs text-gray-500 uppercase tracking-wider mt-1">Avg Age</div>
                     </div>
 
-                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-5 flex flex-col justify-between">
+                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
                       <div className="flex items-start justify-between mb-3">
                         <div className="bg-green-500/10 text-green-400 p-2 rounded-lg">
                           <ArrowUpRight className="w-4 h-4" />
@@ -2665,7 +2646,7 @@ export default function Home() {
                       <div className="text-xs text-gray-500 uppercase tracking-wider mt-1">First Timers</div>
                     </div>
 
-                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-5 flex flex-col justify-between">
+                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
                       <div className="flex items-start justify-between mb-1">
                         <div className="bg-green-500/10 text-green-400 p-2 rounded-lg">
                           <RotateCcw className="w-4 h-4" />
@@ -2810,42 +2791,42 @@ export default function Home() {
 
                   {/* SECTION 4 — Impact Story */}
                   <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-5">
+                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5">
                       <div className="text-xs text-gray-500 uppercase tracking-wider mb-3">Business Growth</div>
                       <div className="text-3xl font-bold text-green-400">
                         {overviewMetrics.businessGrowthPct !== null ? `${overviewMetrics.businessGrowthPct}%` : 'N/A'}
                       </div>
                       <div className="text-xs text-gray-600 mt-1">Reported improvement</div>
                     </div>
-                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-5">
+                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5">
                       <div className="text-xs text-gray-500 uppercase tracking-wider mb-3">Total Employees</div>
                       <div className="text-3xl font-bold text-white">
                         {overviewMetrics.totalEmployees.toLocaleString()}
                       </div>
                       <div className="text-xs text-gray-600 mt-1">Across all vendors</div>
                     </div>
-                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-5">
+                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5">
                       <div className="text-xs text-gray-500 uppercase tracking-wider mb-3">Top Benefit</div>
                       <div className="text-xl font-bold text-white truncate">
                         {overviewMetrics.topBenefit}
                       </div>
                       <div className="text-xs text-gray-600 mt-1">Most cited</div>
                     </div>
-                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-5">
+                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5">
                       <div className="text-xs text-gray-500 uppercase tracking-wider mb-3">Top Challenge</div>
                       <div className="text-xl font-bold text-white truncate">
                         {overviewMetrics.topChallenge}
                       </div>
                       <div className="text-xs text-gray-600 mt-1">Most cited</div>
                     </div>
-                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-5">
+                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5">
                       <div className="text-xs text-gray-500 uppercase tracking-wider mb-3">Digital Presence</div>
                       <div className="text-3xl font-bold text-blue-400">
                         {overviewMetrics.digitalPresencePct !== null ? `${overviewMetrics.digitalPresencePct}%` : 'N/A'}
                       </div>
                       <div className="text-xs text-gray-600 mt-1">Active social media</div>
                     </div>
-                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-5">
+                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5">
                       <div className="text-xs text-gray-500 uppercase tracking-wider mb-3">Online Sales</div>
                       <div className="text-3xl font-bold text-amber-400">
                         {overviewMetrics.onlineSalesPct !== null ? `${overviewMetrics.onlineSalesPct}%` : 'N/A'}
@@ -3090,7 +3071,7 @@ export default function Home() {
                 <>
                   {/* Live Count Cards */}
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-5 flex flex-col justify-between">
+                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
                       <div className="flex items-start justify-between mb-3">
                         <div className="bg-green-500/10 text-green-400 p-2.5 rounded-lg">
                           <CreditCard className="w-5 h-5" />
@@ -3101,7 +3082,7 @@ export default function Home() {
                       <div className="text-xs text-gray-400 uppercase tracking-wider mt-1">Paid Vendors</div>
                     </div>
 
-                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-5 flex flex-col justify-between">
+                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
                       <div className="flex items-start justify-between mb-3">
                         <div className="bg-amber-500/10 text-amber-400 p-2.5 rounded-lg">
                           <AlertTriangle className="w-5 h-5" />
@@ -3112,7 +3093,7 @@ export default function Home() {
                       <div className="text-xs text-gray-400 uppercase tracking-wider mt-1">Pending / Unpaid</div>
                     </div>
 
-                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-5 flex flex-col justify-between">
+                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
                       <div className="flex items-start justify-between mb-3">
                         <div className="bg-purple-500/10 text-purple-400 p-2.5 rounded-lg">
                           <TrendingUp className="w-5 h-5" />
@@ -3528,8 +3509,16 @@ export default function Home() {
             />
           )}
 
+          {/* SETTINGS */}
+          {activeNav === 'settings' && (
+            <UserManagementSettings
+              currentUserRole={role}
+              currentUserId={profile?.user_id || ''}
+            />
+          )}
+
           {/* 7. OTHER SYSTEM PLACES (PLACEHOLDERS) */}
-          {!['overview', 'vendors', 'walkins', 'quick-entry', 'formbuilder', 'import-export', 'markets', 'jobs'].includes(activeNav) && (
+          {!['overview', 'vendors', 'walkins', 'quick-entry', 'formbuilder', 'import-export', 'markets', 'jobs', 'paid-vendors', 'settings'].includes(activeNav) && (
             <div className="py-24 text-center border border-dashed border-border rounded-lg select-none text-left animate-fade-in">
               <ClipboardList className="w-12 h-12 text-green mx-auto mb-3 opacity-80" />
               <h3 className="text-sm font-bold text-text-primary">Module Under Implementation</h3>
