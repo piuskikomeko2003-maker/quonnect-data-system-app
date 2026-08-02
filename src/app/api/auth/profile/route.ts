@@ -13,15 +13,33 @@ export async function GET() {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   }
 
-  const serviceClient = createServiceClient();
-  const { data: profile, error: profileError } = await serviceClient
+  const { data: profile, error: profileError } = await supabase
     .from('user_profiles')
     .select('*')
     .eq('user_id', user.id)
     .maybeSingle();
 
-  if (profileError) {
-    return NextResponse.json({ error: profileError.message }, { status: 500 });
+  if (profileError || !profile) {
+    try {
+      const serviceClient = createServiceClient();
+      const { data: fallbackProfile, error: fallbackError } = await serviceClient
+        .from('user_profiles')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      if (fallbackError || !fallbackProfile) {
+        return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+      }
+
+      return NextResponse.json({
+        id: user.id,
+        email: user.email,
+        profile: fallbackProfile,
+      });
+    } catch {
+      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+    }
   }
 
   return NextResponse.json({
