@@ -4,47 +4,28 @@ import { createServiceClient } from '@/lib/supabase/service';
 import { cookies } from 'next/headers';
 
 export async function GET() {
-  const cookieStore = await cookies();
-  const supabase = createClient(cookieStore);
+  try {
+    const cookieStore = await cookies();
+    const supabase = createClient(cookieStore);
 
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
-
-  if (authError || !user) {
-    return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
-  }
-
-  const { data: profile, error: profileError } = await supabase
-    .from('user_profiles')
-    .select('*')
-    .eq('user_id', user.id)
-    .maybeSingle();
-
-  if (profileError || !profile) {
-    try {
-      const serviceClient = createServiceClient();
-      const { data: fallbackProfile, error: fallbackError } = await serviceClient
-        .from('user_profiles')
-        .select('*')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (fallbackError || !fallbackProfile) {
-        return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
-      }
-
-      return NextResponse.json({
-        id: user.id,
-        email: user.email,
-        profile: fallbackProfile,
-      });
-    } catch {
-      return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
     }
-  }
 
-  return NextResponse.json({
-    id: user.id,
-    email: user.email,
-    profile,
-  });
+    const serviceClient = createServiceClient();
+    const { data: profile } = await serviceClient
+      .from('user_profiles')
+      .select('*')
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    return NextResponse.json({
+      id: user.id,
+      email: user.email,
+      profile: profile || null,
+    });
+  } catch (err: any) {
+    return NextResponse.json({ error: err.message || 'Server error' }, { status: 500 });
+  }
 }
