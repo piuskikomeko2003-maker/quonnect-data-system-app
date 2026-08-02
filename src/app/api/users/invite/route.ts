@@ -12,11 +12,13 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   }
 
-  const { data: actorProfile } = await supabase
+  const serviceClient = createServiceClient();
+
+  const { data: actorProfile } = await serviceClient
     .from('user_profiles')
     .select('role')
     .eq('user_id', user.id)
-    .single();
+    .maybeSingle();
 
   if (!actorProfile || (actorProfile.role !== 'super_admin' && actorProfile.role !== 'admin')) {
     return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
@@ -28,8 +30,6 @@ export async function POST(request: NextRequest) {
   if (!email) {
     return NextResponse.json({ error: 'Email is required' }, { status: 400 });
   }
-
-  const serviceClient = createServiceClient();
 
   const { error } = await serviceClient.auth.admin.inviteUserByEmail(email, {
     redirectTo: `${request.nextUrl.origin}/auth/callback`,

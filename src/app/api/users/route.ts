@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/service';
 import { cookies } from 'next/headers';
 
 export async function GET() {
@@ -11,17 +12,19 @@ export async function GET() {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   }
 
-  const { data: actorProfile } = await supabase
+  const serviceClient = createServiceClient();
+
+  const { data: actorProfile } = await serviceClient
     .from('user_profiles')
     .select('role')
     .eq('user_id', user.id)
-    .single();
+    .maybeSingle();
 
   if (!actorProfile || (actorProfile.role !== 'super_admin' && actorProfile.role !== 'admin')) {
     return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
   }
 
-  const { data: users, error } = await supabase
+  const { data: users, error } = await serviceClient
     .from('user_profiles')
     .select('*')
     .order('created_at', { ascending: false });
@@ -42,11 +45,13 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   }
 
-  const { data: actorProfile } = await supabase
+  const serviceClient = createServiceClient();
+
+  const { data: actorProfile } = await serviceClient
     .from('user_profiles')
     .select('role')
     .eq('user_id', user.id)
-    .single();
+    .maybeSingle();
 
   if (!actorProfile) {
     return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
@@ -67,11 +72,11 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: 'Only Super Admins can assign Super Admin role' }, { status: 403 });
   }
 
-  const { data: targetProfile } = await supabase
+  const { data: targetProfile } = await serviceClient
     .from('user_profiles')
     .select('role')
     .eq('id', profileId)
-    .single();
+    .maybeSingle();
 
   if (!targetProfile) {
     return NextResponse.json({ error: 'User not found' }, { status: 404 });
@@ -81,7 +86,7 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: 'Cannot change role of a Super Admin' }, { status: 403 });
   }
 
-  const { data: updated, error } = await supabase
+  const { data: updated, error } = await serviceClient
     .from('user_profiles')
     .update({ role })
     .eq('id', profileId)
@@ -104,11 +109,13 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'Not authenticated' }, { status: 401 });
   }
 
-  const { data: actorProfile } = await supabase
+  const serviceClient = createServiceClient();
+
+  const { data: actorProfile } = await serviceClient
     .from('user_profiles')
     .select('role, user_id')
     .eq('user_id', user.id)
-    .single();
+    .maybeSingle();
 
   if (!actorProfile) {
     return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
@@ -121,11 +128,11 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'profileId is required' }, { status: 400 });
   }
 
-  const { data: targetProfile } = await supabase
+  const { data: targetProfile } = await serviceClient
     .from('user_profiles')
     .select('role, user_id')
     .eq('id', profileId)
-    .single();
+    .maybeSingle();
 
   if (!targetProfile) {
     return NextResponse.json({ error: 'User not found' }, { status: 404 });
@@ -143,7 +150,7 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
   }
 
-  const { error: deleteError } = await supabase
+  const { error: deleteError } = await serviceClient
     .from('user_profiles')
     .delete()
     .eq('id', profileId);
