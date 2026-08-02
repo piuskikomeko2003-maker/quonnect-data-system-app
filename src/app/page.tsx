@@ -824,7 +824,6 @@ export default function Home() {
         .select(`
           id,
           payment_status,
-          stall_number,
           amount_paid,
           created_at,
           vendors (
@@ -843,7 +842,6 @@ export default function Home() {
       const registrations = (data || []).map((r: any) => ({
         id: r.id,
         payment_status: r.payment_status,
-        stall_number: r.stall_number,
         amount_paid: r.amount_paid,
         created_at: r.created_at,
         business_name: r.vendors?.business_name || 'Unknown',
@@ -1437,7 +1435,6 @@ export default function Home() {
       const contactName = answers.contact_name || '';
       const businessName = answers.business_name || '';
       const category = answers.category || '';
-      const stallNumber = answers.stall_number || '';
       const amountPaid = answers.amount_paid ? parseFloat(answers.amount_paid) : 0;
       const paymentStatus = answers.payment_status || 'paid';
 
@@ -1496,7 +1493,6 @@ export default function Home() {
             .insert({
               market_day_id: activeEdition.id,
               vendor_id: vendorId,
-              stall_number: stallNumber || null,
               amount_paid: amountPaid,
               payment_status: paymentStatus,
             });
@@ -1505,7 +1501,6 @@ export default function Home() {
           const { error: regUpdateError } = await supabase
             .from('vendor_registrations')
             .update({
-              stall_number: stallNumber || null,
               amount_paid: amountPaid,
               payment_status: paymentStatus,
             })
@@ -3136,7 +3131,6 @@ export default function Home() {
                               <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Phone</th>
                               <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Category</th>
                               <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest text-center">Status</th>
-                              <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest text-center">Stall #</th>
                               <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest text-right">Amount Paid</th>
                               <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Registered</th>
                             </tr>
@@ -3159,7 +3153,6 @@ export default function Home() {
                                     {pv.payment_status}
                                   </span>
                                 </td>
-                                <td className="p-4 text-center text-gray-300 font-mono font-medium">{pv.stall_number || '—'}</td>
                                 <td className="p-4 text-right text-white font-bold font-mono">UGX {Number(pv.amount_paid).toLocaleString()}</td>
                                 <td className="p-4 text-gray-400 font-medium">
                                   {pv.created_at ? new Date(pv.created_at).toLocaleDateString() : '—'}

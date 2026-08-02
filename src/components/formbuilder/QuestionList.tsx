@@ -141,7 +141,7 @@ const SortableItem: React.FC<SortableItemProps> = ({
           e.stopPropagation(); // Prevent select trigger
           onDelete();
         }}
-        className="opacity-0 group-hover:opacity-100 p-1 rounded hover:bg-bg-elevated hover:text-red transition-all cursor-pointer shrink-0 text-text-tertiary"
+        className="p-1 rounded hover:bg-red-500/10 hover:text-red transition-all cursor-pointer shrink-0 text-gray-500"
         title="Delete Question"
       >
         <Trash2 className="w-3.5 h-3.5" />

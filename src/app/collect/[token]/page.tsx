@@ -416,7 +416,6 @@ export default function CollectPage() {
       const contactName = answers.contact_name || '';
       const businessName = answers.business_name || '';
       const category = answers.category || '';
-      const stallNumber = answers.stall_number || '';
       const amountPaid = answers.amount_paid ? parseFloat(answers.amount_paid) : 0;
       const paymentStatus = answers.payment_status || 'paid';
 
@@ -467,7 +466,6 @@ export default function CollectPage() {
         const payload: Record<string, unknown> = {
           market_day_id: edition.id,
           vendor_id: vendorId,
-          stall_number: stallNumber || null,
           amount_paid: amountPaid,
           payment_status: paymentStatus,
         };
@@ -476,8 +474,9 @@ export default function CollectPage() {
         if (regErr && regErr.code === '23505') {
           // duplicate key — already synced on a prior attempt
         } else if (regErr) {
-          throw new Error('Failed to create registration: ' + regErr.message);
+          throw regErr;
         }
+        return { synced: true, name: businessName || contactName };
       }
 
       setRunningCount(c => c + 1);
@@ -916,7 +915,6 @@ async function replaySubmission(
       const contactName = answers.contact_name || '';
       const businessName = answers.business_name || '';
       const category = answers.category || '';
-      const stallNumber = answers.stall_number || '';
       const amountPaid = answers.amount_paid ? parseFloat(answers.amount_paid) : 0;
       const paymentStatus = answers.payment_status || 'paid';
 
@@ -966,7 +964,6 @@ async function replaySubmission(
         const payload: Record<string, unknown> = {
           market_day_id: edition.id,
           vendor_id: vendorId,
-          stall_number: stallNumber || null,
           amount_paid: amountPaid,
           payment_status: paymentStatus,
         };
