@@ -33,6 +33,7 @@ export async function POST(request: NextRequest) {
 
   const { error } = await serviceClient.auth.admin.inviteUserByEmail(email, {
     redirectTo: `${request.nextUrl.origin}/auth/callback`,
+    data: { invited: true },
   });
 
   if (error) {
