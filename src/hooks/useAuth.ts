@@ -35,7 +35,7 @@ export function useAuth(): CurrentUser & {
 
   const fetchProfile = useCallback(async () => {
     try {
-      const res = await fetch('/api/auth/profile');
+      const res = await fetch('/api/auth/profile', { credentials: 'include' });
       if (!res.ok) {
         const errData = await res.json().catch(() => ({}));
         throw new Error(errData.error || `HTTP ${res.status}`);
