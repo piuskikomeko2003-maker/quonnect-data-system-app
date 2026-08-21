@@ -70,6 +70,8 @@ export interface DynamicQuickEntryFormProps {
   lookupEnabled?: boolean;
   cachedData?: FormDataCache;
   onFormDataCached?: (data: FormDataCache) => void;
+  initialAnswers?: Record<string, string>;
+  editMode?: boolean;
 }
 
 export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
@@ -86,20 +88,24 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
   lookupEnabled = false,
   cachedData,
   onFormDataCached,
+  initialAnswers,
+  editMode = false,
 }) => {
   const [questions, setQuestions] = useState<FormQuestion[]>(cachedData?.questions || []);
   const [sectionQuestions, setSectionQuestions] = useState<Record<string, FormQuestion[]>>({});
   const [sections, setSections] = useState<{ id: string; name: string; sort_order: number }[]>(cachedData?.sections || []);
   const [questionRules, setQuestionRules] = useState<QuestionLogic[]>(cachedData?.questionRules || []);
   const [sectionRules, setSectionRules] = useState<SectionLogic[]>(cachedData?.sectionRules || []);
-  const [answers, setAnswers] = useState<Record<string, string>>({});
+  const [answers, setAnswers] = useState<Record<string, string>>(initialAnswers || {});
   const [loading, setLoading] = useState(!cachedData);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [lookupStatus, setLookupStatus] = useState<'idle' | 'searching' | 'returning' | 'new'>('idle');
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [touchedFields, setTouchedFields] = useState<Set<string>>(new Set());
-  const [autofilledFields, setAutofilledFields] = useState<Set<string>>(new Set());
+  const [autofilledFields, setAutofilledFields] = useState<Set<string>>(
+    new Set(initialAnswers ? Object.keys(initialAnswers) : [])
+  );
   const [syncFeedback, setSyncFeedback] = useState<{ message: string; type: 'success' | 'info' | 'error' } | null>(null);
   const [offlineSave, setOfflineSave] = useState<{ show: boolean; name?: string }>({ show: false });
 
@@ -297,7 +303,7 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
       return next;
     });
 
-    if ((csvColumn === 'phone' || csvColumn === 'phone_number') && lookupEnabled && onPhoneLookup) {
+    if ((csvColumn === 'phone' || csvColumn === 'phone_number') && lookupEnabled && onPhoneLookup && !editMode) {
       const digits = value.replace(/\D/g, '');
       if (digits.length >= 9) {
         setLookupStatus('searching');
@@ -370,12 +376,19 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
         setOfflineSave({ show: true, name: name || 'New Entry' });
       }
     } catch (err: unknown) {
+      let errMsg = 'Submission error';
+      if (err instanceof Error) {
+        errMsg = err.message;
+      } else if (err && typeof err === 'object' && 'message' in err) {
+        errMsg = (err as any).message || errMsg;
+      }
+
       const isNetworkError =
         err instanceof TypeError ||
-        (err instanceof Error &&
-          (err.message.includes('fetch') ||
-            err.message.includes('network') ||
-            err.message.includes('Failed to fetch')));
+        (typeof errMsg === 'string' &&
+          (errMsg.includes('fetch') ||
+            errMsg.includes('network') ||
+            errMsg.includes('Failed to fetch')));
       if (isNetworkError) {
         const name = answers.contact_name || answers.full_name || answers.name || '';
         setAnswers({});
@@ -386,10 +399,10 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
         setOfflineSave({ show: true, name: name || 'New Entry' });
       } else {
         setSyncFeedback({
-          message: err instanceof Error ? err.message : 'Submission error',
+          message: errMsg,
           type: 'error',
         });
-        console.error('Submit error:', err);
+        console.error('Submit error:', errMsg);
       }
     } finally {
       setSubmitting(false);
@@ -767,6 +780,11 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
               <span className="flex items-center gap-2">
                 <Loader2 className="w-3.5 h-3.5 animate-spin text-black" />
                 Saving...
+              </span>
+            ) : editMode ? (
+              <span className="flex items-center gap-2">
+                <Check className="w-4 h-4 text-black" />
+                Save Changes
               </span>
             ) : (
               <span>Save Entry</span>

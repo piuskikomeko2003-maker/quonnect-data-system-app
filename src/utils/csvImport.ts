@@ -460,14 +460,26 @@ export const importCSV = async (
   // Fetch questions
   const { data: questions } = await supabase
     .from('survey_questions')
-    .select('id, csv_column')
+    .select('id, csv_column, question_text, question_type, is_required, options, sort_order, section_id')
     .eq('form_id', formId);
 
   if (!questions || questions.length === 0) {
     throw new Error('No questions found for this form');
   }
 
-  interface QRow { id: string; csv_column: string | null }
+  interface QRow { id: string; csv_column: string | null; question_text: string; question_type: string; is_required: boolean; options: string[] | null; sort_order: number; section_id: string | null }
+
+  const questionSnapshot = (questions as QRow[]).map((q) => ({
+    id: q.id,
+    question_text: q.question_text,
+    question_type: q.question_type,
+    is_required: q.is_required,
+    csv_column: q.csv_column,
+    options: q.options,
+    sort_order: q.sort_order,
+    section_id: q.section_id,
+  }));
+
   const questionMap: Record<string, string> = {};
   questions.forEach((q: QRow) => {
     if (q.csv_column) questionMap[q.csv_column] = q.id;
@@ -552,27 +564,56 @@ export const importCSV = async (
         responseId = existingResponse.id;
       } else {
         // No existing response — insert a new one
-        const { data: newResponse, error: responseError } = await supabase
-          .from('survey_responses')
-          .insert({
+        try {
+          const payload: Record<string, any> = {
             form_id: formId,
             context_type: 'market_day',
             context_id: activeEdition.id,
             vendor_id: vendorResult.id,
             source: 'csv_import',
             import_batch: file.name,
-          })
-          .select('id')
-          .single();
+          };
+          if (questionSnapshot.length > 0) {
+            payload.form_schema_snapshot = questionSnapshot;
+          }
 
-        if (responseError || !newResponse) {
-          results.failed++;
-          results.errors.push(
-            `Row ${i + 1}: response error — ${responseError?.message || 'no response returned'}`
-          );
-          continue;
+          const { data: newResponse, error: responseError } = await supabase
+            .from('survey_responses')
+            .insert(payload)
+            .select('id')
+            .single();
+
+          if (responseError || !newResponse) {
+            throw responseError || new Error('no response returned');
+          }
+          responseId = newResponse.id;
+        } catch (snapshotErr: any) {
+          const isColumnMissing =
+            snapshotErr?.code === '42703' ||
+            (typeof snapshotErr?.message === 'string' &&
+              snapshotErr.message.includes('form_schema_snapshot'));
+          if (isColumnMissing) {
+            const { data: newResponse, error: responseError } = await supabase
+              .from('survey_responses')
+              .insert({
+                form_id: formId,
+                context_type: 'market_day',
+                context_id: activeEdition.id,
+                vendor_id: vendorResult.id,
+                source: 'csv_import',
+                import_batch: file.name,
+              })
+              .select('id')
+              .single();
+
+            if (responseError || !newResponse) {
+              throw responseError || new Error('no response returned');
+            }
+            responseId = newResponse.id;
+          } else {
+            throw snapshotErr;
+          }
         }
-        responseId = newResponse.id;
       }
 
       if (!responseId) {

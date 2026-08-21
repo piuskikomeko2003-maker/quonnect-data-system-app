@@ -543,26 +543,66 @@ export default function CollectPage() {
       if (!formData) throw new Error('Form not found');
       const formId = formData.id;
 
-      const { error: resError } = await supabase.from('survey_responses').insert({
-        id: responseId,
-        form_id: formId,
-        context_type: 'market_day',
-        context_id: edition.id,
-        vendor_id: vendorId,
-        source: 'link',
-        submitted_at: new Date().toISOString(),
-      });
-
-      if (resError && resError.code === '23505') {
-        // duplicate key — response already exists from a prior retry
-      } else if (resError) {
-        throw new Error(resError.message);
-      }
-
       const { data: questions } = await supabase
         .from('survey_questions')
-        .select('id, csv_column')
+        .select('id, csv_column, question_text, question_type, is_required, options, sort_order, section_id')
         .eq('form_id', formId);
+
+      const questionSnapshot = (questions || []).map((q: any) => ({
+        id: q.id,
+        question_text: q.question_text,
+        question_type: q.question_type,
+        is_required: q.is_required,
+        csv_column: q.csv_column,
+        options: q.options,
+        sort_order: q.sort_order,
+        section_id: q.section_id,
+      }));
+
+      try {
+        const snapshotPayload: Record<string, any> = {
+          id: responseId,
+          form_id: formId,
+          context_type: 'market_day',
+          context_id: edition.id,
+          vendor_id: vendorId,
+          source: 'link',
+          submitted_at: new Date().toISOString(),
+        };
+        if (questionSnapshot.length > 0) {
+          snapshotPayload.form_schema_snapshot = questionSnapshot;
+        }
+
+        const { error: resError } = await supabase.from('survey_responses').insert(snapshotPayload);
+        if (resError && resError.code === '23505') {
+          // duplicate key — already exists
+        } else if (resError) {
+          throw resError;
+        }
+      } catch (snapshotErr: any) {
+        const isColumnMissing =
+          snapshotErr?.code === '42703' ||
+          (typeof snapshotErr?.message === 'string' &&
+            snapshotErr.message.includes('form_schema_snapshot'));
+        if (isColumnMissing) {
+          const { error: fallbackErr } = await supabase.from('survey_responses').insert({
+            id: responseId,
+            form_id: formId,
+            context_type: 'market_day',
+            context_id: edition.id,
+            vendor_id: vendorId,
+            source: 'link',
+            submitted_at: new Date().toISOString(),
+          });
+          if (fallbackErr && fallbackErr.code === '23505') {
+            // duplicate — already exists
+          } else if (fallbackErr) {
+            throw fallbackErr;
+          }
+        } else {
+          throw snapshotErr;
+        }
+      }
 
       if (questions && questions.length > 0) {
         const answersToInsert: { response_id: string; question_id: string; answer: string }[] = [];

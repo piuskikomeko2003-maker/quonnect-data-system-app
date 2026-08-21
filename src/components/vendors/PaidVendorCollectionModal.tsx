@@ -1,0 +1,585 @@
+'use client';
+
+import React, { useState, useCallback } from 'react';
+import { createClient } from '@/lib/supabase/client';
+import { DynamicQuickEntryForm, FormDataCache } from '@/components/forms/DynamicQuickEntryForm';
+import { Button } from '@/components/ui/Button';
+import {
+  X,
+  Loader2,
+  FileText,
+  UserPlus,
+  Database,
+  Phone,
+  Mail,
+  Tag,
+  AlertCircle,
+  Info,
+} from 'lucide-react';
+
+type ViewMode = 'actions' | 'form';
+
+const PREFILL_FIELDS = new Set([
+  'full_name',
+  'business_name',
+  'phone_number',
+  'email',
+  'gender',
+  'age',
+  'business_category',
+  'how_long_in_business',
+  'primary_source_of_income',
+  'products_primarily_from',
+  'business_operates_as',
+  'paid_employees',
+  'number_of_employees',
+  'female_employees',
+  'youth_employees',
+  'active_social_media',
+  'online_sales',
+  'how_did_you_know',
+  'business_growth',
+  'quonnect_benefits',
+]);
+
+const EVENT_SPECIFIC_FIELDS = new Set([
+  'first_time_at_quonnect',
+  'times_attended',
+  'attended_last_quonnect',
+  'regions_attended',
+  'hired_new_employees',
+  'new_employees_count',
+  'hires_casual_helpers',
+  'casual_helpers_count',
+  'would_recommend',
+  'main_challenges',
+]);
+
+interface PaidVendor {
+  id: string;
+  vendor_id: string;
+  payment_status: string;
+  amount_paid: number;
+  created_at: string;
+  business_name: string;
+  contact_name: string;
+  phone: string;
+  email: string;
+  category: string;
+}
+
+export interface PaidVendorCollectionModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  vendor: PaidVendor | null;
+  activeEdition: { id: string; name: string } | null;
+  onSaved: (vendorName: string) => void;
+}
+
+export const PaidVendorCollectionModal: React.FC<PaidVendorCollectionModalProps> = ({
+  isOpen,
+  onClose,
+  vendor,
+  activeEdition,
+  onSaved,
+}) => {
+  const [viewMode, setViewMode] = useState<ViewMode>('actions');
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [prefillAnswers, setPrefillAnswers] = useState<Record<string, string>>({});
+  const [prefillSource, setPrefillSource] = useState<Record<string, 'registration' | 'last_visit' | 'both'>>({});
+  const [formDataCache, setFormDataCache] = useState<FormDataCache | undefined>(undefined);
+
+  const buildPrefillData = useCallback(async () => {
+    if (!vendor || !activeEdition) return;
+
+    setLoading(true);
+    setError(null);
+
+    try {
+      const supabase = createClient();
+      if (!supabase) throw new Error('Supabase client not initialized');
+
+      const prefill: Record<string, string> = {};
+      const sources: Record<string, 'registration' | 'last_visit' | 'both'> = {};
+
+      const paidFields: Record<string, string> = {
+        full_name: vendor.contact_name || '',
+        business_name: vendor.business_name || '',
+        phone_number: vendor.phone || '',
+        email: vendor.email || '',
+        business_category: vendor.category || '',
+      };
+
+      for (const [key, val] of Object.entries(paidFields)) {
+        if (val && val.trim()) {
+          prefill[key] = val;
+          sources[key] = 'registration';
+        }
+      }
+
+      const priorFields: Record<string, string> = {};
+      const priorSources: Record<string, 'last_visit'> = {};
+
+      if (vendor.vendor_id) {
+        const { data: priorResponses } = await supabase
+          .from('survey_responses')
+          .select(`
+            id,
+            submitted_at,
+            survey_answers (
+              answer,
+              survey_questions ( csv_column )
+            )
+          `)
+          .eq('vendor_id', vendor.vendor_id)
+          .neq('context_id', activeEdition.id)
+          .order('submitted_at', { ascending: false })
+          .limit(1);
+
+        const prior = priorResponses?.[0];
+        if (prior?.survey_answers) {
+          for (const a of prior.survey_answers) {
+            const q = (a as any).survey_questions;
+            const csvCol = q?.csv_column;
+            if (csvCol && a.answer && PREFILL_FIELDS.has(csvCol)) {
+              priorFields[csvCol] = a.answer;
+              priorSources[csvCol] = 'last_visit';
+            }
+          }
+        }
+      }
+
+      for (const [key, val] of Object.entries(priorFields)) {
+        if (val && val.trim()) {
+          prefill[key] = val;
+          sources[key] = 'last_visit';
+        }
+      }
+
+      for (const [key] of Object.entries(paidFields)) {
+        if (priorFields[key] && paidFields[key] && priorFields[key] !== paidFields[key]) {
+          sources[key] = 'both';
+        }
+      }
+
+      setPrefillAnswers(prefill);
+      setPrefillSource(sources);
+
+      const { data: formData } = await supabase
+        .from('forms')
+        .select('id')
+        .eq('slug', 'vendor_data_collection')
+        .single();
+
+      if (!formData) throw new Error('Collection form not found');
+      const formId = formData.id;
+
+      const { data: qData } = await supabase
+        .from('survey_questions')
+        .select(`
+          id,
+          question_text,
+          question_type,
+          is_required,
+          csv_column,
+          options,
+          sort_order,
+          section_id,
+          form_sections ( name, sort_order )
+        `)
+        .eq('form_id', formId)
+        .order('sort_order', { ascending: true });
+
+      if (!qData) throw new Error('No questions found');
+
+      const qs = qData as any[];
+      const sections: { id: string; name: string; sort_order: number }[] = [];
+      const secMap = new Map<string, { id: string; name: string; sort_order: number }>();
+      qs.forEach((q: any) => {
+        if (q.section_id && q.form_sections && q.form_sections.length > 0) {
+          const sec = q.form_sections[0];
+          secMap.set(q.section_id, {
+            id: q.section_id,
+            name: sec.name,
+            sort_order: sec.sort_order,
+          });
+        }
+      });
+      sections.push(...Array.from(secMap.values()).sort((a, b) => a.sort_order - b.sort_order));
+
+      const qIds = qs.map((q: any) => q.id);
+      const [{ data: qlData }, { data: slData }] = await Promise.all([
+        supabase.from('question_logic').select('*').in('source_question_id', qIds),
+        supabase.from('section_logic').select('*').in('source_question_id', qIds),
+      ]);
+
+      setFormDataCache({
+        questions: qs,
+        sections,
+        questionRules: qlData || [],
+        sectionRules: slData || [],
+      });
+
+      setViewMode('form');
+    } catch (err: unknown) {
+      let msg = 'Failed to load pre-fill data';
+      if (err instanceof Error) {
+        msg = err.message;
+      } else if (err && typeof err === 'object' && 'message' in err) {
+        msg = (err as any).message || msg;
+      }
+      console.error('PaidVendorCollectionModal prefill error:', msg);
+      setError(msg);
+    } finally {
+      setLoading(false);
+    }
+  }, [vendor, activeEdition]);
+
+  const handleSubmit = async (answers: Record<string, string>): Promise<{ synced: boolean; message?: string; name?: string }> => {
+    if (!activeEdition || !vendor) {
+      throw new Error('Missing edition or vendor context');
+    }
+
+    const supabase = createClient();
+    if (!supabase) throw new Error('Supabase client not initialized');
+
+    const { data: formData, error: fErr } = await supabase
+      .from('forms')
+      .select('id')
+      .eq('slug', 'vendor_data_collection')
+      .single();
+
+    if (fErr || !formData) throw new Error('Collection form not found');
+    const formId = formData.id;
+
+    const { data: questions, error: qErr } = await supabase
+      .from('survey_questions')
+      .select('id, csv_column, question_text, question_type, is_required, options, sort_order, section_id')
+      .eq('form_id', formId);
+
+    if (qErr) throw qErr;
+
+    const questionSnapshot = (questions || []).map((q: any) => ({
+      id: q.id,
+      question_text: q.question_text,
+      question_type: q.question_type,
+      is_required: q.is_required,
+      csv_column: q.csv_column,
+      options: q.options,
+      sort_order: q.sort_order,
+      section_id: q.section_id,
+    }));
+
+    let vendorId = vendor.vendor_id;
+    if (!vendorId) {
+      const { data: existingVendor } = await supabase
+        .from('vendors')
+        .select('id')
+        .eq('phone', vendor.phone)
+        .limit(1);
+      if (existingVendor && existingVendor.length > 0) {
+        vendorId = existingVendor[0].id;
+        const { error: updErr } = await supabase
+          .from('vendors')
+          .update({
+            business_name: answers.business_name || vendor.business_name,
+            contact_name: answers.full_name || vendor.contact_name,
+            email: answers.email || vendor.email,
+            category: answers.business_category || vendor.category,
+            is_active: true,
+          })
+          .eq('id', vendorId);
+        if (updErr) throw updErr;
+      } else {
+        const { data: newVendor } = await supabase
+          .from('vendors')
+          .insert({
+            business_name: answers.business_name || vendor.business_name,
+            contact_name: answers.full_name || answers.contact_name || vendor.contact_name,
+            phone: answers.phone_number || vendor.phone,
+            email: answers.email || vendor.email,
+            category: answers.business_category || vendor.category,
+            is_active: true,
+          })
+          .select('id')
+          .single();
+        if (!newVendor) throw new Error('Failed to create vendor');
+        vendorId = newVendor.id;
+      }
+    }
+
+    let responseId: string;
+    try {
+      const snapshotPayload: Record<string, any> = {
+        form_id: formId,
+        context_type: 'market_day',
+        context_id: activeEdition.id,
+        vendor_id: vendorId,
+        source: 'manual',
+        submitted_at: new Date().toISOString(),
+      };
+      if (questionSnapshot.length > 0) {
+        snapshotPayload.form_schema_snapshot = questionSnapshot;
+      }
+
+      const { data: resData, error: resError } = await supabase
+        .from('survey_responses')
+        .insert(snapshotPayload)
+        .select()
+        .single();
+
+      if (resError) throw resError;
+      if (!resData) throw new Error('Failed to create survey response');
+      responseId = resData.id;
+    } catch (snapshotErr: any) {
+      const isColumnMissing =
+        snapshotErr?.code === '42703' ||
+        (typeof snapshotErr?.message === 'string' &&
+          snapshotErr.message.includes('form_schema_snapshot'));
+      if (isColumnMissing) {
+        const { data: resData, error: fallbackErr } = await supabase
+          .from('survey_responses')
+          .insert({
+            form_id: formId,
+            context_type: 'market_day',
+            context_id: activeEdition.id,
+            vendor_id: vendorId,
+            source: 'manual',
+            submitted_at: new Date().toISOString(),
+          })
+          .select()
+          .single();
+        if (fallbackErr) throw fallbackErr;
+        if (!resData) throw new Error('Failed to create survey response');
+        responseId = resData.id;
+      } else {
+        throw snapshotErr;
+      }
+    }
+
+    const answersToInsert = [];
+    for (const [csvCol, val] of Object.entries(answers)) {
+      if (val !== undefined && val !== null && val !== '') {
+        const q = (questions || []).find((q: any) => q.csv_column === csvCol);
+        if (q) {
+          answersToInsert.push({
+            response_id: responseId,
+            question_id: q.id,
+            answer: String(val),
+          });
+        }
+      }
+    }
+
+    if (answersToInsert.length > 0) {
+      const { error: ansErr } = await supabase.from('survey_answers').insert(answersToInsert);
+      if (ansErr) throw ansErr;
+    }
+
+    const contactName = answers.full_name || answers.contact_name || vendor.contact_name;
+    const { error: walkErr } = await supabase.from('walkins').insert({
+      id: responseId,
+      market_day_id: activeEdition.id,
+      full_name: contactName,
+      phone: answers.phone_number || vendor.phone,
+      email: answers.email || vendor.email,
+      business_type: answers.business_category || vendor.category,
+      age: answers.age ? parseInt(answers.age) : null,
+      recorded_at: new Date().toISOString(),
+    });
+    if (walkErr) {
+      console.error('Auto-walkin insert failed:', walkErr);
+    }
+
+    onSaved(contactName || 'Vendor');
+    return { synced: true, name: contactName };
+  };
+
+  const handleClose = () => {
+    setViewMode('actions');
+    setError(null);
+    setPrefillAnswers({});
+    setPrefillSource({});
+    setFormDataCache(undefined);
+    onClose();
+  };
+
+  if (!isOpen || !vendor) return null;
+
+  return (
+    <div className="fixed inset-0 z-[1100] flex items-start justify-center pt-[8vh] select-none">
+      <div
+        className="fixed inset-0 bg-black/60 backdrop-blur-xs animate-fade-in"
+        onClick={handleClose}
+      />
+
+      <div className="relative bg-bg-surface border border-border rounded-xl shadow-modal z-10 w-full max-w-[600px] max-h-[85vh] overflow-y-auto animate-scale-up">
+        <div className="sticky top-0 bg-bg-surface border-b border-border p-4 flex items-center justify-between z-10 rounded-t-xl">
+          <div>
+            <h2 className="text-sm font-bold text-text-primary">
+              {viewMode === 'actions' ? 'Paid Vendor' : 'Field Data Collection'}
+            </h2>
+            <p className="text-[10px] text-text-tertiary mt-0.5">
+              {vendor.business_name} — {activeEdition?.name || 'Current Edition'}
+            </p>
+          </div>
+          <button
+            onClick={handleClose}
+            className="w-8 h-8 rounded-full bg-bg-surface border border-border text-text-secondary hover:text-red hover:border-red flex items-center justify-center transition-colors cursor-pointer"
+          >
+            <X className="w-4 h-4" />
+          </button>
+        </div>
+
+        <div className="p-5">
+          {viewMode === 'actions' && (
+            <div className="space-y-4 text-left">
+              <div className="bg-bg-elevated border border-border rounded-lg p-4 space-y-2">
+                <h3 className="text-xs font-bold text-text-primary">Vendor Details</h3>
+                <div className="grid grid-cols-2 gap-2 text-[11px]">
+                  <div className="text-text-tertiary">Contact:</div>
+                  <div className="text-text-primary font-medium">{vendor.contact_name || '—'}</div>
+                  <div className="text-text-tertiary flex items-center gap-1"><Phone className="w-3 h-3" />Phone:</div>
+                  <div className="text-text-primary font-mono">{vendor.phone || '—'}</div>
+                  {vendor.email && (
+                    <>
+                      <div className="text-text-tertiary flex items-center gap-1"><Mail className="w-3 h-3" />Email:</div>
+                      <div className="text-text-primary">{vendor.email}</div>
+                    </>
+                  )}
+                  <div className="text-text-tertiary flex items-center gap-1"><Tag className="w-3 h-3" />Category:</div>
+                  <div className="text-text-primary">{vendor.category || '—'}</div>
+                  <div className="text-text-tertiary">Payment:</div>
+                  <div>
+                    <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
+                      vendor.payment_status === 'paid' ? 'bg-green-500/10 text-green-400 border border-green-500/20' :
+                      'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                    }`}>
+                      {vendor.payment_status}
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-3">
+                <button
+                  onClick={buildPrefillData}
+                  disabled={loading}
+                  className="bg-bg-elevated border border-border hover:border-green/50 rounded-lg p-4 text-left transition-all cursor-pointer group disabled:opacity-50"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 bg-green-muted text-green rounded-lg flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                      {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <UserPlus className="w-5 h-5" />}
+                    </div>
+                    <div>
+                      <h3 className="text-xs font-bold text-text-primary">Start Field Data Collection</h3>
+                      <p className="text-[10px] text-text-secondary mt-0.5">
+                        Open the field data form pre-filled with vendor info and any data from their last visit.
+                        Event-specific fields (attendance, market-day questions) will be blank.
+                      </p>
+                    </div>
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => {
+                    handleClose();
+                    setTimeout(() => {
+                      if (vendor.vendor_id) {
+                        window.dispatchEvent(new CustomEvent('edit-vendor-from-paid', {
+                          detail: { vendorId: vendor.vendor_id, vendorName: vendor.business_name || vendor.contact_name },
+                        }));
+                      }
+                    }, 100);
+                  }}
+                  className="bg-bg-elevated border border-border hover:border-blue/50 rounded-lg p-4 text-left transition-all cursor-pointer group"
+                >
+                  <div className="flex items-start gap-3">
+                    <div className="w-10 h-10 bg-blue-muted/50 text-blue rounded-lg flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                      <FileText className="w-5 h-5" />
+                    </div>
+                    <div>
+                      <h3 className="text-xs font-bold text-text-primary">Edit Existing Submission</h3>
+                      <p className="text-[10px] text-text-secondary mt-0.5">
+                        Edit this vendor&apos;s previously submitted field data for the current edition.
+                      </p>
+                    </div>
+                  </div>
+                </button>
+              </div>
+
+              {error && (
+                <div className="bg-red-soft/10 border border-red/20 rounded-lg p-3 flex items-start gap-2">
+                  <AlertCircle className="w-4 h-4 text-red shrink-0 mt-0.5" />
+                  <p className="text-[11px] text-text-secondary">{error}</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {viewMode === 'form' && formDataCache && (
+            <div className="text-left">
+              {Object.keys(prefillSource).length > 0 && (
+                <div className="bg-green-soft/30 border border-green/15 rounded-lg p-3 mb-5">
+                  <div className="flex items-center gap-2 mb-2">
+                    <Info className="w-4 h-4 text-green" />
+                    <h4 className="text-[10px] font-bold text-green uppercase tracking-wider">Pre-filled Fields</h4>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {Object.entries(prefillSource).map(([field, source]) => (
+                      <span
+                        key={field}
+                        className={`text-[9px] font-medium px-2 py-0.5 rounded-full border ${
+                          source === 'registration'
+                            ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                            : source === 'last_visit'
+                              ? 'bg-purple-500/10 text-purple-400 border-purple-500/20'
+                              : 'bg-green-500/10 text-green-400 border-green-500/20'
+                        }`}
+                        title={`${field}: ${
+                          source === 'registration' ? 'from registration' :
+                          source === 'last_visit' ? 'from last visit' :
+                          'from both (registration + last visit)'
+                        }`}
+                      >
+                        {field}
+                        {source === 'registration' && ' (reg)'}
+                        {source === 'last_visit' && ' (last)'}
+                        {source === 'both' && ' (both)'}
+                      </span>
+                    ))}
+                  </div>
+                  <p className="text-[9px] text-text-tertiary mt-2 leading-relaxed">
+                    <strong>reg</strong> = from paid registration &nbsp;|&nbsp;
+                    <strong>last</strong> = from last visit &nbsp;|&nbsp;
+                    <strong>both</strong> = in both sources (last visit value used)
+                  </p>
+                </div>
+              )}
+
+              <DynamicQuickEntryForm
+                formSlug="vendor_data_collection"
+                activeEdition={activeEdition}
+                onSubmit={handleSubmit}
+                successState={{
+                  show: false,
+                  onAddAnother: () => {},
+                }}
+                runningCount={0}
+                formIcon={<Database className="w-4 h-4 text-green" />}
+                formLabel="Field Data Collection"
+                formSubtitle={`Collecting data for ${vendor.business_name || vendor.contact_name}`}
+                countLabel="collecting"
+                lookupEnabled={false}
+                cachedData={formDataCache}
+                initialAnswers={prefillAnswers}
+                editMode={false}
+              />
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+};

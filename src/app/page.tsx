@@ -23,6 +23,8 @@ import { AlertBanner } from '@/components/dashboard/AlertBanner';
 import { FilterBar, FilterState } from '@/components/dashboard/FilterBar';
 import { VendorTable, Vendor } from '@/components/vendors/VendorTable';
 import { VendorDetailPanel } from '@/components/vendors/VendorDetailPanel';
+import { EditVendorModal } from '@/components/vendors/EditVendorModal';
+import { PaidVendorCollectionModal } from '@/components/vendors/PaidVendorCollectionModal';
 import { QuickEntryPanel } from '@/components/forms/QuickEntryPanel';
 import { FormBuilderShell } from '@/components/formbuilder/FormBuilderShell';
 import { FormBuilderPanel } from '@/components/formbuilder/FormBuilderPanel';
@@ -831,6 +833,7 @@ export default function Home() {
             business_name,
             contact_name,
             phone,
+            email,
             category
           )
         `)
@@ -841,12 +844,14 @@ export default function Home() {
 
       const registrations = (data || []).map((r: any) => ({
         id: r.id,
+        vendor_id: r.vendors?.id || '',
         payment_status: r.payment_status,
         amount_paid: r.amount_paid,
         created_at: r.created_at,
         business_name: r.vendors?.business_name || 'Unknown',
         contact_name: r.vendors?.contact_name || 'Unknown',
         phone: r.vendors?.phone || '',
+        email: r.vendors?.email || '',
         category: r.vendors?.category || '',
       }));
 
@@ -1255,6 +1260,15 @@ export default function Home() {
   const [generatedLinkPass, setGeneratedLinkPass] = useState('');
   const [copiedText, setCopiedText] = useState(false);
   
+  // Edit Vendor Modal State
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [editingVendorId, setEditingVendorId] = useState<string | null>(null);
+  const [editingVendorName, setEditingVendorName] = useState<string>('');
+
+  // Paid Vendor Collection State
+  const [isPaidVendorModalOpen, setIsPaidVendorModalOpen] = useState(false);
+  const [selectedPaidVendor, setSelectedPaidVendor] = useState<any>(null);
+  
   // Merge Proposal Queue Mock State
   const [mergeProposals, setMergeProposals] = useState<any[]>([]);
 
@@ -1315,6 +1329,21 @@ export default function Home() {
     };
     window.addEventListener('navigate-to-form-builder', handler);
     return () => window.removeEventListener('navigate-to-form-builder', handler);
+  }, []);
+
+  // Listen for edit-vendor-from-paid events from PaidVendorCollectionModal
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const customEvent = e as CustomEvent;
+      const { vendorId, vendorName } = customEvent.detail || {};
+      if (vendorId) {
+        setEditingVendorId(vendorId);
+        setEditingVendorName(vendorName || '');
+        setIsEditModalOpen(true);
+      }
+    };
+    window.addEventListener('edit-vendor-from-paid', handler);
+    return () => window.removeEventListener('edit-vendor-from-paid', handler);
   }, []);
 
   // Calculate duplicate merge proposals dynamically from live vendors
@@ -1592,29 +1621,70 @@ export default function Home() {
       if (fError) throw fError;
       const formId = formData.id;
 
-      const { data: resData, error: resError } = await supabase
-        .from('survey_responses')
-        .insert({
+      const { data: questions, error: qError } = await supabase
+        .from('survey_questions')
+        .select('id, csv_column, question_text, question_type, is_required, options, sort_order, section_id')
+        .eq('form_id', formId);
+
+      if (qError) throw qError;
+
+      const questionSnapshot = (questions || []).map((q: any) => ({
+        id: q.id,
+        question_text: q.question_text,
+        question_type: q.question_type,
+        is_required: q.is_required,
+        csv_column: q.csv_column,
+        options: q.options,
+        sort_order: q.sort_order,
+        section_id: q.section_id,
+      }));
+
+      let responseId: string;
+      try {
+        const snapshotPayload: Record<string, any> = {
           form_id: formId,
           context_type: 'market_day',
           context_id: activeEdition.id,
           vendor_id: vendorId,
           source: 'manual',
-          submitted_at: new Date().toISOString()
-        })
-        .select();
+          submitted_at: new Date().toISOString(),
+        };
+        if (questionSnapshot.length > 0) {
+          snapshotPayload.form_schema_snapshot = questionSnapshot;
+        }
 
-      if (resError) throw resError;
-      if (!resData || resData.length === 0) throw new Error("Failed to insert survey response.");
+        const { data: resData, error: resError } = await supabase
+          .from('survey_responses')
+          .insert(snapshotPayload)
+          .select();
 
-      const responseId = resData[0].id;
-
-      const { data: questions, error: qError } = await supabase
-        .from('survey_questions')
-        .select('id, csv_column')
-        .eq('form_id', formId);
-
-      if (qError) throw qError;
+        if (resError) throw resError;
+        if (!resData || resData.length === 0) throw new Error("Failed to insert survey response.");
+        responseId = resData[0].id;
+      } catch (snapshotErr: any) {
+        const isColumnMissing =
+          snapshotErr?.code === '42703' ||
+          (typeof snapshotErr?.message === 'string' &&
+            snapshotErr.message.includes('form_schema_snapshot'));
+        if (isColumnMissing) {
+          const { data: resData, error: fallbackErr } = await supabase
+            .from('survey_responses')
+            .insert({
+              form_id: formId,
+              context_type: 'market_day',
+              context_id: activeEdition.id,
+              vendor_id: vendorId,
+              source: 'manual',
+              submitted_at: new Date().toISOString(),
+            })
+            .select();
+          if (fallbackErr) throw fallbackErr;
+          if (!resData || resData.length === 0) throw new Error("Failed to insert survey response.");
+          responseId = resData[0].id;
+        } else {
+          throw snapshotErr;
+        }
+      }
 
       const answersToInsert = [];
       for (const [csvCol, val] of Object.entries(answers)) {
@@ -3137,7 +3207,14 @@ export default function Home() {
                           </thead>
                           <tbody className="divide-y divide-white/5 text-xs">
                             {paidVendors.map((pv) => (
-                              <tr key={pv.id} className="hover:bg-white/[0.02] transition-colors">
+                              <tr
+                                key={pv.id}
+                                onClick={() => {
+                                  setSelectedPaidVendor(pv);
+                                  setIsPaidVendorModalOpen(true);
+                                }}
+                                className="hover:bg-white/[0.02] transition-colors cursor-pointer"
+                              >
                                 <td className="p-4 font-semibold text-white">
                                   {pv.business_name || '—'}
                                 </td>
@@ -3540,7 +3617,13 @@ export default function Home() {
         }}
         vendor={activeVendorDetail}
         onEdit={(id) => {
-          alert(`Editing profile details for vendor ID: ${id}`);
+          const vendorObj = vendors.find(v => v.id === id);
+          if (vendorObj) {
+            setEditingVendorId(id);
+            setEditingVendorName(vendorObj.name);
+            setIsEditModalOpen(true);
+            setIsDetailOpen(false);
+          }
         }}
         onFlagMerge={(id) => {
           const vendorObj = vendors.find(v => v.id === id);
@@ -3566,6 +3649,47 @@ export default function Home() {
             alert('Vendor flagged. Proposal added to Data Audit review queue.');
             setIsDetailOpen(false);
           }
+        }}
+      />
+
+      {/* Edit Vendor Modal */}
+      <EditVendorModal
+        isOpen={isEditModalOpen}
+        onClose={() => {
+          setIsEditModalOpen(false);
+          setEditingVendorId(null);
+          setEditingVendorName('');
+        }}
+        vendorId={editingVendorId || ''}
+        vendorName={editingVendorName}
+        activeEdition={activeEdition}
+        onSaved={() => {
+          setIsEditModalOpen(false);
+          setEditingVendorId(null);
+          setEditingVendorName('');
+          fetchVendors();
+          fetchSurveyResponses();
+          fetchOverviewCounts();
+          addToast(`Submission updated successfully for "${editingVendorName}"!`, 'success');
+        }}
+      />
+
+      {/* Paid Vendor Collection Modal */}
+      <PaidVendorCollectionModal
+        isOpen={isPaidVendorModalOpen}
+        onClose={() => {
+          setIsPaidVendorModalOpen(false);
+          setSelectedPaidVendor(null);
+        }}
+        vendor={selectedPaidVendor}
+        activeEdition={activeEdition}
+        onSaved={(vendorName) => {
+          setIsPaidVendorModalOpen(false);
+          setSelectedPaidVendor(null);
+          fetchVendors();
+          fetchSurveyResponses();
+          fetchOverviewCounts();
+          addToast(`Field data collected for "${vendorName}"!`, 'success');
         }}
       />
 
