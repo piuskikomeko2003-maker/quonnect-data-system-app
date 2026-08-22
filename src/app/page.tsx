@@ -70,6 +70,7 @@ import {
   Upload,
   Search,
   History,
+  Trash2,
 } from 'lucide-react';
 
 const CustomGrowthTooltip = ({ active, payload, label }: any) => {
@@ -924,6 +925,63 @@ export default function Home() {
       setPaidVendors([]);
       setPaidVendorCounts({ paid: 0, unpaid: 0, revenue: 0 });
       setLoadingPaidVendors(false);
+    }
+  };
+
+  const handleDeleteVendor = async (vendor: { id: string; name: string }) => {
+    const label = vendor.name || vendor.id;
+    if (!window.confirm(`Delete vendor "${label}" and all their associated records (registrations and survey responses)? This cannot be undone.`)) return;
+    const supabase = createClient();
+    if (!supabase) return;
+    try {
+      const { data: responses } = await supabase
+        .from('survey_responses')
+        .select('id')
+        .eq('vendor_id', vendor.id);
+      const responseIds = (responses || []).map((r: any) => r.id);
+      if (responseIds.length > 0) {
+        await supabase.from('survey_answers').delete().in('response_id', responseIds);
+      }
+      await supabase.from('survey_responses').delete().eq('vendor_id', vendor.id);
+      await supabase.from('vendor_registrations').delete().eq('vendor_id', vendor.id);
+      await supabase.from('vendors').delete().eq('id', vendor.id);
+      fetchVendors();
+      fetchPaidVendors();
+      fetchOverviewCounts();
+      fetchOverviewMetrics();
+    } catch (err: any) {
+      console.error('Delete vendor failed:', err);
+      window.alert(`Failed to delete vendor: ${err?.message || err}`);
+    }
+  };
+
+  const handleDeleteWalkin = async (id: string) => {
+    if (!window.confirm('Delete this walk-in record? This cannot be undone.')) return;
+    const supabase = createClient();
+    if (!supabase) return;
+    try {
+      await supabase.from('walkins').delete().eq('id', id);
+      fetchWalkins();
+      fetchOverviewCounts();
+    } catch (err: any) {
+      console.error('Delete walk-in failed:', err);
+      window.alert(`Failed to delete walk-in: ${err?.message || err}`);
+    }
+  };
+
+  const handleDeletePaidVendor = async (pv: { id: string; business_name?: string; contact_name?: string }) => {
+    const label = pv.business_name || pv.contact_name || pv.id;
+    if (!window.confirm(`Delete paid vendor "${label}" from this edition? This removes the payment record (the vendor profile stays in the directory).`)) return;
+    const supabase = createClient();
+    if (!supabase) return;
+    try {
+      await supabase.from('vendor_registrations').delete().eq('id', pv.id);
+      fetchPaidVendors();
+      fetchOverviewCounts();
+      fetchOverviewMetrics();
+    } catch (err: any) {
+      console.error('Delete paid vendor failed:', err);
+      window.alert(`Failed to delete paid vendor: ${err?.message || err}`);
     }
   };
 
@@ -3056,6 +3114,7 @@ export default function Home() {
                   }}
                   searchTerm={vendorSearch}
                   onSearchChange={setVendorSearch}
+                  onDelete={handleDeleteVendor}
                 />
               )}
             </div>
@@ -3171,12 +3230,13 @@ export default function Home() {
                         <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider">Business Type</th>
                         <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider text-center">Age</th>
                         <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider">Recorded At</th>
+                        <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider text-center w-[60px]">Del</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-border/40 text-xs">
                       {filteredWalkins.length === 0 ? (
                         <tr>
-                          <td colSpan={5} className="p-8 text-center text-text-tertiary font-medium">
+                          <td colSpan={6} className="p-8 text-center text-text-tertiary font-medium">
                             No walk-in logs found. Try registering a new walk-in guest above.
                           </td>
                         </tr>
@@ -3192,6 +3252,15 @@ export default function Home() {
                               <Badge variant="neutral" size="sm" className="font-bold">{w.age}</Badge>
                             </td>
                             <td className="p-3.5 text-text-secondary font-medium">{w.date}</td>
+                            <td className="p-3.5 text-center">
+                              <button
+                                onClick={() => handleDeleteWalkin(w.id)}
+                                title="Delete walk-in"
+                                className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 transition-colors"
+                              >
+                                <Trash2 className="w-4 h-4" />
+                              </button>
+                            </td>
                           </tr>
                         ))
                       )}
@@ -3415,6 +3484,7 @@ export default function Home() {
                                     ) : (
                                       <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest text-center">Action</th>
                                     )}
+                                    <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest text-center w-[60px]">Del</th>
                                   </tr>
                                 </thead>
                                 <tbody className="divide-y divide-white/5 text-xs">
@@ -3457,6 +3527,15 @@ export default function Home() {
                                           </button>
                                         </td>
                                       )}
+                                      <td className="p-4 text-center" onClick={e => e.stopPropagation()}>
+                                        <button
+                                          onClick={() => handleDeletePaidVendor(pv)}
+                                          title="Delete paid vendor"
+                                          className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 transition-colors"
+                                        >
+                                          <Trash2 className="w-4 h-4" />
+                                        </button>
+                                      </td>
                                     </tr>
                                   ))}
                                 </tbody>

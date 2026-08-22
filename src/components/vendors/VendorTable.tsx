@@ -1,5 +1,5 @@
 import React from 'react';
-import { Search, Info, Plus } from 'lucide-react';
+import { Search, Info, Plus, Trash2 } from 'lucide-react';
 import { VendorStatusBadge, VendorStatus } from './VendorStatusBadge';
 import { Badge } from '../ui/Badge';
 import { Input } from '../ui/Input';
@@ -25,6 +25,7 @@ export interface VendorTableProps {
   onRowClick: (vendor: Vendor) => void;
   searchTerm: string;
   onSearchChange: (term: string) => void;
+  onDelete?: (vendor: Vendor) => void;
 }
 
 export const VendorTable: React.FC<VendorTableProps> = ({
@@ -34,7 +35,8 @@ export const VendorTable: React.FC<VendorTableProps> = ({
   onSelectAll,
   onRowClick,
   searchTerm,
-  onSearchChange
+  onSearchChange,
+  onDelete
 }) => {
   // Skeleton loader when data is undefined
   if (vendors === undefined) {
@@ -131,6 +133,7 @@ export const VendorTable: React.FC<VendorTableProps> = ({
                 <th className="hidden sm:table-cell p-3.5 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Region</th>
                 <th className="hidden sm:table-cell p-3.5 text-[10px] font-semibold text-gray-400 uppercase tracking-widest text-center">Attendances</th>
                 <th className="p-3.5 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Last Seen</th>
+                {onDelete && <th className="p-3.5 text-[10px] font-semibold text-gray-400 uppercase tracking-widest text-center w-[60px]">Del</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-white/5 text-xs">
@@ -212,6 +215,21 @@ export const VendorTable: React.FC<VendorTableProps> = ({
                     <td className="hidden sm:table-cell p-3.5 text-gray-400 font-medium">
                       {vendor.lastSeen}
                     </td>
+                    {/* Delete action */}
+                    {onDelete && (
+                      <td
+                        onClick={(e) => e.stopPropagation()}
+                        className="p-3.5 text-center"
+                      >
+                        <button
+                          onClick={() => onDelete(vendor)}
+                          title="Delete vendor"
+                          className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 transition-colors"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </td>
+                    )}
                   </tr>
                 );
               })}
