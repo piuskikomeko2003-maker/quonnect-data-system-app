@@ -25,6 +25,9 @@ import { VendorTable, Vendor } from '@/components/vendors/VendorTable';
 import { VendorDetailPanel } from '@/components/vendors/VendorDetailPanel';
 import { EditVendorModal } from '@/components/vendors/EditVendorModal';
 import { PaidVendorCollectionModal } from '@/components/vendors/PaidVendorCollectionModal';
+import { PaidVendorCsvImportModal } from '@/components/vendors/PaidVendorCsvImportModal';
+import { PaidVendorImportHistoryModal } from '@/components/vendors/PaidVendorImportHistoryModal';
+import { IncompleteVendorsPanel } from '@/components/vendors/IncompleteVendorsPanel';
 import { QuickEntryPanel } from '@/components/forms/QuickEntryPanel';
 import { FormBuilderShell } from '@/components/formbuilder/FormBuilderShell';
 import { FormBuilderPanel } from '@/components/formbuilder/FormBuilderPanel';
@@ -64,6 +67,9 @@ import {
   CreditCard,
   ArrowUpRight,
   RotateCcw,
+  Upload,
+  Search,
+  History,
 } from 'lucide-react';
 
 const CustomGrowthTooltip = ({ active, payload, label }: any) => {
@@ -227,6 +233,9 @@ export default function Home() {
   const [paidVendors, setPaidVendors] = useState<any[]>([]);
   const [paidVendorCounts, setPaidVendorCounts] = useState({ paid: 0, unpaid: 0, revenue: 0 });
   const [loadingPaidVendors, setLoadingPaidVendors] = useState(false);
+  /** 'registered' = vendor has survey response | 'pending' = no survey response yet */
+  const [paidVendorTab, setPaidVendorTab] = useState<'registered' | 'pending'>('registered');
+  const [paidVendorSearch, setPaidVendorSearch] = useState('');
 
   // Overview live counts
   const [overviewCounts, setOverviewCounts] = useState({ paidVendors: 0, walkins: 0, surveyResponses: 0 });
@@ -236,6 +245,10 @@ export default function Home() {
 
   interface OverviewMetrics {
     paidVendorCount: number;
+    /** Vendors with payment_status='paid' who also have a survey_response for this edition */
+    paidRegisteredCount: number;
+    /** Vendors with payment_status='paid' but no survey_response for this edition */
+    paidPendingCount: number;
     walkinCount: number;
     surveyCount: number;
     genderSplit: { female: number; male: number; femalePct: number | null; malePct: number | null; total: number };
@@ -280,11 +293,13 @@ export default function Home() {
       let surveyQuery;
 
       if (edId) {
-        paidQuery = supabase.from('vendor_registrations').select('*', { count: 'exact', head: true }).eq('market_day_id', edId);
+        // Filter to payment_status='paid' so the count only reflects genuinely paid vendors
+        // (this includes both form-registered and CSV-imported vendors equally)
+        paidQuery = supabase.from('vendor_registrations').select('*', { count: 'exact', head: true }).eq('market_day_id', edId).eq('payment_status', 'paid');
         walkinQuery = supabase.from('walkins').select('*', { count: 'exact', head: true }).eq('market_day_id', edId);
         surveyQuery = supabase.from('survey_responses').select('*', { count: 'exact', head: true }).eq('context_id', edId);
       } else {
-        paidQuery = supabase.from('vendor_registrations').select('*, market_days!inner(region_id)', { count: 'exact', head: true }).eq('market_days.region_id', regionId);
+        paidQuery = supabase.from('vendor_registrations').select('*, market_days!inner(region_id)', { count: 'exact', head: true }).eq('market_days.region_id', regionId).eq('payment_status', 'paid');
         walkinQuery = supabase.from('walkins').select('*, market_days!inner(region_id)', { count: 'exact', head: true }).eq('market_days.region_id', regionId);
         surveyQuery = supabase.from('survey_responses').select('*, market_days!inner(region_id)', { count: 'exact', head: true }).eq('market_days.region_id', regionId);
       }
@@ -294,6 +309,31 @@ export default function Home() {
       ]);
 
       const paidCount = paidRes.count ?? 0;
+
+      // ── Registered vs Not-Yet-Registered split ─────────────────────────────
+      // "Registered" = paid vendor who also has a survey_response for this edition
+      // (completed the form). "Pending" = paid vendor with no survey_response yet.
+      let paidRegisteredCount = 0;
+      let paidPendingCount = 0;
+      if (edId) {
+        const [regData, srData] = await Promise.all([
+          supabase
+            .from('vendor_registrations')
+            .select('vendor_id')
+            .eq('market_day_id', edId)
+            .eq('payment_status', 'paid'),
+          supabase
+            .from('survey_responses')
+            .select('vendor_id')
+            .eq('context_id', edId),
+        ]);
+        const surveyVendorSet = new Set(
+          (srData.data || []).map((r: any) => r.vendor_id).filter(Boolean)
+        );
+        const paidVendorIds = (regData.data || []).map((r: any) => r.vendor_id).filter(Boolean);
+        paidRegisteredCount = paidVendorIds.filter((id: string) => surveyVendorSet.has(id)).length;
+        paidPendingCount = paidVendorIds.length - paidRegisteredCount;
+      }
       const walkinCount = walkinRes.count ?? 0;
       const surveyCount = surveyRes.count ?? 0;
 
@@ -569,6 +609,8 @@ export default function Home() {
 
       setOverviewMetrics({
         paidVendorCount: paidCount,
+        paidRegisteredCount,
+        paidPendingCount,
         walkinCount,
         surveyCount,
         genderSplit: { female: genderFemale, male: genderMale, femalePct, malePct, total: genderTotal },
@@ -821,38 +863,53 @@ export default function Home() {
 
       setLoadingPaidVendors(true);
 
-      const { data, error } = await supabase
-        .from('vendor_registrations')
-        .select(`
-          id,
-          payment_status,
-          amount_paid,
-          created_at,
-          vendors (
+      // Fetch all vendor_registrations for this edition (all statuses so paid/unpaid cards work)
+      const [regResult, srResult] = await Promise.all([
+        supabase
+          .from('vendor_registrations')
+          .select(`
             id,
-            business_name,
-            contact_name,
-            phone,
-            email,
-            category
-          )
-        `)
-        .eq('market_day_id', activeEdition.id)
-        .order('created_at', { ascending: false });
+            payment_status,
+            amount_paid,
+            created_at,
+            vendors (
+              id,
+              business_name,
+              contact_name,
+              phone,
+              email,
+              category
+            )
+          `)
+          .eq('market_day_id', activeEdition.id)
+          .order('created_at', { ascending: false }),
+        // Fetch survey_responses for this edition to determine who has completed the form
+        supabase
+          .from('survey_responses')
+          .select('vendor_id')
+          .eq('context_id', activeEdition.id),
+      ]);
 
-      if (error) throw error;
+      if (regResult.error) throw regResult.error;
 
-      const registrations = (data || []).map((r: any) => ({
+      // Build a set of vendor IDs that have submitted a survey response ("Registered")
+      const surveyVendorSet = new Set(
+        (srResult.data || []).map((r: any) => r.vendor_id).filter(Boolean)
+      );
+
+      const registrations = (regResult.data || []).map((r: any) => ({
         id: r.id,
         vendor_id: r.vendors?.id || '',
         payment_status: r.payment_status,
         amount_paid: r.amount_paid,
         created_at: r.created_at,
-        business_name: r.vendors?.business_name || 'Unknown',
-        contact_name: r.vendors?.contact_name || 'Unknown',
+        business_name: r.vendors?.business_name || '',
+        contact_name: r.vendors?.contact_name || '',
         phone: r.vendors?.phone || '',
         email: r.vendors?.email || '',
         category: r.vendors?.category || '',
+        // true = vendor completed the registration form; false = CSV-imported / form not yet done
+        hasFormData: surveyVendorSet.has(r.vendors?.id || ''),
       }));
 
       const paid = registrations.filter(r => r.payment_status === 'paid').length;
@@ -1268,6 +1325,15 @@ export default function Home() {
   // Paid Vendor Collection State
   const [isPaidVendorModalOpen, setIsPaidVendorModalOpen] = useState(false);
   const [selectedPaidVendor, setSelectedPaidVendor] = useState<any>(null);
+
+  // CSV Import Modal State
+  const [isCsvImportModalOpen, setIsCsvImportModalOpen] = useState(false);
+
+  // CSV Import History Modal State
+  const [isImportHistoryOpen, setIsImportHistoryOpen] = useState(false);
+
+  // Incomplete Vendors Panel State
+  const [showIncompleteVendors, setShowIncompleteVendors] = useState(false);
   
   // Merge Proposal Queue Mock State
   const [mergeProposals, setMergeProposals] = useState<any[]>([]);
@@ -1344,6 +1410,15 @@ export default function Home() {
     };
     window.addEventListener('edit-vendor-from-paid', handler);
     return () => window.removeEventListener('edit-vendor-from-paid', handler);
+  }, []);
+
+  // Listen for 'open-incomplete-vendors' dispatched by the CSV import modal
+  useEffect(() => {
+    const handler = () => {
+      setShowIncompleteVendors(true);
+    };
+    window.addEventListener('open-incomplete-vendors', handler);
+    return () => window.removeEventListener('open-incomplete-vendors', handler);
   }, []);
 
   // Calculate duplicate merge proposals dynamically from live vendors
@@ -2638,6 +2713,19 @@ export default function Home() {
                       </div>
                       <div className="text-3xl font-bold text-white tracking-tight">{overviewMetrics.paidVendorCount}</div>
                       <div className="text-xs text-gray-500 uppercase tracking-wider mt-1">Paid Vendors</div>
+                      {/* Registered vs pending split indicator */}
+                      {overviewMetrics.paidVendorCount > 0 && (
+                        <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                          <span className="text-[9px] font-bold text-green-400 bg-green-500/10 border border-green-500/20 px-1.5 py-0.5 rounded">
+                            {overviewMetrics.paidRegisteredCount} registered
+                          </span>
+                          {overviewMetrics.paidPendingCount > 0 && (
+                            <span className="text-[9px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded">
+                              {overviewMetrics.paidPendingCount} pending
+                            </span>
+                          )}
+                        </div>
+                      )}
                     </div>
 
                     <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
@@ -3117,130 +3205,268 @@ export default function Home() {
           {/* 3.5 PAID VENDORS */}
           {activeNav === 'paid-vendors' && (
             <div className="space-y-5 animate-fade-in text-left">
-              <div className="flex items-center justify-between">
+              <div className="flex items-center justify-between flex-wrap gap-3">
                 <div className="flex items-center gap-2">
+                  {showIncompleteVendors && (
+                    <button
+                      onClick={() => setShowIncompleteVendors(false)}
+                      className="flex items-center gap-1 text-xs text-gray-400 hover:text-white transition-colors font-medium mr-1"
+                    >
+                      <ChevronRight className="w-4 h-4 rotate-180" /> Back
+                    </button>
+                  )}
                   <div className="w-1.5 h-5 bg-green-500 rounded-full" />
                   <div>
-                    <h1 className="text-xl font-bold tracking-tight text-white">Paid Vendors</h1>
-                    <p className="text-xs text-gray-400 mt-0.5">Vendor registration and payment tracking per edition.</p>
+                    <h1 className="text-xl font-bold tracking-tight text-white">
+                      {showIncompleteVendors ? 'Incomplete Vendors' : 'Paid Vendors'}
+                    </h1>
+                    <p className="text-xs text-gray-400 mt-0.5">
+                      {showIncompleteVendors
+                        ? 'CSV-imported vendors with missing profile details.'
+                        : 'Vendor registration and payment tracking per edition.'}
+                    </p>
                   </div>
                 </div>
+                {!showIncompleteVendors && (
+                  <div className="flex items-center gap-2">
+                    {/* Incomplete vendors button */}
+                    <button
+                      onClick={() => setShowIncompleteVendors(true)}
+                      className="flex items-center gap-2 text-xs font-bold text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 px-3 py-2 rounded-lg transition-colors"
+                    >
+                      <Users className="w-3.5 h-3.5" />
+                      Incomplete Vendors
+                    </button>
+                    {/* CSV Import button */}
+                    <button
+                      onClick={() => setIsCsvImportModalOpen(true)}
+                      disabled={!activeEdition}
+                      title={!activeEdition ? 'Select an edition first' : 'Import paid vendor list from CSV'}
+                      className="flex items-center gap-2 text-xs font-bold text-black bg-green-500 hover:bg-green-400 disabled:opacity-40 disabled:cursor-not-allowed px-3 py-2 rounded-lg transition-colors"
+                    >
+                      <Upload className="w-3.5 h-3.5" />
+                      CSV Import
+                    </button>
+                    {/* Import History button */}
+                    <button
+                      onClick={() => setIsImportHistoryOpen(true)}
+                      className="flex items-center gap-2 text-xs font-bold text-gray-300 bg-white/5 hover:bg-white/10 border border-white/10 px-3 py-2 rounded-lg transition-colors"
+                    >
+                      <History className="w-3.5 h-3.5" />
+                      History
+                    </button>
+                  </div>
+                )}
               </div>
 
-              {!activeEdition ? (
-                <div className="bg-[#0f1117] border border-white/5 rounded-xl p-12 text-center select-none">
-                  <CreditCard className="w-10 h-10 text-gray-500 mx-auto mb-3" />
-                  <p className="text-sm text-gray-300 font-semibold">Select an edition to view paid vendors</p>
-                </div>
+              {/* Toggle: show incomplete vendors panel OR main paid vendor view */}
+              {showIncompleteVendors ? (
+                <IncompleteVendorsPanel
+                  onBack={() => setShowIncompleteVendors(false)}
+                />
               ) : (
                 <>
-                  {/* Live Count Cards */}
-                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="bg-green-500/10 text-green-400 p-2.5 rounded-lg">
-                          <CreditCard className="w-5 h-5" />
+                  {!activeEdition ? (
+                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-12 text-center select-none">
+                      <CreditCard className="w-10 h-10 text-gray-500 mx-auto mb-3" />
+                      <p className="text-sm text-gray-300 font-semibold">Select an edition to view paid vendors</p>
+                    </div>
+                  ) : (
+                    <>
+                      {/* Live Count Cards */}
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="bg-green-500/10 text-green-400 p-2.5 rounded-lg">
+                              <CreditCard className="w-5 h-5" />
+                            </div>
+                            <span className="text-[10px] font-semibold text-green-400 bg-green-500/10 px-2 py-0.5 rounded-full uppercase tracking-wider">Confirmed</span>
+                          </div>
+                          <div className="text-3xl font-bold text-white tracking-tight">{paidVendorCounts.paid}</div>
+                          <div className="text-xs text-gray-400 uppercase tracking-wider mt-1">Paid Vendors</div>
                         </div>
-                        <span className="text-[10px] font-semibold text-green-400 bg-green-500/10 px-2 py-0.5 rounded-full uppercase tracking-wider">Confirmed</span>
-                      </div>
-                      <div className="text-3xl font-bold text-white tracking-tight">{paidVendorCounts.paid}</div>
-                      <div className="text-xs text-gray-400 uppercase tracking-wider mt-1">Paid Vendors</div>
-                    </div>
 
-                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="bg-amber-500/10 text-amber-400 p-2.5 rounded-lg">
-                          <AlertTriangle className="w-5 h-5" />
+                        <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="bg-amber-500/10 text-amber-400 p-2.5 rounded-lg">
+                              <AlertTriangle className="w-5 h-5" />
+                            </div>
+                            <span className="text-[10px] font-semibold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full uppercase tracking-wider">Pending</span>
+                          </div>
+                          <div className="text-3xl font-bold text-white tracking-tight">{paidVendorCounts.unpaid}</div>
+                          <div className="text-xs text-gray-400 uppercase tracking-wider mt-1">Pending / Unpaid</div>
                         </div>
-                        <span className="text-[10px] font-semibold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full uppercase tracking-wider">Pending</span>
-                      </div>
-                      <div className="text-3xl font-bold text-white tracking-tight">{paidVendorCounts.unpaid}</div>
-                      <div className="text-xs text-gray-400 uppercase tracking-wider mt-1">Pending / Unpaid</div>
-                    </div>
 
-                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="bg-purple-500/10 text-purple-400 p-2.5 rounded-lg">
-                          <TrendingUp className="w-5 h-5" />
+                        <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
+                          <div className="flex items-start justify-between mb-3">
+                            <div className="bg-purple-500/10 text-purple-400 p-2.5 rounded-lg">
+                              <TrendingUp className="w-5 h-5" />
+                            </div>
+                            <span className="text-[10px] font-semibold text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-full uppercase tracking-wider">Collection</span>
+                          </div>
+                          <div className="text-3xl font-bold text-white tracking-tight">UGX {paidVendorCounts.revenue.toLocaleString()}</div>
+                          <div className="text-xs text-gray-400 uppercase tracking-wider mt-1">Total Revenue</div>
                         </div>
-                        <span className="text-[10px] font-semibold text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-full uppercase tracking-wider">Collection</span>
                       </div>
-                      <div className="text-3xl font-bold text-white tracking-tight">UGX {paidVendorCounts.revenue.toLocaleString()}</div>
-                      <div className="text-xs text-gray-400 uppercase tracking-wider mt-1">Total Revenue</div>
-                    </div>
-                  </div>
 
-                  {/* Paid Vendors Table */}
-                  <div className="bg-[#0f1117] border border-white/5 rounded-xl overflow-hidden">
-                    <div className="p-4 border-b border-white/5 flex items-center justify-between bg-white/[0.02]">
-                      <div className="flex items-center gap-2">
-                        <div className="w-1 h-3.5 bg-green-500 rounded-full" />
-                        <span className="text-xs font-semibold tracking-wider uppercase text-gray-400">
-                          Vendor List ({paidVendors.length})
-                        </span>
+                      {/* Paid Vendors — Two-tab view: Registered / Not Yet Registered */}
+                      <div className="bg-[#0f1117] border border-white/5 rounded-xl overflow-hidden">
+                        {/* Tab header */}
+                        <div className="p-4 border-b border-white/5 bg-white/[0.02] space-y-3">
+                          {/* Combined total headline */}
+                          <div className="flex items-center justify-between flex-wrap gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <div className="w-1 h-3.5 bg-green-500 rounded-full" />
+                              <span className="text-xs font-bold text-white">
+                                {paidVendorCounts.paid} Paid Vendor{paidVendorCounts.paid !== 1 ? 's' : ''}
+                              </span>
+                              {paidVendorCounts.paid > 0 && (
+                                <span className="text-[10px] text-gray-500">
+                                  — {paidVendors.filter(pv => pv.payment_status === 'paid' && pv.hasFormData).length} registered
+                                  {' / '}
+                                  {paidVendors.filter(pv => pv.payment_status === 'paid' && !pv.hasFormData).length} not yet registered
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                          {/* Tab pills */}
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <button
+                              onClick={() => setPaidVendorTab('registered')}
+                              className={`flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-colors ${
+                                paidVendorTab === 'registered'
+                                  ? 'bg-green-500/15 border-green-500/30 text-green-400'
+                                  : 'bg-white/[0.03] border-white/10 text-gray-400 hover:text-white hover:border-white/20'
+                              }`}
+                            >
+                              <span className="w-1.5 h-1.5 rounded-full bg-green-400 shrink-0" />
+                              Registered ({paidVendors.filter(pv => pv.payment_status === 'paid' && pv.hasFormData).length})
+                            </button>
+                            <button
+                              onClick={() => setPaidVendorTab('pending')}
+                              className={`flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-colors ${
+                                paidVendorTab === 'pending'
+                                  ? 'bg-amber-500/15 border-amber-500/30 text-amber-400'
+                                  : 'bg-white/[0.03] border-white/10 text-gray-400 hover:text-white hover:border-white/20'
+                              }`}
+                            >
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+                              Not Yet Registered ({paidVendors.filter(pv => pv.payment_status === 'paid' && !pv.hasFormData).length})
+                            </button>
+                          </div>
+                          {/* Business name search */}
+                          <div className="relative">
+                            <Search className="w-3.5 h-3.5 text-gray-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                            <input
+                              type="text"
+                              value={paidVendorSearch}
+                              onChange={e => setPaidVendorSearch(e.target.value)}
+                              placeholder="Search business name..."
+                              className="w-full bg-white/[0.03] border border-white/10 rounded-lg pl-9 pr-3 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-green-500/40 focus:bg-white/[0.05] transition-colors"
+                            />
+                          </div>
+                        </div>
+
+                        {loadingPaidVendors ? (
+                          <div className="p-12 text-center">
+                            <div className="animate-spin w-6 h-6 border-2 border-green-400 border-t-transparent rounded-full mx-auto mb-3" />
+                            <p className="text-xs text-gray-400 font-medium">Loading paid vendors...</p>
+                          </div>
+                        ) : (() => {
+                          const tabVendors = paidVendors.filter(pv => {
+                            if (pv.payment_status !== 'paid') return false;
+                            if (paidVendorTab === 'registered' ? !pv.hasFormData : pv.hasFormData) return false;
+                            if (paidVendorSearch) {
+                              const term = paidVendorSearch.toLowerCase();
+                              const hay = `${pv.business_name || ''} ${pv.contact_name || ''}`.toLowerCase();
+                              if (!hay.includes(term)) return false;
+                            }
+                            return true;
+                          });
+                          return tabVendors.length === 0 ? (
+                            <div className="p-12 text-center select-none">
+                              {paidVendorTab === 'registered' ? (
+                                <>
+                                  <CreditCard className="w-10 h-10 text-gray-600 mx-auto mb-3" />
+                                  <p className="text-sm text-gray-300 font-semibold">No registered vendors yet.</p>
+                                  <p className="text-xs text-gray-500 mt-1">Vendors who complete the registration form will appear here.</p>
+                                </>
+                              ) : (
+                                <>
+                                  <CreditCard className="w-10 h-10 text-gray-600 mx-auto mb-3" />
+                                  <p className="text-sm text-gray-300 font-semibold">All paid vendors have registered.</p>
+                                  <p className="text-xs text-gray-500 mt-1">CSV-imported vendors who haven&apos;t filled the form yet will appear here.</p>
+                                </>
+                              )}
+                            </div>
+                          ) : (
+                            <div className="w-full overflow-x-auto">
+                              <table className="w-full border-collapse text-left text-xs">
+                                <thead>
+                                  <tr className="bg-white/[0.02] border-b border-white/5">
+                                    <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Business Name</th>
+                                    <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Contact Name</th>
+                                    <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Phone</th>
+                                    <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Category</th>
+                                    <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest text-center">Status</th>
+                                    <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest text-right">Amount Paid</th>
+                                    {paidVendorTab === 'registered' ? (
+                                      <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Registered</th>
+                                    ) : (
+                                      <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest text-center">Action</th>
+                                    )}
+                                  </tr>
+                                </thead>
+                                <tbody className="divide-y divide-white/5 text-xs">
+                                  {tabVendors.map((pv) => (
+                                    <tr
+                                      key={pv.id}
+                                      onClick={() => {
+                                        setSelectedPaidVendor(pv);
+                                        setIsPaidVendorModalOpen(true);
+                                      }}
+                                      className="hover:bg-white/[0.02] transition-colors cursor-pointer"
+                                    >
+                                      <td className="p-4 font-semibold text-white">{pv.business_name || '—'}</td>
+                                      <td className="p-4 text-gray-300 font-medium">{pv.contact_name || '—'}</td>
+                                      <td className="p-4 text-gray-400 font-mono text-[11px]">{pv.phone || <span className="text-gray-600 italic">No phone</span>}</td>
+                                      <td className="p-4 text-gray-300 font-medium">{pv.category || '—'}</td>
+                                      <td className="p-4 text-center">
+                                        <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
+                                          pv.payment_status === 'paid' ? 'bg-green-500/10 text-green-400 border border-green-500/20' :
+                                          pv.payment_status === 'waived' ? 'bg-gray-500/10 text-gray-400 border border-white/10' :
+                                          'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                        }`}>
+                                          {pv.payment_status}
+                                        </span>
+                                      </td>
+                                      <td className="p-4 text-right text-white font-bold font-mono">UGX {Number(pv.amount_paid).toLocaleString()}</td>
+                                      {paidVendorTab === 'registered' ? (
+                                        <td className="p-4 text-gray-400 font-medium">
+                                          {pv.created_at ? new Date(pv.created_at).toLocaleDateString() : '—'}
+                                        </td>
+                                      ) : (
+                                        <td className="p-4 text-center" onClick={e => e.stopPropagation()}>
+                                          <button
+                                            onClick={() => {
+                                              window.dispatchEvent(new CustomEvent('open-incomplete-vendors'));
+                                            }}
+                                            className="text-[10px] font-bold text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 px-2.5 py-1 rounded-lg transition-colors whitespace-nowrap"
+                                          >
+                                            Fill In Details →
+                                          </button>
+                                        </td>
+                                      )}
+                                    </tr>
+                                  ))}
+                                </tbody>
+                              </table>
+                            </div>
+                          );
+                        })()}
                       </div>
-                    </div>
-                    {loadingPaidVendors ? (
-                      <div className="p-12 text-center">
-                        <div className="animate-spin w-6 h-6 border-2 border-green-400 border-t-transparent rounded-full mx-auto mb-3" />
-                        <p className="text-xs text-gray-400 font-medium">Loading paid vendors...</p>
-                      </div>
-                    ) : paidVendors.length === 0 ? (
-                      <div className="p-12 text-center select-none">
-                        <CreditCard className="w-10 h-10 text-gray-600 mx-auto mb-3" />
-                        <p className="text-sm text-gray-300 font-semibold">No paid vendors yet for this edition.</p>
-                        <p className="text-xs text-gray-500 mt-1">Add them via Quick Entry.</p>
-                      </div>
-                    ) : (
-                      <div className="w-full overflow-x-auto">
-                        <table className="w-full border-collapse text-left text-xs">
-                          <thead>
-                            <tr className="bg-white/[0.02] border-b border-white/5">
-                              <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Business Name</th>
-                              <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Contact Name</th>
-                              <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Phone</th>
-                              <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Category</th>
-                              <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest text-center">Status</th>
-                              <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest text-right">Amount Paid</th>
-                              <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Registered</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-white/5 text-xs">
-                            {paidVendors.map((pv) => (
-                              <tr
-                                key={pv.id}
-                                onClick={() => {
-                                  setSelectedPaidVendor(pv);
-                                  setIsPaidVendorModalOpen(true);
-                                }}
-                                className="hover:bg-white/[0.02] transition-colors cursor-pointer"
-                              >
-                                <td className="p-4 font-semibold text-white">
-                                  {pv.business_name || '—'}
-                                </td>
-                                <td className="p-4 text-gray-300 font-medium">{pv.contact_name || '—'}</td>
-                                <td className="p-4 text-gray-400 font-mono text-[11px]">{pv.phone || '—'}</td>
-                                <td className="p-4 text-gray-300 font-medium">{pv.category || '—'}</td>
-                                <td className="p-4 text-center">
-                                  <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                                    pv.payment_status === 'paid' ? 'bg-green-500/10 text-green-400 border border-green-500/20' :
-                                    pv.payment_status === 'waived' ? 'bg-gray-500/10 text-gray-400 border border-white/10' :
-                                    'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                                  }`}>
-                                    {pv.payment_status}
-                                  </span>
-                                </td>
-                                <td className="p-4 text-right text-white font-bold font-mono">UGX {Number(pv.amount_paid).toLocaleString()}</td>
-                                <td className="p-4 text-gray-400 font-medium">
-                                  {pv.created_at ? new Date(pv.created_at).toLocaleDateString() : '—'}
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
-                      </div>
-                    )}
-                  </div>
+                    </>
+                  )}
                 </>
               )}
             </div>
@@ -3749,6 +3975,33 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      {/* CSV Import Modal for Paid Vendor List */}
+      <PaidVendorCsvImportModal
+        isOpen={isCsvImportModalOpen}
+        onClose={() => setIsCsvImportModalOpen(false)}
+        activeEdition={activeEdition}
+        importedBy={email || null}
+        onImportComplete={() => {
+          fetchPaidVendors();
+          fetchVendors();
+          fetchOverviewCounts();
+          // Also refresh the Overview snapshot card (paidVendorCount + split indicators)
+          fetchOverviewMetrics();
+        }}
+      />
+
+      {/* CSV Import History Modal */}
+      <PaidVendorImportHistoryModal
+        isOpen={isImportHistoryOpen}
+        onClose={() => setIsImportHistoryOpen(false)}
+        onChanged={() => {
+          fetchPaidVendors();
+          fetchVendors();
+          fetchOverviewCounts();
+          fetchOverviewMetrics();
+        }}
+      />
 
       {/* Interactive Form Simulator Modal */}
       {previewFormId && (
