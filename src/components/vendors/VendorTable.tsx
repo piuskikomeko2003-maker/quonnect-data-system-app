@@ -83,7 +83,7 @@ export const VendorTable: React.FC<VendorTableProps> = ({
   return (
     <div className="w-full bg-[#0f1117] border border-white/5 rounded-xl overflow-hidden select-none text-left">
       {/* Search Header Panel */}
-      <div className="p-4 border-b border-white/5 flex items-center gap-4 bg-white/[0.02]">
+      <div className="p-3.5 sm:p-4 border-b border-white/5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white/[0.02]">
         <div className="relative w-full max-w-sm flex items-center">
           <Search className="absolute left-3.5 w-4 h-4 text-gray-500 pointer-events-none" />
           <input
@@ -95,13 +95,13 @@ export const VendorTable: React.FC<VendorTableProps> = ({
           />
         </div>
         {selectedVendorIds.length > 0 && (
-          <span className="text-[11px] text-green-400 font-semibold">
+          <span className="text-[11px] text-green-400 font-semibold shrink-0">
             {selectedVendorIds.length} vendor(s) selected
           </span>
         )}
       </div>
 
-      {/* Main Table Container */}
+      {/* Main Table Container with safe horizontal scrolling */}
       <div className="w-full overflow-x-auto">
         {vendors.length === 0 ? (
           /* Empty state */
@@ -113,7 +113,7 @@ export const VendorTable: React.FC<VendorTableProps> = ({
             </p>
           </div>
         ) : (
-          <table className="w-full border-collapse">
+          <table className="w-full border-collapse min-w-[720px]">
             <thead>
               <tr className="bg-white/[0.02] border-b border-white/5">
                 {/* Checkbox selector th */}
@@ -132,7 +132,7 @@ export const VendorTable: React.FC<VendorTableProps> = ({
                 <th className="p-3.5 text-[10px] font-semibold text-gray-400 uppercase tracking-widest text-center">Type</th>
                 <th className="hidden sm:table-cell p-3.5 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Region</th>
                 <th className="hidden sm:table-cell p-3.5 text-[10px] font-semibold text-gray-400 uppercase tracking-widest text-center">Attendances</th>
-                <th className="p-3.5 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Last Seen</th>
+                <th className="hidden sm:table-cell p-3.5 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Last Seen</th>
                 {onDelete && <th className="p-3.5 text-[10px] font-semibold text-gray-400 uppercase tracking-widest text-center w-[60px]">Del</th>}
               </tr>
             </thead>

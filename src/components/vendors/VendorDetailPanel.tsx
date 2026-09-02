@@ -76,14 +76,17 @@ export const VendorDetailPanel: React.FC<VendorDetailPanelProps> = ({
       {/* Slide-out Panel container */}
       <div className="relative w-full max-w-[480px] h-full bg-bg-surface border-l border-border shadow-modal z-10 flex flex-col animate-slide-in-right overflow-hidden">
         {/* Panel Header */}
-        <div className="p-5 border-b border-border flex items-center justify-between shrink-0 bg-bg-elevated">
-          <div className="flex items-center gap-3.5 min-w-0">
-            <div className="w-12 h-12 rounded-full bg-green-muted text-green font-bold text-lg flex items-center justify-center shrink-0">
+        <div 
+          className="p-4 sm:p-5 border-b border-border flex items-center justify-between shrink-0 bg-bg-elevated"
+          style={{ paddingTop: 'max(1.25rem, env(safe-area-inset-top))' }}
+        >
+          <div className="flex items-center gap-3 min-w-0">
+            <div className="w-10 h-10 sm:w-12 sm:h-12 rounded-full bg-green-muted text-green font-bold text-base sm:text-lg flex items-center justify-center shrink-0">
               {vendor.avatarInitials}
             </div>
             <div className="min-w-0">
               <h3 className="text-sm font-bold text-text-primary truncate">{vendor.name}</h3>
-              <div className="flex items-center gap-2 mt-1">
+              <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                 <a 
                   href={`tel:${vendor.phone}`}
                   className="text-[11px] text-text-secondary hover:text-green flex items-center gap-1.5 transition-colors"
@@ -98,14 +101,15 @@ export const VendorDetailPanel: React.FC<VendorDetailPanelProps> = ({
           </div>
           <button 
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-bg-surface border border-border text-text-secondary hover:text-red hover:border-red flex items-center justify-center transition-colors cursor-pointer"
+            className="w-8 h-8 rounded-full bg-bg-surface border border-border text-text-secondary hover:text-red hover:border-red flex items-center justify-center transition-colors cursor-pointer shrink-0"
+            aria-label="Close panel"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Panel Scrollable Content */}
-        <div className="flex-1 overflow-y-auto p-5 space-y-6">
+        <div className="flex-1 overflow-y-auto p-4 sm:p-5 space-y-5 sm:space-y-6">
           {/* Data gaps notification */}
           {vendor.dataGaps && vendor.dataGaps.length > 0 && (
             <div className="bg-amber-muted border border-amber/20 rounded-md p-3.5 flex items-start gap-3">
@@ -122,13 +126,13 @@ export const VendorDetailPanel: React.FC<VendorDetailPanelProps> = ({
           {/* Attendance History Section */}
           <div>
             <h4 className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider mb-2.5">Attendance History</h4>
-            <div className="border border-border rounded-lg overflow-hidden">
-              <table className="w-full border-collapse text-left">
+            <div className="border border-border rounded-lg overflow-x-auto">
+              <table className="w-full border-collapse text-left min-w-[320px]">
                 <thead>
                   <tr className="bg-bg-elevated border-b border-border">
                     <th className="py-2.5 px-3.5 text-[9px] font-bold text-text-tertiary uppercase tracking-wider">Edition</th>
                     <th className="py-2.5 px-3.5 text-[9px] font-bold text-text-tertiary uppercase tracking-wider text-center">Paid</th>
-                    <th className="py-2.5 px-3.5 text-[9px] font-bold text-text-tertiary uppercase tracking-wider text-center">Data Collected</th>
+                    <th className="py-2.5 px-3.5 text-[9px] font-bold text-text-tertiary uppercase tracking-wider text-center">Data</th>
                     <th className="py-2.5 px-3.5 text-[9px] font-bold text-text-tertiary uppercase tracking-wider text-right">Seq #</th>
                   </tr>
                 </thead>
@@ -162,7 +166,7 @@ export const VendorDetailPanel: React.FC<VendorDetailPanelProps> = ({
           <div className="space-y-4">
             <h4 className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">Historical Attributes</h4>
             {vendor.editionAttributes.map((edAttr) => (
-              <div key={edAttr.editionId} className="bg-bg-elevated/40 border border-border/50 rounded-lg p-4 text-left">
+              <div key={edAttr.editionId} className="bg-bg-elevated/40 border border-border/50 rounded-lg p-3.5 sm:p-4 text-left">
                 <h5 className="text-[10px] font-bold text-green uppercase tracking-wide mb-3 border-b border-border/40 pb-1.5 flex items-center justify-between">
                   <span>{edAttr.editionName}</span>
                   <span className="text-[8px] text-text-tertiary font-medium">Record source</span>
@@ -185,8 +189,11 @@ export const VendorDetailPanel: React.FC<VendorDetailPanelProps> = ({
           </div>
         </div>
 
-        {/* Panel Footer Actions */}
-        <div className="p-4 border-t border-border shrink-0 bg-bg-elevated flex items-center gap-2">
+        {/* Panel Footer Actions with safe-area bottom */}
+        <div 
+          className="p-4 border-t border-border shrink-0 bg-bg-elevated flex items-center gap-2"
+          style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
+        >
           {onEdit && (
             <Button 
               variant="primary" 

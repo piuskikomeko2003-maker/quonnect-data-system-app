@@ -186,20 +186,41 @@ export const AdminShell: React.FC<AdminShellProps> = ({
   };
 
   return (
-    <div className="flex min-h-screen bg-[#0a0c10] text-white">
-      {/* Sidebar: w-[268px] on desktop, w-[60px] on mobile (md breakpoint) */}
-      <aside className={`fixed md:sticky top-0 left-0 h-screen bg-[#0f1117] border-r border-white/5 flex flex-col z-100 transition-all duration-200 ${isMobileMenuOpen ? 'w-[268px]' : isDesktopCollapsed ? 'w-[60px]' : 'w-[60px] md:w-[268px]'} ${!isMobileMenuOpen ? 'md:translate-x-0' : ''}`}>
+    <div className="flex min-h-screen bg-[#0a0c10] text-white overflow-x-hidden">
+      {/* Mobile Drawer Backdrop */}
+      {isMobileMenuOpen && (
+        <div
+          className="fixed inset-0 bg-black/70 backdrop-blur-xs z-40 md:hidden animate-fade-in"
+          onClick={() => setIsMobileMenuOpen(false)}
+          aria-hidden="true"
+        />
+      )}
+
+      {/* Sidebar: w-[268px] on desktop, off-canvas drawer on mobile */}
+      <aside
+        className={`fixed md:sticky top-0 left-0 h-screen bg-[#0f1117] border-r border-white/5 flex flex-col z-50 transition-all duration-300 ${
+          isMobileMenuOpen
+            ? 'w-[268px] translate-x-0 shadow-2xl'
+            : '-translate-x-full md:translate-x-0 ' + (isDesktopCollapsed ? 'md:w-[60px]' : 'md:w-[268px]')
+        }`}
+        style={{
+          paddingTop: 'max(0px, env(safe-area-inset-top))',
+          paddingBottom: 'max(0px, env(safe-area-inset-bottom))',
+        }}
+      >
         {/* Brand logo */}
-        <div className="p-5 border-b border-white/5 flex items-center justify-between">
+        <div className="p-4 sm:p-5 border-b border-white/5 flex items-center justify-between">
           <div className={`logo font-black text-xl tracking-tight select-none ${isMobileMenuOpen ? 'block' : 'hidden'} ${isDesktopCollapsed ? 'md:hidden' : 'md:block'}`}>
             QUON<span className="text-green-400">NECT</span>
             <div className="text-[10px] text-gray-500 tracking-widest font-semibold uppercase mt-0.5">Workspace Mode</div>
           </div>
+          {/* Mobile drawer close button */}
           <button 
-            onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} 
-            className="md:hidden text-gray-400 hover:text-white cursor-pointer"
+            onClick={() => setIsMobileMenuOpen(false)} 
+            className="md:hidden text-gray-400 hover:text-white cursor-pointer p-1 rounded-lg hover:bg-white/5"
+            aria-label="Close menu"
           >
-            <Menu className="w-5 h-5" />
+            <X className="w-5 h-5" />
           </button>
           <button
             onClick={() => setIsDesktopCollapsed(!isDesktopCollapsed)}
@@ -418,22 +439,26 @@ export const AdminShell: React.FC<AdminShellProps> = ({
       {/* Main Content Area */}
       <main className="flex-1 min-w-0 overflow-x-hidden flex flex-col bg-[#0a0c10]">
         {/* Header container */}
-        <header className="p-4 border-b border-white/5 bg-[#0f1117] flex items-center justify-between select-none">
-          <div className="flex items-center gap-2">
+        <header 
+          className="px-3 sm:px-4 py-3 border-b border-white/5 bg-[#0f1117] flex items-center justify-between select-none shrink-0 gap-2"
+          style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}
+        >
+          <div className="flex items-center gap-2 min-w-0">
             <button 
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} 
-              className="md:hidden text-gray-400 hover:text-white cursor-pointer p-1"
+              className="md:hidden text-gray-400 hover:text-white cursor-pointer p-1.5 rounded-lg hover:bg-white/5 shrink-0"
+              aria-label="Open menu"
             >
               <Menu className="w-5 h-5" />
             </button>
-            <div className="flex items-center gap-2 text-xs font-bold text-white min-w-0">
+            <div className="flex items-center gap-1.5 sm:gap-2 text-xs font-bold text-white min-w-0 flex-wrap">
               <span className="hidden sm:inline">Quonnect Data Hub</span>
-              <span className="sm:hidden text-[10px]">QDH</span>
+              <span className="sm:hidden text-[11px] font-black text-white">QDH</span>
               {activeRegion && (
                 <>
                   <span className="text-text-tertiary">/</span>
-                  <Badge variant="info" size="sm">
-                    {activeRegion.name} Region
+                  <Badge variant="info" size="sm" className="hidden xs:inline-flex text-[10px]">
+                    {activeRegion.name}
                   </Badge>
                 </>
               )}
@@ -446,15 +471,15 @@ export const AdminShell: React.FC<AdminShellProps> = ({
                         setIsEditionDropdownOpen(!isEditionDropdownOpen);
                         setIsRegionDropdownOpen(false);
                       }}
-                      className="flex items-center gap-1 px-2 py-0.5 text-[10px] font-bold text-text-primary bg-bg-elevated hover:bg-bg-hover border border-border rounded cursor-pointer transition-all"
+                      className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold text-text-primary bg-bg-elevated hover:bg-bg-hover border border-border rounded-md cursor-pointer transition-all max-w-[150px] sm:max-w-none truncate"
                     >
-                      <Calendar className="w-3.5 h-3.5 text-green" />
-                      <span>{activeEdition ? activeEdition.name : 'Select Event...'}</span>
+                      <Calendar className="w-3 h-3 text-green shrink-0" />
+                      <span className="truncate">{activeEdition ? activeEdition.name : 'Select Event...'}</span>
                       <ChevronDown className="w-3 h-3 text-text-tertiary shrink-0" />
                     </button>
 
                     {isEditionDropdownOpen && (
-                      <div className="absolute left-0 mt-1 w-56 bg-bg-surface border border-border rounded-lg shadow-lg z-[9999] py-1">
+                      <div className="absolute left-0 mt-1 w-56 sm:w-64 bg-bg-surface border border-border rounded-lg shadow-lg z-[9999] py-1">
                         <div className="max-h-[200px] overflow-y-auto divide-y divide-border/20 text-left">
                           {editions.length === 0 ? (
                             <p className="text-[10px] text-text-tertiary text-center py-4">No events found in this region.</p>
@@ -499,7 +524,7 @@ export const AdminShell: React.FC<AdminShellProps> = ({
               )}
             </div>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2 sm:gap-3 shrink-0">
             <div className="hidden sm:block text-[10px] font-bold text-text-tertiary tracking-wider uppercase font-mono select-none">
               System Online
             </div>
@@ -517,7 +542,10 @@ export const AdminShell: React.FC<AdminShellProps> = ({
         </header>
 
         {/* Dynamic page contents wrapper */}
-        <div className="p-4 sm:p-6 max-w-7xl w-full mx-auto flex-1 flex flex-col overflow-y-auto">
+        <div 
+          className="p-3.5 sm:p-5 md:p-6 max-w-7xl w-full mx-auto flex-1 flex flex-col overflow-y-auto"
+          style={{ paddingBottom: 'max(1.5rem, env(safe-area-inset-bottom))' }}
+        >
           {children}
         </div>
       </main>
@@ -586,8 +614,14 @@ export const AdminShell: React.FC<AdminShellProps> = ({
           </div>
         </div>
       )}
-      {/* Toast container */}
-      <div className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-2 max-w-sm pointer-events-none">
+      {/* Toast container with iOS safe-area inset */}
+      <div 
+        className="fixed bottom-4 right-4 sm:bottom-6 sm:right-6 z-[9999] flex flex-col gap-2 max-w-sm w-[calc(100%-2rem)] sm:w-auto pointer-events-none"
+        style={{
+          bottom: 'max(1rem, env(safe-area-inset-bottom))',
+          right: 'max(1rem, env(safe-area-inset-right))',
+        }}
+      >
         {toasts.map((toast) => (
           <div
             key={toast.id}

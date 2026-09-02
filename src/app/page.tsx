@@ -6,6 +6,7 @@ import { useLiveMetrics } from '@/hooks/useLiveMetrics';
 import { useAuth } from '@/hooks/useAuth';
 import { useRegion } from '@/context/RegionContext';
 import { AdminShell } from '@/components/layout/AdminShell';
+import { SettingsView } from '@/components/settings/SettingsView';
 import { UserManagementSettings } from '@/components/settings/UserManagementSettings';
 import { importCSV } from '@/utils/csvImport';
 import { resolveGender, isGenderColumn, isGenderValue } from '@/utils/gender';
@@ -25,6 +26,7 @@ import { VendorTable, Vendor } from '@/components/vendors/VendorTable';
 import { VendorDetailPanel } from '@/components/vendors/VendorDetailPanel';
 import { EditVendorModal } from '@/components/vendors/EditVendorModal';
 import { PaidVendorCollectionModal } from '@/components/vendors/PaidVendorCollectionModal';
+import { VendorFeeEditModal } from '@/components/vendors/VendorFeeEditModal';
 import { PaidVendorCsvImportModal } from '@/components/vendors/PaidVendorCsvImportModal';
 import { PaidVendorImportHistoryModal } from '@/components/vendors/PaidVendorImportHistoryModal';
 import { IncompleteVendorsPanel } from '@/components/vendors/IncompleteVendorsPanel';
@@ -71,6 +73,7 @@ import {
   Search,
   History,
   Trash2,
+  Edit3,
 } from 'lucide-react';
 
 const CustomGrowthTooltip = ({ active, payload, label }: any) => {
@@ -865,61 +868,92 @@ export default function Home() {
       setLoadingPaidVendors(true);
 
       // Fetch all vendor_registrations for this edition (all statuses so paid/unpaid cards work)
-      const [regResult, srResult] = await Promise.all([
-        supabase
-          .from('vendor_registrations')
-          .select(`
-            id,
-            payment_status,
-            amount_paid,
-            created_at,
-            vendors (
+      let regRows: any[] = [];
+      try {
+        const [regResult, srResult] = await Promise.all([
+          supabase
+            .from('vendor_registrations')
+            .select(`
               id,
-              business_name,
-              contact_name,
-              phone,
-              email,
-              category
-            )
-          `)
-          .eq('market_day_id', activeEdition.id)
-          .order('created_at', { ascending: false }),
-        // Fetch survey_responses for this edition to determine who has completed the form
-        supabase
-          .from('survey_responses')
-          .select('vendor_id')
-          .eq('context_id', activeEdition.id),
-      ]);
+              payment_status,
+              amount_paid,
+              fee_source,
+              created_at,
+              vendors (
+                id,
+                business_name,
+                contact_name,
+                phone,
+                email,
+                category
+              )
+            `)
+            .eq('market_day_id', activeEdition.id)
+            .order('created_at', { ascending: false }),
+          supabase
+            .from('survey_responses')
+            .select('vendor_id')
+            .eq('context_id', activeEdition.id),
+        ]);
 
-      if (regResult.error) throw regResult.error;
+        if (regResult.error) {
+          // Fallback if fee_source column is not yet queried
+          const fallbackReg = await supabase
+            .from('vendor_registrations')
+            .select(`
+              id,
+              payment_status,
+              amount_paid,
+              created_at,
+              vendors (
+                id,
+                business_name,
+                contact_name,
+                phone,
+                email,
+                category
+              )
+            `)
+            .eq('market_day_id', activeEdition.id)
+            .order('created_at', { ascending: false });
 
-      // Build a set of vendor IDs that have submitted a survey response ("Registered")
-      const surveyVendorSet = new Set(
-        (srResult.data || []).map((r: any) => r.vendor_id).filter(Boolean)
-      );
+          if (fallbackReg.error) throw fallbackReg.error;
+          regRows = fallbackReg.data || [];
+        } else {
+          regRows = regResult.data || [];
+        }
 
-      const registrations = (regResult.data || []).map((r: any) => ({
-        id: r.id,
-        vendor_id: r.vendors?.id || '',
-        payment_status: r.payment_status,
-        amount_paid: r.amount_paid,
-        created_at: r.created_at,
-        business_name: r.vendors?.business_name || '',
-        contact_name: r.vendors?.contact_name || '',
-        phone: r.vendors?.phone || '',
-        email: r.vendors?.email || '',
-        category: r.vendors?.category || '',
-        // true = vendor completed the registration form; false = CSV-imported / form not yet done
-        hasFormData: surveyVendorSet.has(r.vendors?.id || ''),
-      }));
+        // Build a set of vendor IDs that have submitted a survey response ("Registered")
+        const surveyVendorSet = new Set(
+          (srResult?.data || []).map((r: any) => r.vendor_id).filter(Boolean)
+        );
 
-      const paid = registrations.filter(r => r.payment_status === 'paid').length;
-      const unpaid = registrations.filter(r => r.payment_status !== 'paid').length;
-      const revenue = registrations.reduce((sum: number, r: any) => sum + (Number(r.amount_paid) || 0), 0);
+        const registrations = regRows.map((r: any) => ({
+          id: r.id,
+          vendor_id: r.vendors?.id || '',
+          payment_status: r.payment_status,
+          amount_paid: r.amount_paid,
+          fee_source: r.fee_source || 'standard',
+          created_at: r.created_at,
+          business_name: r.vendors?.business_name || '',
+          contact_name: r.vendors?.contact_name || '',
+          phone: r.vendors?.phone || '',
+          email: r.vendors?.email || '',
+          category: r.vendors?.category || '',
+          // true = vendor completed the registration form; false = CSV-imported / form not yet done
+          hasFormData: surveyVendorSet.has(r.vendors?.id || ''),
+        }));
 
-      setPaidVendors(registrations);
-      setPaidVendorCounts({ paid, unpaid, revenue });
-      setLoadingPaidVendors(false);
+        const paid = registrations.filter(r => r.payment_status === 'paid').length;
+        const unpaid = registrations.filter(r => r.payment_status !== 'paid').length;
+        const revenue = registrations.reduce((sum: number, r: any) => sum + (Number(r.amount_paid) || 0), 0);
+
+        setPaidVendors(registrations);
+        setPaidVendorCounts({ paid, unpaid, revenue });
+        setLoadingPaidVendors(false);
+      } catch (innerErr: any) {
+        throw innerErr;
+      }
     } catch (err: any) {
       console.error("Error fetching paid vendors:", err);
       setPaidVendors([]);
@@ -1383,6 +1417,10 @@ export default function Home() {
   // Paid Vendor Collection State
   const [isPaidVendorModalOpen, setIsPaidVendorModalOpen] = useState(false);
   const [selectedPaidVendor, setSelectedPaidVendor] = useState<any>(null);
+
+  // Vendor Fee Override Edit State
+  const [isVendorFeeModalOpen, setIsVendorFeeModalOpen] = useState(false);
+  const [selectedVendorForFeeEdit, setSelectedVendorForFeeEdit] = useState<any>(null);
 
   // CSV Import Modal State
   const [isCsvImportModalOpen, setIsCsvImportModalOpen] = useState(false);
@@ -2755,64 +2793,64 @@ export default function Home() {
 
             {/* SECTION 1 — Live Event Snapshot */}
             {overviewLoading ? (
-              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+              <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-7 gap-3">
                 {Array.from({ length: 7 }).map((_, idx) => (
-                  <div key={idx} className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 animate-pulse h-[130px] flex flex-col justify-between" />
+                  <div key={idx} className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-4 animate-pulse h-[130px] flex flex-col justify-between" />
                 ))}
               </div>
             ) : overviewMetrics ? (
               <>
-                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
-                    <div className="flex items-start justify-between mb-3">
+                <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-7 gap-3">
+                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-4 flex flex-col justify-between">
+                    <div className="flex items-start justify-between mb-2">
                       <div className="bg-green-500/10 text-green-400 p-2 rounded-lg">
                         <CreditCard className="w-4 h-4" />
                       </div>
                     </div>
-                    <div className="text-3xl font-bold text-white tracking-tight">{overviewMetrics.paidVendorCount}</div>
-                    <div className="text-xs text-gray-500 uppercase tracking-wider mt-1">Paid Vendors</div>
+                    <div className="text-2xl sm:text-3xl font-bold text-white tracking-tight">{overviewMetrics.paidVendorCount}</div>
+                    <div className="text-[11px] text-gray-500 uppercase tracking-wider mt-1">Paid Vendors</div>
                     {/* Registered vs pending split indicator */}
                     {overviewMetrics.paidVendorCount > 0 && (
                       <div className="flex items-center gap-1.5 mt-2 flex-wrap">
                         <span className="text-[9px] font-bold text-green-400 bg-green-500/10 border border-green-500/20 px-1.5 py-0.5 rounded">
-                          {overviewMetrics.paidRegisteredCount} registered
+                          {overviewMetrics.paidRegisteredCount} reg
                         </span>
                         {overviewMetrics.paidPendingCount > 0 && (
                           <span className="text-[9px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded">
-                            {overviewMetrics.paidPendingCount} pending
+                            {overviewMetrics.paidPendingCount} pend
                           </span>
                         )}
                       </div>
                     )}
                   </div>
 
-                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
-                    <div className="flex items-start justify-between mb-3">
+                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-4 flex flex-col justify-between">
+                    <div className="flex items-start justify-between mb-2">
                       <div className="bg-amber-500/10 text-amber-400 p-2 rounded-lg">
                         <Footprints className="w-4 h-4" />
                       </div>
                     </div>
-                    <div className="text-3xl font-bold text-white tracking-tight">{overviewMetrics.walkinCount}</div>
-                    <div className="text-xs text-gray-500 uppercase tracking-wider mt-1">Walk-ins</div>
+                    <div className="text-2xl sm:text-3xl font-bold text-white tracking-tight">{overviewMetrics.walkinCount}</div>
+                    <div className="text-[11px] text-gray-500 uppercase tracking-wider mt-1">Walk-ins</div>
                   </div>
 
-                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
-                    <div className="flex items-start justify-between mb-3">
+                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-4 flex flex-col justify-between">
+                    <div className="flex items-start justify-between mb-2">
                       <div className="bg-blue-500/10 text-blue-400 p-2 rounded-lg">
                         <ClipboardList className="w-4 h-4" />
                       </div>
                     </div>
-                    <div className="text-3xl font-bold text-white tracking-tight">{overviewMetrics.surveyCount}</div>
-                    <div className="text-xs text-gray-500 uppercase tracking-wider mt-1">Surveys</div>
+                    <div className="text-2xl sm:text-3xl font-bold text-white tracking-tight">{overviewMetrics.surveyCount}</div>
+                    <div className="text-[11px] text-gray-500 uppercase tracking-wider mt-1">Surveys</div>
                   </div>
 
-                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
+                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-4 flex flex-col justify-between">
                     <div className="flex items-start justify-between mb-2">
                       <div className="bg-purple-500/10 text-purple-400 p-2 rounded-lg">
                         <Users className="w-4 h-4" />
                       </div>
                     </div>
-                    <div className="text-xs text-gray-500 uppercase tracking-wider mt-1 mb-1">Gender Split</div>
+                    <div className="text-[11px] text-gray-500 uppercase tracking-wider mt-1 mb-1">Gender Split</div>
                     {overviewMetrics.genderSplit.femalePct !== null ? (
                       <div className="mt-2">
                         <div className="flex rounded-full overflow-hidden h-1.5 bg-white/5">
@@ -2826,8 +2864,8 @@ export default function Home() {
                           />
                         </div>
                         <div className="flex justify-between mt-1.5">
-                          <span className="text-xs text-purple-400 font-semibold">{overviewMetrics.genderSplit.femalePct}% F</span>
-                          <span className="text-xs text-cyan-400 font-semibold">{overviewMetrics.genderSplit.malePct}% M</span>
+                          <span className="text-[11px] text-purple-400 font-semibold">{overviewMetrics.genderSplit.femalePct}% F</span>
+                          <span className="text-[11px] text-cyan-400 font-semibold">{overviewMetrics.genderSplit.malePct}% M</span>
                         </div>
                       </div>
                     ) : (
@@ -2835,40 +2873,40 @@ export default function Home() {
                     )}
                   </div>
 
-                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
-                    <div className="flex items-start justify-between mb-3">
+                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-4 flex flex-col justify-between">
+                    <div className="flex items-start justify-between mb-2">
                       <div className="bg-emerald-500/10 text-emerald-400 p-2 rounded-lg">
                         <BarChart3 className="w-4 h-4" />
                       </div>
                     </div>
-                    <div className="text-3xl font-bold text-white tracking-tight">{overviewMetrics.avgVendorAge || 'N/A'}</div>
-                    <div className="text-xs text-gray-500 uppercase tracking-wider mt-1">Avg Age</div>
+                    <div className="text-2xl sm:text-3xl font-bold text-white tracking-tight">{overviewMetrics.avgVendorAge || 'N/A'}</div>
+                    <div className="text-[11px] text-gray-500 uppercase tracking-wider mt-1">Avg Age</div>
                   </div>
 
-                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
-                    <div className="flex items-start justify-between mb-3">
+                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-4 flex flex-col justify-between">
+                    <div className="flex items-start justify-between mb-2">
                       <div className="bg-green-500/10 text-green-400 p-2 rounded-lg">
                         <ArrowUpRight className="w-4 h-4" />
                       </div>
                     </div>
-                    <div className="text-3xl font-bold text-white tracking-tight">
+                    <div className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
                       {overviewMetrics.firstTimerPct !== null ? `${overviewMetrics.firstTimerPct}%` : 'N/A'}
                     </div>
-                    <div className="text-xs text-gray-500 uppercase tracking-wider mt-1">First Timers</div>
+                    <div className="text-[11px] text-gray-500 uppercase tracking-wider mt-1">First Timers</div>
                   </div>
 
-                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
+                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-4 flex flex-col justify-between">
                     <div className="flex items-start justify-between mb-1">
                       <div className="bg-green-500/10 text-green-400 p-2 rounded-lg">
                         <RotateCcw className="w-4 h-4" />
                       </div>
                     </div>
-                    <div className="text-xs text-gray-500 uppercase tracking-wider">
+                    <div className="text-[11px] text-gray-500 uppercase tracking-wider">
                       Retention
                     </div>
                     {overviewMetrics.retentionPct !== null ? (
                       <div className="relative flex items-center justify-center my-1">
-                        <svg viewBox="0 0 36 36" className="w-16 h-16 -rotate-90">
+                        <svg viewBox="0 0 36 36" className="w-14 h-14 sm:w-16 sm:h-16 -rotate-90">
                           <circle cx="18" cy="18" r="15.9" fill="none"
                             stroke="rgba(255,255,255,0.05)" strokeWidth="2.5" />
                           <circle cx="18" cy="18" r="15.9" fill="none"
@@ -2877,7 +2915,7 @@ export default function Home() {
                             strokeLinecap="round" />
                         </svg>
                         <div className="absolute text-center">
-                          <div className="text-lg font-bold text-white">{overviewMetrics.retentionPct}%</div>
+                          <div className="text-base sm:text-lg font-bold text-white">{overviewMetrics.retentionPct}%</div>
                         </div>
                       </div>
                     ) : (
@@ -2888,8 +2926,8 @@ export default function Home() {
 
                 {/* SECTION 2 — Growth Across Editions */}
                 {overviewMetrics.editionGrowth.length > 0 && (
-                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-6">
-                    <div className="flex items-center gap-2 mb-6">
+                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-4 sm:p-6">
+                    <div className="flex items-center gap-2 mb-4 sm:mb-6">
                       <div className="w-1 h-4 bg-green-500 rounded-full" />
                       <span className="text-xs font-semibold tracking-widest uppercase text-gray-400">
                         Growth Across Editions
@@ -2911,8 +2949,8 @@ export default function Home() {
                               </linearGradient>
                             </defs>
                             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
-                            <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} dy={5} />
-                            <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} dx={-2} />
+                            <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#6b7280' }} axisLine={false} tickLine={false} dy={5} />
+                            <YAxis tick={{ fontSize: 10, fill: '#6b7280' }} axisLine={false} tickLine={false} dx={-2} />
                             <Tooltip content={<CustomGrowthTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.03)' }} />
                             <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '11px', color: '#6b7280', paddingTop: '16px' }} />
                             <Bar dataKey="surveyCount" name="Survey Vendors" fill="url(#surveyVendorsGrad)" radius={[4, 4, 0, 0]} />
@@ -2931,8 +2969,8 @@ export default function Home() {
                               </linearGradient>
                             </defs>
                             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
-                            <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} dy={5} />
-                            <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} dx={-2} />
+                            <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#6b7280' }} axisLine={false} tickLine={false} dy={5} />
+                            <YAxis tick={{ fontSize: 10, fill: '#6b7280' }} axisLine={false} tickLine={false} dx={-2} />
                             <Tooltip content={<CustomGrowthTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.03)' }} />
                             <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '11px', color: '#6b7280', paddingTop: '16px' }} />
                             <Bar dataKey="walkinCount" name="Walk-ins" fill="url(#walkinsGrad)" radius={[4, 4, 0, 0]} />
@@ -2955,8 +2993,8 @@ export default function Home() {
                             </linearGradient>
                           </defs>
                           <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
-                          <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} dy={5} />
-                          <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} dx={-2} />
+                          <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#6b7280' }} axisLine={false} tickLine={false} dy={5} />
+                          <YAxis tick={{ fontSize: 10, fill: '#6b7280' }} axisLine={false} tickLine={false} dx={-2} />
                           <Tooltip content={<CustomGrowthTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.03)' }} />
                           <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '11px', color: '#6b7280', paddingTop: '16px' }} />
                           <Bar dataKey="firstTimers" name="First Timers" stackId="a" fill="url(#firstTimerGrad)" />
@@ -2969,8 +3007,8 @@ export default function Home() {
 
                 {/* SECTION 3 — Business Sectors */}
                 {overviewMetrics.sectors.length > 0 && (
-                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-6">
-                    <div className="flex items-center gap-2 mb-6">
+                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-4 sm:p-6">
+                    <div className="flex items-center gap-2 mb-4 sm:mb-6">
                       <div className="w-1 h-4 bg-green-500 rounded-full" />
                       <span className="text-xs font-semibold tracking-widest uppercase text-gray-400">
                         Business Sectors
@@ -2991,7 +3029,7 @@ export default function Home() {
                               }}
                             />
                           </div>
-                          <span className="text-xs font-semibold text-white w-8 text-right">
+                          <span className="text-xs font-semibold text-white w-8 text-right shrink-0">
                             {sector.pct}%
                           </span>
                         </div>
@@ -3001,48 +3039,48 @@ export default function Home() {
                 )}
 
                 {/* SECTION 4 — Impact Story */}
-                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5">
-                    <div className="text-xs text-gray-500 uppercase tracking-wider mb-3">Business Growth</div>
-                    <div className="text-3xl font-bold text-green-400">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
+                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
+                    <div className="text-[11px] text-gray-500 uppercase tracking-wider mb-2">Business Growth</div>
+                    <div className="text-2xl sm:text-3xl font-bold text-green-400">
                       {overviewMetrics.businessGrowthPct !== null ? `${overviewMetrics.businessGrowthPct}%` : 'N/A'}
                     </div>
-                    <div className="text-xs text-gray-600 mt-1">Reported improvement</div>
+                    <div className="text-[11px] text-gray-600 mt-1">Reported improvement</div>
                   </div>
-                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5">
-                    <div className="text-xs text-gray-500 uppercase tracking-wider mb-3">Total Employees</div>
-                    <div className="text-3xl font-bold text-white">
+                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
+                    <div className="text-[11px] text-gray-500 uppercase tracking-wider mb-2">Total Employees</div>
+                    <div className="text-2xl sm:text-3xl font-bold text-white">
                       {overviewMetrics.totalEmployees.toLocaleString()}
                     </div>
-                    <div className="text-xs text-gray-600 mt-1">Across all vendors</div>
+                    <div className="text-[11px] text-gray-600 mt-1">Across all vendors</div>
                   </div>
-                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5">
-                    <div className="text-xs text-gray-500 uppercase tracking-wider mb-3">Top Benefit</div>
-                    <div className="text-xl font-bold text-white truncate">
+                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
+                    <div className="text-[11px] text-gray-500 uppercase tracking-wider mb-2">Top Benefit</div>
+                    <div className="text-sm sm:text-base font-bold text-white line-clamp-2 break-words">
                       {overviewMetrics.topBenefit}
                     </div>
-                    <div className="text-xs text-gray-600 mt-1">Most cited</div>
+                    <div className="text-[11px] text-gray-600 mt-1">Most cited</div>
                   </div>
-                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5">
-                    <div className="text-xs text-gray-500 uppercase tracking-wider mb-3">Top Challenge</div>
-                    <div className="text-xl font-bold text-white truncate">
+                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
+                    <div className="text-[11px] text-gray-500 uppercase tracking-wider mb-2">Top Challenge</div>
+                    <div className="text-sm sm:text-base font-bold text-white line-clamp-2 break-words">
                       {overviewMetrics.topChallenge}
                     </div>
-                    <div className="text-xs text-gray-600 mt-1">Most cited</div>
+                    <div className="text-[11px] text-gray-600 mt-1">Most cited</div>
                   </div>
-                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5">
-                    <div className="text-xs text-gray-500 uppercase tracking-wider mb-3">Digital Presence</div>
-                    <div className="text-3xl font-bold text-blue-400">
+                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
+                    <div className="text-[11px] text-gray-500 uppercase tracking-wider mb-2">Digital Presence</div>
+                    <div className="text-2xl sm:text-3xl font-bold text-blue-400">
                       {overviewMetrics.digitalPresencePct !== null ? `${overviewMetrics.digitalPresencePct}%` : 'N/A'}
                     </div>
-                    <div className="text-xs text-gray-600 mt-1">Active social media</div>
+                    <div className="text-[11px] text-gray-600 mt-1">Active social media</div>
                   </div>
-                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5">
-                    <div className="text-xs text-gray-500 uppercase tracking-wider mb-3">Online Sales</div>
-                    <div className="text-3xl font-bold text-amber-400">
+                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
+                    <div className="text-[11px] text-gray-500 uppercase tracking-wider mb-2">Online Sales</div>
+                    <div className="text-2xl sm:text-3xl font-bold text-amber-400">
                       {overviewMetrics.onlineSalesPct !== null ? `${overviewMetrics.onlineSalesPct}%` : 'N/A'}
                     </div>
-                    <div className="text-xs text-gray-600 mt-1">Online sales active</div>
+                    <div className="text-[11px] text-gray-600 mt-1">Online sales active</div>
                   </div>
                 </div>
               </>
@@ -3507,7 +3545,26 @@ export default function Home() {
                                         {pv.payment_status}
                                       </span>
                                     </td>
-                                    <td className="p-4 text-right text-white font-bold font-mono">UGX {Number(pv.amount_paid).toLocaleString()}</td>
+                                    <td className="p-4 text-right" onClick={(e) => e.stopPropagation()}>
+                                      <button
+                                        onClick={() => {
+                                          setSelectedVendorForFeeEdit(pv);
+                                          setIsVendorFeeModalOpen(true);
+                                        }}
+                                        className="group inline-flex items-center gap-1.5 hover:bg-white/5 px-2 py-1 rounded-md transition-colors cursor-pointer"
+                                        title="Click to edit fee or manage standard/override rate"
+                                      >
+                                        <span className="text-white font-bold font-mono text-xs">
+                                          UGX {Number(pv.amount_paid || 0).toLocaleString()}
+                                        </span>
+                                        {pv.fee_source === 'override' && (
+                                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30" title="Custom override rate (protected from standard fee sync)">
+                                            ⚡ Override
+                                          </span>
+                                        )}
+                                        <Edit3 className="w-3 h-3 text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                      </button>
+                                    </td>
                                     {paidVendorTab === 'registered' ? (
                                       <td className="p-4 text-gray-400 font-medium">
                                         {pv.created_at ? new Date(pv.created_at).toLocaleDateString() : '—'}
@@ -3883,7 +3940,7 @@ export default function Home() {
 
         {/* SETTINGS */}
         {activeNav === 'settings' && (
-          <UserManagementSettings
+          <SettingsView
             currentUserRole={role}
             currentUserId={profile?.user_id || ''}
           />
@@ -3992,6 +4049,22 @@ export default function Home() {
           fetchSurveyResponses();
           fetchOverviewCounts();
           addToast(`Field data collected for "${vendorName}"!`, 'success');
+        }}
+      />
+
+      {/* Vendor Fee Override Modal */}
+      <VendorFeeEditModal
+        isOpen={isVendorFeeModalOpen}
+        onClose={() => {
+          setIsVendorFeeModalOpen(false);
+          setSelectedVendorForFeeEdit(null);
+        }}
+        vendor={selectedVendorForFeeEdit}
+        activeEdition={activeEdition}
+        onFeeUpdated={() => {
+          fetchPaidVendors();
+          fetchOverviewCounts();
+          addToast('Vendor payment amount updated successfully', 'success');
         }}
       />
 

@@ -248,34 +248,40 @@ export const PaidVendorCsvImportModal: React.FC<PaidVendorCsvImportModalProps> =
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
+    <div 
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-black/70 backdrop-blur-sm"
+      style={{
+        paddingTop: 'max(0.75rem, env(safe-area-inset-top))',
+        paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))',
+      }}
+    >
       <div
-        className="relative bg-[#0d1117] border border-white/10 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[90vh] flex flex-col overflow-hidden"
+        className="relative bg-[#0d1117] border border-white/10 rounded-2xl shadow-2xl w-full max-w-3xl max-h-[92vh] sm:max-h-[90vh] flex flex-col overflow-hidden"
         style={{ animation: 'fadeInScale 0.2s ease-out' }}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-white/5 shrink-0">
-          <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-green-500/10 rounded-lg flex items-center justify-center">
+        <div className="flex items-center justify-between px-4 sm:px-6 py-3.5 sm:py-4 border-b border-white/5 shrink-0">
+          <div className="flex items-center gap-2.5 sm:gap-3 min-w-0">
+            <div className="w-8 h-8 bg-green-500/10 rounded-lg flex items-center justify-center shrink-0">
               <Upload className="w-4 h-4 text-green-400" />
             </div>
-            <div>
-              <h2 className="text-sm font-bold text-white">CSV Import — Paid Vendor List</h2>
-              <p className="text-[11px] text-gray-400">
+            <div className="min-w-0">
+              <h2 className="text-xs sm:text-sm font-bold text-white truncate">CSV Import — Paid Vendors</h2>
+              <p className="text-[10px] sm:text-[11px] text-gray-400 truncate">
                 {activeEdition ? `Importing to: ${activeEdition.name}` : 'No edition selected'}
               </p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
+            className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-colors shrink-0"
           >
             <X className="w-4 h-4" />
           </button>
         </div>
 
         {/* Step Indicator */}
-        <div className="flex items-center gap-0 px-6 pt-4 pb-3 shrink-0">
+        <div className="flex items-center gap-0 px-4 sm:px-6 pt-3.5 sm:pt-4 pb-2.5 sm:pb-3 shrink-0">
           {(['upload', 'preview', 'importing', 'done'] as Step[]).map((s, idx) => {
             const stepNum = idx + 1;
             const currentIdx = ['upload', 'preview', 'importing', 'done'].indexOf(step);
@@ -284,7 +290,7 @@ export const PaidVendorCsvImportModal: React.FC<PaidVendorCsvImportModalProps> =
             const labels = ['Upload', 'Review', 'Import', 'Done'];
             return (
               <React.Fragment key={s}>
-                <div className="flex items-center gap-1.5">
+                <div className="flex items-center gap-1 sm:gap-1.5 shrink-0">
                   <div className={`w-5 h-5 rounded-full flex items-center justify-center text-[9px] font-bold transition-colors ${
                     isDone ? 'bg-green-500 text-white' :
                     isActive ? 'bg-green-500/20 border border-green-500 text-green-400' :
@@ -292,12 +298,12 @@ export const PaidVendorCsvImportModal: React.FC<PaidVendorCsvImportModalProps> =
                   }`}>
                     {isDone ? '✓' : stepNum}
                   </div>
-                  <span className={`text-[10px] font-semibold tracking-wider uppercase ${
+                  <span className={`text-[10px] font-semibold tracking-wider uppercase hidden sm:inline ${
                     isActive ? 'text-white' : isDone ? 'text-green-400' : 'text-gray-500'
                   }`}>{labels[idx]}</span>
                 </div>
                 {idx < 3 && (
-                  <div className={`flex-1 h-px mx-2 ${isDone ? 'bg-green-500/40' : 'bg-white/5'}`} />
+                  <div className={`flex-1 h-px mx-1 sm:mx-2 ${isDone ? 'bg-green-500/40' : 'bg-white/5'}`} />
                 )}
               </React.Fragment>
             );
@@ -442,10 +448,10 @@ export const PaidVendorCsvImportModal: React.FC<PaidVendorCsvImportModalProps> =
                 </div>
               )}
 
-              {/* Rows table */}
+              {/* Rows table with horizontal scroll safety */}
               <div className="border border-white/5 rounded-xl overflow-hidden">
-                <div className="overflow-y-auto max-h-[340px]">
-                  <table className="w-full border-collapse text-xs">
+                <div className="overflow-x-auto max-h-[340px]">
+                  <table className="w-full border-collapse text-xs min-w-[500px]">
                     <thead className="sticky top-0 z-10">
                       <tr className="bg-[#0d1117] border-b border-white/5">
                         <th className="p-3 text-[10px] font-bold text-gray-400 uppercase tracking-wider text-left">Name</th>

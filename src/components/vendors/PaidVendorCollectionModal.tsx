@@ -408,13 +408,19 @@ export const PaidVendorCollectionModal: React.FC<PaidVendorCollectionModalProps>
   if (!isOpen || !vendor) return null;
 
   return (
-    <div className="fixed inset-0 z-[1100] flex items-start justify-center pt-[8vh] select-none">
+    <div 
+      className="fixed inset-0 z-[1100] flex items-center sm:items-start justify-center p-3 sm:p-4 select-none overflow-y-auto"
+      style={{
+        paddingTop: 'max(1rem, env(safe-area-inset-top))',
+        paddingBottom: 'max(1rem, env(safe-area-inset-bottom))',
+      }}
+    >
       <div
         className="fixed inset-0 bg-black/60 backdrop-blur-xs animate-fade-in"
         onClick={handleClose}
       />
 
-      <div className="relative bg-bg-surface border border-border rounded-xl shadow-modal z-10 w-full max-w-[600px] max-h-[85vh] overflow-y-auto animate-scale-up">
+      <div className="relative bg-bg-surface border border-border rounded-xl shadow-modal z-10 w-full max-w-[600px] max-h-[90vh] sm:max-h-[85vh] overflow-y-auto animate-scale-up sm:mt-[4vh]">
         <div className="sticky top-0 bg-bg-surface border-b border-border p-4 flex items-center justify-between z-10 rounded-t-xl">
           <div>
             <h2 className="text-sm font-bold text-text-primary">

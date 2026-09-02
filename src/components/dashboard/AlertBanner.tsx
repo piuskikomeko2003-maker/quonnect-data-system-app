@@ -42,17 +42,17 @@ export const AlertBanner: React.FC<AlertBannerProps> = ({
   return (
     <div
       onClick={onClick}
-      className={`flex items-center gap-4.5 p-3.5 px-4.5 rounded-lg text-[12.5px] cursor-pointer transition-all duration-150 ${containerClasses[type]} ${onClick ? 'hover:translate-x-0.5' : 'cursor-default'}`}
+      className={`flex items-start sm:items-center gap-3.5 p-3 sm:p-3.5 sm:px-4.5 rounded-lg text-[12.5px] cursor-pointer transition-all duration-150 ${containerClasses[type]} ${onClick ? 'hover:translate-x-0.5' : 'cursor-default'}`}
     >
-      <div className="flex items-center justify-center shrink-0">
+      <div className="flex items-center justify-center shrink-0 mt-0.5 sm:mt-0">
         {getIcon()}
       </div>
       <div className="flex-1 text-left min-w-0">
-        <strong className="block text-text-primary text-xs font-bold truncate mb-0.5">{title}</strong>
-        <span className="block text-text-secondary text-[11px] font-semibold truncate">{subtitle}</span>
+        <strong className="block text-text-primary text-xs font-bold mb-0.5">{title}</strong>
+        <span className="block text-text-secondary text-[11px] font-medium leading-relaxed sm:truncate">{subtitle}</span>
       </div>
       {onClick && (
-        <ChevronRight className="w-4 h-4 text-text-secondary opacity-40 shrink-0" />
+        <ChevronRight className="w-4 h-4 text-text-secondary opacity-40 shrink-0 mt-0.5 sm:mt-0" />
       )}
     </div>
   );
