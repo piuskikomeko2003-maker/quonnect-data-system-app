@@ -30,6 +30,7 @@ export interface ParsedVendorRow {
   phone: string;
   email: string;
   category: string;
+  amountPaid: number;
   /** True if only name is present (no phone, no email) */
   isMinimal: boolean;
 }
@@ -134,6 +135,11 @@ const CATEGORY_ALIASES = [
   'category', 'business_category', 'business category', 'sector',
   'business_type', 'business type', 'type', 'industry',
 ];
+const AMOUNT_ALIASES = [
+  'amount_paid', 'amount paid', 'amount', 'payment', 'payment_amount',
+  'payment amount', 'paid_amount', 'paid amount', 'paid', 'fee',
+  'registration_fee', 'registration fee', 'price', 'ugx', 'cost',
+];
 
 const findHeader = (
   rawHeaders: string[],
@@ -153,7 +159,15 @@ export interface ColumnMap {
   phoneHeader?: string;
   emailHeader?: string;
   categoryHeader?: string;
+  amountHeader?: string;
 }
+
+export const parseAmount = (val: string | undefined | null): number => {
+  if (!val) return 0;
+  const cleaned = String(val).replace(/[^0-9.-]+/g, '').trim();
+  const num = parseFloat(cleaned);
+  return isNaN(num) || num < 0 ? 0 : num;
+};
 
 export const detectColumns = (rawHeaders: string[]): ColumnMap => ({
   nameHeader: findHeader(rawHeaders, NAME_ALIASES),
@@ -161,6 +175,7 @@ export const detectColumns = (rawHeaders: string[]): ColumnMap => ({
   phoneHeader: findHeader(rawHeaders, PHONE_ALIASES),
   emailHeader: findHeader(rawHeaders, EMAIL_ALIASES),
   categoryHeader: findHeader(rawHeaders, CATEGORY_ALIASES),
+  amountHeader: findHeader(rawHeaders, AMOUNT_ALIASES),
 });
 
 // ─── Row Extraction ───────────────────────────────────────────────────────────
@@ -174,13 +189,29 @@ export const extractVendorRows = (
   colMap: ColumnMap
 ): ParsedVendorRow[] => {
   const results: ParsedVendorRow[] = [];
+  const hasBothNames = Boolean(
+    colMap.nameHeader &&
+    colMap.businessHeader &&
+    colMap.nameHeader.toLowerCase().trim() !== colMap.businessHeader.toLowerCase().trim()
+  );
 
   rawRows.forEach((row, idx) => {
-    const contactName = (colMap.nameHeader ? row[colMap.nameHeader] : '') || '';
-    const businessName = (colMap.businessHeader ? row[colMap.businessHeader] : '') || '';
+    let businessName = '';
+    let contactName = '';
+
+    if (hasBothNames) {
+      businessName = (colMap.businessHeader ? row[colMap.businessHeader] : '') || '';
+      contactName = (colMap.nameHeader ? row[colMap.nameHeader] : '') || '';
+    } else {
+      // Single name header provided -> map to businessName, leave contactName blank
+      businessName = (colMap.businessHeader ? row[colMap.businessHeader] : colMap.nameHeader ? row[colMap.nameHeader] : '') || '';
+      contactName = '';
+    }
+
     const phone = (colMap.phoneHeader ? row[colMap.phoneHeader] : '') || '';
     const email = (colMap.emailHeader ? row[colMap.emailHeader] : '') || '';
     const category = (colMap.categoryHeader ? row[colMap.categoryHeader] : '') || '';
+    const amountPaid = parseAmount(colMap.amountHeader ? row[colMap.amountHeader] : '');
 
     // Must have at least a name or business name
     if (!contactName.trim() && !businessName.trim()) {
@@ -197,6 +228,7 @@ export const extractVendorRows = (
       phone: phone.trim(),
       email: email.trim(),
       category: category.trim(),
+      amountPaid,
       isMinimal,
     });
   });
@@ -282,7 +314,7 @@ export const buildPreview = (
   existingVendors: ExistingVendor[]
 ): RowPreview[] => {
   return rows.map(row => {
-    const importName = row.contactName || row.businessName;
+    const importName = row.businessName || row.contactName;
 
     // First check for phone match (exact duplicate regardless of name)
     if (row.phone) {
@@ -293,7 +325,7 @@ export const buildPreview = (
         return {
           ...row,
           status: 'exact_duplicate' as DuplicateStatus,
-          matchedName: phoneMatch.contactName || phoneMatch.businessName,
+          matchedName: phoneMatch.businessName || phoneMatch.contactName,
           similarity: 1.0,
           importAnyway: false,
         };
@@ -305,18 +337,18 @@ export const buildPreview = (
     let bestMatch: ExistingVendor | undefined;
 
     for (const ev of existingVendors) {
-      const evName = ev.contactName || ev.businessName;
+      const evName = ev.businessName || ev.contactName;
       if (!evName) continue;
       const score = similarity(importName, evName);
       if (score > bestScore) {
         bestScore = score;
         bestMatch = ev;
       }
-      // Also check business name against contact name and vice versa
-      if (row.businessName) {
-        const bizScore = similarity(row.businessName, evName);
-        if (bizScore > bestScore) {
-          bestScore = bizScore;
+      // Also check contact name against business name and vice versa
+      if (row.contactName) {
+        const contactScore = similarity(row.contactName, evName);
+        if (contactScore > bestScore) {
+          bestScore = contactScore;
           bestMatch = ev;
         }
       }
@@ -326,7 +358,7 @@ export const buildPreview = (
       return {
         ...row,
         status: 'exact_duplicate' as DuplicateStatus,
-        matchedName: bestMatch?.contactName || bestMatch?.businessName,
+        matchedName: bestMatch?.businessName || bestMatch?.contactName,
         similarity: bestScore,
         importAnyway: false,
       };
@@ -336,7 +368,7 @@ export const buildPreview = (
       return {
         ...row,
         status: 'likely_duplicate' as DuplicateStatus,
-        matchedName: bestMatch?.contactName || bestMatch?.businessName,
+        matchedName: bestMatch?.businessName || bestMatch?.contactName,
         similarity: bestScore,
         importAnyway: false,
       };
@@ -422,8 +454,8 @@ export const importPaidVendors = async (
       // Normalise phone: strip spaces so DB upsert conflict on `phone` is reliable.
       const normalisedPhone = row.phone.replace(/\s/g, '');
       const vendorPayload: Record<string, any> = {
-        contact_name: row.contactName || row.businessName || 'Unknown',
-        business_name: row.businessName || '',
+        business_name: row.businessName || row.contactName || '',
+        contact_name: row.contactName || '',
         phone: normalisedPhone || null,
         email: row.email || '',
         category: row.category || '',
@@ -457,7 +489,7 @@ export const importPaidVendors = async (
 
       if (vendorError || !vendorId) {
         summary.errors.push(
-          `Row ${row.rowIndex} (${row.contactName || row.businessName}): vendor save failed — ${vendorError?.message || 'no ID returned'}`
+          `Row ${row.rowIndex} (${row.businessName || row.contactName}): vendor save failed — ${vendorError?.message || 'no ID returned'}`
         );
         summary.skipped++;
         continue;
@@ -473,21 +505,32 @@ export const importPaidVendors = async (
         .maybeSingle();
 
       if (!existingReg) {
+        const standardFee = Number((edition as any)?.standard_fee) || 92000;
+        const finalAmount = row.amountPaid > 0 ? row.amountPaid : standardFee;
+        const feeSource = row.amountPaid > 0 && row.amountPaid !== standardFee ? 'override' : 'standard';
+
         const { error: regError } = await supabase
           .from('vendor_registrations')
           .insert({
             vendor_id: vendorId,
             market_day_id: edition.id,
             payment_status: 'paid',
-            amount_paid: 0,
+            amount_paid: finalAmount,
+            fee_source: feeSource,
             import_batch: batchId,
           });
 
         if (regError) {
-          // Non-fatal — vendor was inserted but registration failed
-          summary.errors.push(
-            `Row ${row.rowIndex} (${row.contactName}): vendor created but registration failed — ${regError.message}`
-          );
+          // If fee_source column doesn't exist, fallback without it
+          await supabase
+            .from('vendor_registrations')
+            .insert({
+              vendor_id: vendorId,
+              market_day_id: edition.id,
+              payment_status: 'paid',
+              amount_paid: finalAmount,
+              import_batch: batchId,
+            });
         }
       }
       // If existingReg exists, vendor is already registered for this edition — skip duplicate reg

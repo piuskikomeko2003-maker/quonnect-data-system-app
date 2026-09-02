@@ -39,21 +39,21 @@ import { JobsSupportedPanel } from '@/components/dashboard/JobsSupportedPanel';
 import { Question, FormTemplate } from '@/components/formbuilder/types';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
-import { 
-  Users, 
-  Footprints, 
-  Database, 
-  ClipboardList, 
-  Zap, 
-  AlertTriangle, 
-  FileText, 
-  Link as LinkIcon, 
-  Check, 
-  Plus, 
-  TrendingUp, 
-  BarChart3, 
-  Tag, 
-  Heart, 
+import {
+  Users,
+  Footprints,
+  Database,
+  ClipboardList,
+  Zap,
+  AlertTriangle,
+  FileText,
+  Link as LinkIcon,
+  Check,
+  Plus,
+  TrendingUp,
+  BarChart3,
+  Tag,
+  Heart,
   HelpCircle,
   Copy,
   Info,
@@ -190,25 +190,25 @@ export default function Home() {
       alert(`Error creating region: ${e.message}`);
     }
   };
-  
+
   // Navigation States
   const [activeNav, setActiveNav] = useState('overview');
-  
+
   // Market, Edition and Region State Arrays
   const [markets, setMarkets] = useState<Market[]>([]);
   const [editions, setEditions] = useState<any[]>([]);
   const [regions, setRegions] = useState<string[]>([]);
   const [surveyResponses, setSurveyResponses] = useState<any[]>([]);
-  
+
   const emptyMarket: Market = {
     id: '',
     name: 'No Region Selected',
     type: 'regional',
     vendorsCount: 0
   };
-  
+
   const [currentMarket, setCurrentMarket] = useState<Market>(emptyMarket);
-  
+
   // Live session mock polling states
   const {
     runningCount,
@@ -223,7 +223,7 @@ export default function Home() {
     initialVendorsCount: 0,
     initialWalkinsCount: 0,
   });
-  
+
   // Entities lists states
   const [vendors, setVendors] = useState<any[]>([]);
   const [walkins, setWalkins] = useState<any[]>([]);
@@ -749,8 +749,8 @@ export default function Home() {
 
         const registrationType: 'survey' | 'paid' | 'both' | 'unknown' =
           surveyVendorIds.has(v.id) && paidVendorIds.has(v.id) ? 'both' :
-          paidVendorIds.has(v.id) ? 'paid' :
-          surveyVendorIds.has(v.id) ? 'survey' : 'unknown';
+            paidVendorIds.has(v.id) ? 'paid' :
+              surveyVendorIds.has(v.id) ? 'survey' : 'unknown';
 
         return {
           id: v.id,
@@ -759,8 +759,8 @@ export default function Home() {
           businessName: v.business_name || answerMap['business_name'] || '',
           gender: resolveGender(answerMap),
           status: isFirstTimer(answerMap) === true ? ('new' as const)
-                : getAttendanceCount(answerMap) >= 3 ? ('loyal' as const)
-                : isReturning(answerMap) === true ? ('active' as const)
+            : getAttendanceCount(answerMap) >= 3 ? ('loyal' as const)
+              : isReturning(answerMap) === true ? ('active' as const)
                 : v.is_active ? ('active' as const) : ('new' as const),
           region: activeRegion.name,
           attendanceCount: getAttendanceCount(answerMap),
@@ -1037,7 +1037,7 @@ export default function Home() {
 
       const resolvedData = data ?? [];
       setSurveyResponses(resolvedData);
-      
+
       const activities = resolvedData.map((sr: any) => {
         const v = sr.vendors || {};
         const md = sr.market_days || {};
@@ -1097,7 +1097,7 @@ export default function Home() {
       if (data && data.length > 0) {
         const names = data.map((r: any) => r.name);
         setRegions(names);
-        
+
         const dbMarkets = data.map((r: any, idx: number) => ({
           id: r.slug || r.name.toLowerCase(),
           name: `${r.name} Regional Market`,
@@ -1208,7 +1208,7 @@ export default function Home() {
                 type: q.question_type === 'select' ? 'dropdown' : q.question_type,
                 required: q.is_required,
                 helpText: '',
-                options: q.question_type === 'select' 
+                options: q.question_type === 'select'
                   ? (q.csv_column === 'gender' ? ['Female', 'Male', 'Other'] : ['Food', 'Fashion', 'Crafts', 'Beauty', 'Electronics', 'Agriculture'])
                   : undefined
               }));
@@ -1335,7 +1335,7 @@ export default function Home() {
 
   // Create Market section creation states
   const [newRegionName, setNewRegionName] = useState('');
-  
+
   const [newMarketName, setNewMarketName] = useState('');
   const [newMarketCity, setNewMarketCity] = useState('');
   const [newMarketMaturity, setNewMarketMaturity] = useState<'flagship' | 'regional' | 'pilot'>('regional');
@@ -1346,7 +1346,7 @@ export default function Home() {
   const [newEditionVenue, setNewEditionVenue] = useState('');
   const [newEditionMonth, setNewEditionMonth] = useState('6');
   const [newEditionYear, setNewEditionYear] = useState('2026');
-  
+
   // Search & Filters state
   const [filters, setFilters] = useState<FilterState>({
     region: 'All',
@@ -1366,7 +1366,7 @@ export default function Home() {
       fetchOverviewMetrics();
     }
   }, [activeNav, mounted, fetchOverviewMetrics]);
-  
+
   // Drawer Panel & Modal States
   const [selectedVendorId, setSelectedVendorId] = useState<string | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
@@ -1374,7 +1374,7 @@ export default function Home() {
   const [generatedLinkUrl, setGeneratedLinkUrl] = useState('');
   const [generatedLinkPass, setGeneratedLinkPass] = useState('');
   const [copiedText, setCopiedText] = useState(false);
-  
+
   // Edit Vendor Modal State
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [editingVendorId, setEditingVendorId] = useState<string | null>(null);
@@ -1392,7 +1392,7 @@ export default function Home() {
 
   // Incomplete Vendors Panel State
   const [showIncompleteVendors, setShowIncompleteVendors] = useState(false);
-  
+
   // Merge Proposal Queue Mock State
   const [mergeProposals, setMergeProposals] = useState<any[]>([]);
 
@@ -1406,22 +1406,22 @@ export default function Home() {
   // Quick Entry Forms States
   const [quickEntryTab, setQuickEntryTab] = useState<'paid' | 'collection' | 'walkin'>('paid');
   const [isQuickEntryOpen, setIsQuickEntryOpen] = useState(true);
-  
+
   // Quick Entry Success States
   const [paidSuccessState, setPaidSuccessState] = useState<{ show: boolean; vendorName?: string; onAddAnother: () => void }>({
     show: false,
     vendorName: undefined,
-    onAddAnother: () => {}
+    onAddAnother: () => { }
   });
   const [collectionSuccessState, setCollectionSuccessState] = useState<{ show: boolean; vendorName?: string; onAddAnother: () => void }>({
     show: false,
     vendorName: undefined,
-    onAddAnother: () => {}
+    onAddAnother: () => { }
   });
   const [walkinSuccessState, setWalkinSuccessState] = useState<{ show: boolean; visitorName?: string; onAddAnother: () => void }>({
     show: false,
     visitorName: undefined,
-    onAddAnother: () => {}
+    onAddAnother: () => { }
   });
 
   const [recentActivities, setRecentActivities] = useState<Array<{
@@ -1953,16 +1953,16 @@ export default function Home() {
     try {
       const supabase = createClient();
       if (!supabase) throw new Error("Supabase client is not initialized.");
-      
+
       const { error } = await supabase
         .from('regions')
         .insert({
           name: newRegionName.trim(),
           slug: newRegionName.trim().toLowerCase()
         });
-        
+
       if (error) throw error;
-      
+
       setNewRegionName('');
       alert('Region created successfully!');
     } catch (err: any) {
@@ -1988,18 +1988,18 @@ export default function Home() {
     try {
       const supabase = createClient();
       if (!supabase) throw new Error("Supabase client is not initialized.");
-      
+
       const { data: regionData, error: regError } = await supabase
         .from('regions')
         .select('id, name')
         .eq('slug', newEditionMarketId)
         .limit(1);
-        
+
       if (regError) throw regError;
       if (!regionData || regionData.length === 0) {
         throw new Error("Region not found for market " + newEditionMarketId);
       }
-      
+
       const regionId = regionData[0].id;
       const regionName = regionData[0].name;
       const dateStr = `${newEditionYear}-${newEditionMonth.padStart(2, '0')}-01`;
@@ -2014,7 +2014,7 @@ export default function Home() {
         });
 
       if (insertError) throw insertError;
-      
+
       setNewEditionDate('');
       setNewEditionVenue('');
       alert('Upcoming Edition created successfully!');
@@ -2030,23 +2030,23 @@ export default function Home() {
     try {
       const supabase = createClient();
       if (!supabase) return;
-      
+
       // Update target vendor to active/loyal
       const { error: updateError } = await supabase
         .from('vendors')
         .update({ is_active: true })
         .eq('id', targetId);
-        
+
       if (updateError) throw updateError;
-      
+
       // Delete source duplicate vendor
       const { error: deleteError } = await supabase
         .from('vendors')
         .delete()
         .eq('id', source.id);
-        
+
       if (deleteError) throw deleteError;
-      
+
       alert('Merge approved and duplicate record removed!');
     } catch (err: any) {
       console.error("Merge error:", err);
@@ -2151,7 +2151,7 @@ export default function Home() {
   // Form Builder saves
   const handleSaveQuestions = (questions: Question[]) => {
     if (!editingFormId) return;
-    
+
     setIsSavingForm(true);
     setTimeout(() => {
       // Update questions
@@ -2159,7 +2159,7 @@ export default function Home() {
         ...prev,
         [editingFormId]: questions
       }));
-      
+
       // Update template questionCount
       setFormTemplates(prev => prev.map(t => {
         if (t.id === editingFormId) {
@@ -2171,7 +2171,7 @@ export default function Home() {
         }
         return t;
       }));
-      
+
       setIsSavingForm(false);
       setEditingFormId(null);
     }, 800);
@@ -2189,7 +2189,7 @@ export default function Home() {
     // Search filter
     if (vendorSearch) {
       const term = vendorSearch.toLowerCase();
-      const matchesSearch = 
+      const matchesSearch =
         v.name.toLowerCase().includes(term) ||
         v.phone.includes(term) ||
         v.businessName.toLowerCase().includes(term);
@@ -2665,7 +2665,7 @@ export default function Home() {
           .from('vendor_registrations')
           .select('vendor_id')
           .in('vendor_id', vendorIds);
-        
+
         const { data: otherResps } = await supabase
           .from('survey_responses')
           .select('vendor_id')
@@ -2714,244 +2714,200 @@ export default function Home() {
       {/* ==========================================
           ROUTE RENDERING
           ========================================== */}
-        <>
-          {/* 1. OVERVIEW SCREEN */}
-          {activeNav === 'overview' && (
-            <div className="space-y-6 animate-fade-in text-left">
-              {/* Top Banner Row */}
-              <div className="flex justify-between items-center select-none">
-                <div>
-                  <h1 className="text-xl font-bold tracking-tight text-text-primary">Operational Overview</h1>
-                  <p className="text-xs text-text-secondary mt-0.5">Real-time indicators and metrics for {currentMarket.name}.</p>
-                </div>
+      <>
+        {/* 1. OVERVIEW SCREEN */}
+        {activeNav === 'overview' && (
+          <div className="space-y-6 animate-fade-in text-left">
+            {/* Top Banner Row */}
+            <div className="flex justify-between items-center select-none">
+              <div>
+                <h1 className="text-xl font-bold tracking-tight text-text-primary">Operational Overview</h1>
+                <p className="text-xs text-text-secondary mt-0.5">Real-time indicators and metrics for {currentMarket.name}.</p>
               </div>
+            </div>
 
-              {/* Live Status Counter Component */}
-              <LiveCounter
-                isActiveEdition={!!activeEdition}
-                paidVendorsCount={runningCount}
-                dataCollectedCount={dataCollectedListCount}
-                totalPaidVendorsCount={totalUniqueVendorsCount}
-                walkinsCount={runningWalkins}
-                onRefresh={handleRefreshLiveCounter}
-                isRefreshing={isRefreshing}
-              />
+            {/* Live Status Counter Component */}
+            <LiveCounter
+              isActiveEdition={!!activeEdition}
+              paidVendorsCount={runningCount}
+              dataCollectedCount={dataCollectedListCount}
+              totalPaidVendorsCount={totalUniqueVendorsCount}
+              walkinsCount={runningWalkins}
+              onRefresh={handleRefreshLiveCounter}
+              isRefreshing={isRefreshing}
+            />
 
-              {/* Alert Banners */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                 {mergeProposals.length > 0 && (
-                  <AlertBanner
-                    type="warning"
-                    title="Manual Verification Required"
-                    subtitle={`Flagged duplicate warning: ${mergeProposals.length} vendor profiles share identifiers.`}
-                  />
-                )}
+            {/* Alert Banners */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {mergeProposals.length > 0 && (
                 <AlertBanner
-                  type="success"
-                  title="Data Collection Status"
-                  subtitle={`${overviewCounts.surveyResponses} survey responses collected${overviewCounts.paidVendors > 0 ? ` (${Math.round((overviewCounts.surveyResponses / overviewCounts.paidVendors) * 100)}% of paid vendors)` : ''}.`}
+                  type="warning"
+                  title="Manual Verification Required"
+                  subtitle={`Flagged duplicate warning: ${mergeProposals.length} vendor profiles share identifiers.`}
                 />
+              )}
+              <AlertBanner
+                type="success"
+                title="Data Collection Status"
+                subtitle={`${overviewCounts.surveyResponses} survey responses collected${overviewCounts.paidVendors > 0 ? ` (${Math.round((overviewCounts.surveyResponses / overviewCounts.paidVendors) * 100)}% of paid vendors)` : ''}.`}
+              />
+            </div>
+
+            {/* SECTION 1 — Live Event Snapshot */}
+            {overviewLoading ? (
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
+                {Array.from({ length: 7 }).map((_, idx) => (
+                  <div key={idx} className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 animate-pulse h-[130px] flex flex-col justify-between" />
+                ))}
               </div>
-
-              {/* SECTION 1 — Live Event Snapshot */}
-              {overviewLoading ? (
+            ) : overviewMetrics ? (
+              <>
                 <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-                  {Array.from({ length: 7 }).map((_, idx) => (
-                    <div key={idx} className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 animate-pulse h-[130px] flex flex-col justify-between" />
-                  ))}
-                </div>
-              ) : overviewMetrics ? (
-                <>
-                  <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-3">
-                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="bg-green-500/10 text-green-400 p-2 rounded-lg">
-                          <CreditCard className="w-4 h-4" />
-                        </div>
+                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="bg-green-500/10 text-green-400 p-2 rounded-lg">
+                        <CreditCard className="w-4 h-4" />
                       </div>
-                      <div className="text-3xl font-bold text-white tracking-tight">{overviewMetrics.paidVendorCount}</div>
-                      <div className="text-xs text-gray-500 uppercase tracking-wider mt-1">Paid Vendors</div>
-                      {/* Registered vs pending split indicator */}
-                      {overviewMetrics.paidVendorCount > 0 && (
-                        <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                          <span className="text-[9px] font-bold text-green-400 bg-green-500/10 border border-green-500/20 px-1.5 py-0.5 rounded">
-                            {overviewMetrics.paidRegisteredCount} registered
+                    </div>
+                    <div className="text-3xl font-bold text-white tracking-tight">{overviewMetrics.paidVendorCount}</div>
+                    <div className="text-xs text-gray-500 uppercase tracking-wider mt-1">Paid Vendors</div>
+                    {/* Registered vs pending split indicator */}
+                    {overviewMetrics.paidVendorCount > 0 && (
+                      <div className="flex items-center gap-1.5 mt-2 flex-wrap">
+                        <span className="text-[9px] font-bold text-green-400 bg-green-500/10 border border-green-500/20 px-1.5 py-0.5 rounded">
+                          {overviewMetrics.paidRegisteredCount} registered
+                        </span>
+                        {overviewMetrics.paidPendingCount > 0 && (
+                          <span className="text-[9px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded">
+                            {overviewMetrics.paidPendingCount} pending
                           </span>
-                          {overviewMetrics.paidPendingCount > 0 && (
-                            <span className="text-[9px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded">
-                              {overviewMetrics.paidPendingCount} pending
-                            </span>
-                          )}
-                        </div>
-                      )}
-                    </div>
-
-                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="bg-amber-500/10 text-amber-400 p-2 rounded-lg">
-                          <Footprints className="w-4 h-4" />
-                        </div>
+                        )}
                       </div>
-                      <div className="text-3xl font-bold text-white tracking-tight">{overviewMetrics.walkinCount}</div>
-                      <div className="text-xs text-gray-500 uppercase tracking-wider mt-1">Walk-ins</div>
-                    </div>
-
-                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="bg-blue-500/10 text-blue-400 p-2 rounded-lg">
-                          <ClipboardList className="w-4 h-4" />
-                        </div>
-                      </div>
-                      <div className="text-3xl font-bold text-white tracking-tight">{overviewMetrics.surveyCount}</div>
-                      <div className="text-xs text-gray-500 uppercase tracking-wider mt-1">Surveys</div>
-                    </div>
-
-                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
-                      <div className="flex items-start justify-between mb-2">
-                        <div className="bg-purple-500/10 text-purple-400 p-2 rounded-lg">
-                          <Users className="w-4 h-4" />
-                        </div>
-                      </div>
-                      <div className="text-xs text-gray-500 uppercase tracking-wider mt-1 mb-1">Gender Split</div>
-                      {overviewMetrics.genderSplit.femalePct !== null ? (
-                        <div className="mt-2">
-                          <div className="flex rounded-full overflow-hidden h-1.5 bg-white/5">
-                            <div 
-                              style={{ width: `${overviewMetrics.genderSplit.femalePct}%` }} 
-                              className="bg-purple-500 transition-all duration-700" 
-                            />
-                            <div 
-                              style={{ width: `${overviewMetrics.genderSplit.malePct}%` }} 
-                              className="bg-cyan-500 transition-all duration-700" 
-                            />
-                          </div>
-                          <div className="flex justify-between mt-1.5">
-                            <span className="text-xs text-purple-400 font-semibold">{overviewMetrics.genderSplit.femalePct}% F</span>
-                            <span className="text-xs text-cyan-400 font-semibold">{overviewMetrics.genderSplit.malePct}% M</span>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="text-xs text-gray-500">No data</div>
-                      )}
-                    </div>
-
-                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="bg-emerald-500/10 text-emerald-400 p-2 rounded-lg">
-                          <BarChart3 className="w-4 h-4" />
-                        </div>
-                      </div>
-                      <div className="text-3xl font-bold text-white tracking-tight">{overviewMetrics.avgVendorAge || 'N/A'}</div>
-                      <div className="text-xs text-gray-500 uppercase tracking-wider mt-1">Avg Age</div>
-                    </div>
-
-                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
-                      <div className="flex items-start justify-between mb-3">
-                        <div className="bg-green-500/10 text-green-400 p-2 rounded-lg">
-                          <ArrowUpRight className="w-4 h-4" />
-                        </div>
-                      </div>
-                      <div className="text-3xl font-bold text-white tracking-tight">
-                        {overviewMetrics.firstTimerPct !== null ? `${overviewMetrics.firstTimerPct}%` : 'N/A'}
-                      </div>
-                      <div className="text-xs text-gray-500 uppercase tracking-wider mt-1">First Timers</div>
-                    </div>
-
-                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
-                      <div className="flex items-start justify-between mb-1">
-                        <div className="bg-green-500/10 text-green-400 p-2 rounded-lg">
-                          <RotateCcw className="w-4 h-4" />
-                        </div>
-                      </div>
-                      <div className="text-xs text-gray-500 uppercase tracking-wider">
-                        Retention
-                      </div>
-                      {overviewMetrics.retentionPct !== null ? (
-                        <div className="relative flex items-center justify-center my-1">
-                          <svg viewBox="0 0 36 36" className="w-16 h-16 -rotate-90">
-                            <circle cx="18" cy="18" r="15.9" fill="none"
-                              stroke="rgba(255,255,255,0.05)" strokeWidth="2.5" />
-                            <circle cx="18" cy="18" r="15.9" fill="none"
-                              stroke="#22c55e" strokeWidth="2.5"
-                              strokeDasharray={`${overviewMetrics.retentionPct} ${100 - overviewMetrics.retentionPct}`}
-                              strokeLinecap="round" />
-                          </svg>
-                          <div className="absolute text-center">
-                            <div className="text-lg font-bold text-white">{overviewMetrics.retentionPct}%</div>
-                          </div>
-                        </div>
-                      ) : (
-                        <div className="text-xs text-gray-500">No data</div>
-                      )}
-                    </div>
+                    )}
                   </div>
 
-                  {/* SECTION 2 — Growth Across Editions */}
-                  {overviewMetrics.editionGrowth.length > 0 && (
-                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-6">
-                      <div className="flex items-center gap-2 mb-6">
-                        <div className="w-1 h-4 bg-green-500 rounded-full" />
-                        <span className="text-xs font-semibold tracking-widest uppercase text-gray-400">
-                          Growth Across Editions
-                        </span>
+                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="bg-amber-500/10 text-amber-400 p-2 rounded-lg">
+                        <Footprints className="w-4 h-4" />
                       </div>
-                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                        <div>
-                          <h5 className="text-[10px] font-semibold text-gray-400 mb-3 uppercase tracking-wider">Vendors per Edition</h5>
-                          <ResponsiveContainer width="100%" height={220}>
-                            <BarChart data={overviewMetrics.editionGrowth} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
-                              <defs>
-                                <linearGradient id="surveyVendorsGrad" x1="0" y1="0" x2="0" y2="1">
-                                  <stop offset="0%" stopColor="#22c55e" stopOpacity={1} />
-                                  <stop offset="100%" stopColor="#15803d" stopOpacity={0.85} />
-                                </linearGradient>
-                                <linearGradient id="paidVendorsGrad" x1="0" y1="0" x2="0" y2="1">
-                                  <stop offset="0%" stopColor="#3b82f6" stopOpacity={1} />
-                                  <stop offset="100%" stopColor="#1d4ed8" stopOpacity={0.85} />
-                                </linearGradient>
-                              </defs>
-                              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
-                              <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} dy={5} />
-                              <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} dx={-2} />
-                              <Tooltip content={<CustomGrowthTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.03)' }} />
-                              <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '11px', color: '#6b7280', paddingTop: '16px' }} />
-                              <Bar dataKey="surveyCount" name="Survey Vendors" fill="url(#surveyVendorsGrad)" radius={[4, 4, 0, 0]} />
-                              <Bar dataKey="paidCount" name="Paid Vendors" fill="url(#paidVendorsGrad)" radius={[4, 4, 0, 0]} />
-                            </BarChart>
-                          </ResponsiveContainer>
+                    </div>
+                    <div className="text-3xl font-bold text-white tracking-tight">{overviewMetrics.walkinCount}</div>
+                    <div className="text-xs text-gray-500 uppercase tracking-wider mt-1">Walk-ins</div>
+                  </div>
+
+                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="bg-blue-500/10 text-blue-400 p-2 rounded-lg">
+                        <ClipboardList className="w-4 h-4" />
+                      </div>
+                    </div>
+                    <div className="text-3xl font-bold text-white tracking-tight">{overviewMetrics.surveyCount}</div>
+                    <div className="text-xs text-gray-500 uppercase tracking-wider mt-1">Surveys</div>
+                  </div>
+
+                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="bg-purple-500/10 text-purple-400 p-2 rounded-lg">
+                        <Users className="w-4 h-4" />
+                      </div>
+                    </div>
+                    <div className="text-xs text-gray-500 uppercase tracking-wider mt-1 mb-1">Gender Split</div>
+                    {overviewMetrics.genderSplit.femalePct !== null ? (
+                      <div className="mt-2">
+                        <div className="flex rounded-full overflow-hidden h-1.5 bg-white/5">
+                          <div
+                            style={{ width: `${overviewMetrics.genderSplit.femalePct}%` }}
+                            className="bg-purple-500 transition-all duration-700"
+                          />
+                          <div
+                            style={{ width: `${overviewMetrics.genderSplit.malePct}%` }}
+                            className="bg-cyan-500 transition-all duration-700"
+                          />
                         </div>
-                        <div>
-                          <h5 className="text-[10px] font-semibold text-gray-400 mb-3 uppercase tracking-wider">Walk-ins per Edition</h5>
-                          <ResponsiveContainer width="100%" height={220}>
-                            <BarChart data={overviewMetrics.editionGrowth} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
-                              <defs>
-                                <linearGradient id="walkinsGrad" x1="0" y1="0" x2="0" y2="1">
-                                  <stop offset="0%" stopColor="#f59e0b" stopOpacity={1} />
-                                  <stop offset="100%" stopColor="#b45309" stopOpacity={0.85} />
-                                </linearGradient>
-                              </defs>
-                              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
-                              <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} dy={5} />
-                              <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} dx={-2} />
-                              <Tooltip content={<CustomGrowthTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.03)' }} />
-                              <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '11px', color: '#6b7280', paddingTop: '16px' }} />
-                              <Bar dataKey="walkinCount" name="Walk-ins" fill="url(#walkinsGrad)" radius={[4, 4, 0, 0]} />
-                            </BarChart>
-                          </ResponsiveContainer>
+                        <div className="flex justify-between mt-1.5">
+                          <span className="text-xs text-purple-400 font-semibold">{overviewMetrics.genderSplit.femalePct}% F</span>
+                          <span className="text-xs text-cyan-400 font-semibold">{overviewMetrics.genderSplit.malePct}% M</span>
                         </div>
                       </div>
-                      <div className="mt-6">
-                        <h5 className="text-[10px] font-semibold text-gray-400 mb-3 uppercase tracking-wider">New vs Returning Vendors per Edition</h5>
+                    ) : (
+                      <div className="text-xs text-gray-500">No data</div>
+                    )}
+                  </div>
+
+                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="bg-emerald-500/10 text-emerald-400 p-2 rounded-lg">
+                        <BarChart3 className="w-4 h-4" />
+                      </div>
+                    </div>
+                    <div className="text-3xl font-bold text-white tracking-tight">{overviewMetrics.avgVendorAge || 'N/A'}</div>
+                    <div className="text-xs text-gray-500 uppercase tracking-wider mt-1">Avg Age</div>
+                  </div>
+
+                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
+                    <div className="flex items-start justify-between mb-3">
+                      <div className="bg-green-500/10 text-green-400 p-2 rounded-lg">
+                        <ArrowUpRight className="w-4 h-4" />
+                      </div>
+                    </div>
+                    <div className="text-3xl font-bold text-white tracking-tight">
+                      {overviewMetrics.firstTimerPct !== null ? `${overviewMetrics.firstTimerPct}%` : 'N/A'}
+                    </div>
+                    <div className="text-xs text-gray-500 uppercase tracking-wider mt-1">First Timers</div>
+                  </div>
+
+                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
+                    <div className="flex items-start justify-between mb-1">
+                      <div className="bg-green-500/10 text-green-400 p-2 rounded-lg">
+                        <RotateCcw className="w-4 h-4" />
+                      </div>
+                    </div>
+                    <div className="text-xs text-gray-500 uppercase tracking-wider">
+                      Retention
+                    </div>
+                    {overviewMetrics.retentionPct !== null ? (
+                      <div className="relative flex items-center justify-center my-1">
+                        <svg viewBox="0 0 36 36" className="w-16 h-16 -rotate-90">
+                          <circle cx="18" cy="18" r="15.9" fill="none"
+                            stroke="rgba(255,255,255,0.05)" strokeWidth="2.5" />
+                          <circle cx="18" cy="18" r="15.9" fill="none"
+                            stroke="#22c55e" strokeWidth="2.5"
+                            strokeDasharray={`${overviewMetrics.retentionPct} ${100 - overviewMetrics.retentionPct}`}
+                            strokeLinecap="round" />
+                        </svg>
+                        <div className="absolute text-center">
+                          <div className="text-lg font-bold text-white">{overviewMetrics.retentionPct}%</div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-xs text-gray-500">No data</div>
+                    )}
+                  </div>
+                </div>
+
+                {/* SECTION 2 — Growth Across Editions */}
+                {overviewMetrics.editionGrowth.length > 0 && (
+                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-6">
+                    <div className="flex items-center gap-2 mb-6">
+                      <div className="w-1 h-4 bg-green-500 rounded-full" />
+                      <span className="text-xs font-semibold tracking-widest uppercase text-gray-400">
+                        Growth Across Editions
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                      <div>
+                        <h5 className="text-[10px] font-semibold text-gray-400 mb-3 uppercase tracking-wider">Vendors per Edition</h5>
                         <ResponsiveContainer width="100%" height={220}>
                           <BarChart data={overviewMetrics.editionGrowth} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
                             <defs>
-                              <linearGradient id="firstTimerGrad" x1="0" y1="0" x2="0" y2="1">
+                              <linearGradient id="surveyVendorsGrad" x1="0" y1="0" x2="0" y2="1">
                                 <stop offset="0%" stopColor="#22c55e" stopOpacity={1} />
                                 <stop offset="100%" stopColor="#15803d" stopOpacity={0.85} />
                               </linearGradient>
-                              <linearGradient id="returningGrad" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="0%" stopColor="#c084fc" stopOpacity={1} />
-                                <stop offset="100%" stopColor="#7e22ce" stopOpacity={0.85} />
+                              <linearGradient id="paidVendorsGrad" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="#3b82f6" stopOpacity={1} />
+                                <stop offset="100%" stopColor="#1d4ed8" stopOpacity={0.85} />
                               </linearGradient>
                             </defs>
                             <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
@@ -2959,955 +2915,996 @@ export default function Home() {
                             <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} dx={-2} />
                             <Tooltip content={<CustomGrowthTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.03)' }} />
                             <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '11px', color: '#6b7280', paddingTop: '16px' }} />
-                            <Bar dataKey="firstTimers" name="First Timers" stackId="a" fill="url(#firstTimerGrad)" />
-                            <Bar dataKey="returning" name="Returning" stackId="a" fill="url(#returningGrad)" radius={[4, 4, 0, 0]} />
+                            <Bar dataKey="surveyCount" name="Survey Vendors" fill="url(#surveyVendorsGrad)" radius={[4, 4, 0, 0]} />
+                            <Bar dataKey="paidCount" name="Paid Vendors" fill="url(#paidVendorsGrad)" radius={[4, 4, 0, 0]} />
+                          </BarChart>
+                        </ResponsiveContainer>
+                      </div>
+                      <div>
+                        <h5 className="text-[10px] font-semibold text-gray-400 mb-3 uppercase tracking-wider">Walk-ins per Edition</h5>
+                        <ResponsiveContainer width="100%" height={220}>
+                          <BarChart data={overviewMetrics.editionGrowth} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+                            <defs>
+                              <linearGradient id="walkinsGrad" x1="0" y1="0" x2="0" y2="1">
+                                <stop offset="0%" stopColor="#f59e0b" stopOpacity={1} />
+                                <stop offset="100%" stopColor="#b45309" stopOpacity={0.85} />
+                              </linearGradient>
+                            </defs>
+                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+                            <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} dy={5} />
+                            <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} dx={-2} />
+                            <Tooltip content={<CustomGrowthTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.03)' }} />
+                            <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '11px', color: '#6b7280', paddingTop: '16px' }} />
+                            <Bar dataKey="walkinCount" name="Walk-ins" fill="url(#walkinsGrad)" radius={[4, 4, 0, 0]} />
                           </BarChart>
                         </ResponsiveContainer>
                       </div>
                     </div>
-                  )}
+                    <div className="mt-6">
+                      <h5 className="text-[10px] font-semibold text-gray-400 mb-3 uppercase tracking-wider">New vs Returning Vendors per Edition</h5>
+                      <ResponsiveContainer width="100%" height={220}>
+                        <BarChart data={overviewMetrics.editionGrowth} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
+                          <defs>
+                            <linearGradient id="firstTimerGrad" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="#22c55e" stopOpacity={1} />
+                              <stop offset="100%" stopColor="#15803d" stopOpacity={0.85} />
+                            </linearGradient>
+                            <linearGradient id="returningGrad" x1="0" y1="0" x2="0" y2="1">
+                              <stop offset="0%" stopColor="#c084fc" stopOpacity={1} />
+                              <stop offset="100%" stopColor="#7e22ce" stopOpacity={0.85} />
+                            </linearGradient>
+                          </defs>
+                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+                          <XAxis dataKey="name" tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} dy={5} />
+                          <YAxis tick={{ fontSize: 11, fill: '#6b7280' }} axisLine={false} tickLine={false} dx={-2} />
+                          <Tooltip content={<CustomGrowthTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.03)' }} />
+                          <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '11px', color: '#6b7280', paddingTop: '16px' }} />
+                          <Bar dataKey="firstTimers" name="First Timers" stackId="a" fill="url(#firstTimerGrad)" />
+                          <Bar dataKey="returning" name="Returning" stackId="a" fill="url(#returningGrad)" radius={[4, 4, 0, 0]} />
+                        </BarChart>
+                      </ResponsiveContainer>
+                    </div>
+                  </div>
+                )}
 
-                  {/* SECTION 3 — Business Sectors */}
-                  {overviewMetrics.sectors.length > 0 && (
-                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-6">
-                      <div className="flex items-center gap-2 mb-6">
-                        <div className="w-1 h-4 bg-green-500 rounded-full" />
-                        <span className="text-xs font-semibold tracking-widest uppercase text-gray-400">
-                          Business Sectors
-                        </span>
-                      </div>
-                      <div className="space-y-3 pt-1">
-                        {overviewMetrics.sectors.map((sector) => (
-                          <div key={sector.name} className="flex items-center gap-3 mb-3">
-                            <span className="text-xs text-gray-400 w-24 shrink-0 truncate">
-                              {sector.name}
-                            </span>
-                            <div className="flex-1 bg-white/5 rounded-full h-1.5 overflow-hidden">
-                              <div
-                                className="h-full rounded-full transition-all duration-700"
-                                style={{
-                                  width: `${sector.pct}%`,
-                                  background: `linear-gradient(90deg, #22c55e, #16a34a)`
-                                }}
-                              />
-                            </div>
-                            <span className="text-xs font-semibold text-white w-8 text-right">
-                              {sector.pct}%
-                            </span>
+                {/* SECTION 3 — Business Sectors */}
+                {overviewMetrics.sectors.length > 0 && (
+                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-6">
+                    <div className="flex items-center gap-2 mb-6">
+                      <div className="w-1 h-4 bg-green-500 rounded-full" />
+                      <span className="text-xs font-semibold tracking-widest uppercase text-gray-400">
+                        Business Sectors
+                      </span>
+                    </div>
+                    <div className="space-y-3 pt-1">
+                      {overviewMetrics.sectors.map((sector) => (
+                        <div key={sector.name} className="flex items-center gap-3 mb-3">
+                          <span className="text-xs text-gray-400 w-24 shrink-0 truncate">
+                            {sector.name}
+                          </span>
+                          <div className="flex-1 bg-white/5 rounded-full h-1.5 overflow-hidden">
+                            <div
+                              className="h-full rounded-full transition-all duration-700"
+                              style={{
+                                width: `${sector.pct}%`,
+                                background: `linear-gradient(90deg, #22c55e, #16a34a)`
+                              }}
+                            />
                           </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* SECTION 4 — Impact Story */}
-                  <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5">
-                      <div className="text-xs text-gray-500 uppercase tracking-wider mb-3">Business Growth</div>
-                      <div className="text-3xl font-bold text-green-400">
-                        {overviewMetrics.businessGrowthPct !== null ? `${overviewMetrics.businessGrowthPct}%` : 'N/A'}
-                      </div>
-                      <div className="text-xs text-gray-600 mt-1">Reported improvement</div>
-                    </div>
-                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5">
-                      <div className="text-xs text-gray-500 uppercase tracking-wider mb-3">Total Employees</div>
-                      <div className="text-3xl font-bold text-white">
-                        {overviewMetrics.totalEmployees.toLocaleString()}
-                      </div>
-                      <div className="text-xs text-gray-600 mt-1">Across all vendors</div>
-                    </div>
-                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5">
-                      <div className="text-xs text-gray-500 uppercase tracking-wider mb-3">Top Benefit</div>
-                      <div className="text-xl font-bold text-white truncate">
-                        {overviewMetrics.topBenefit}
-                      </div>
-                      <div className="text-xs text-gray-600 mt-1">Most cited</div>
-                    </div>
-                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5">
-                      <div className="text-xs text-gray-500 uppercase tracking-wider mb-3">Top Challenge</div>
-                      <div className="text-xl font-bold text-white truncate">
-                        {overviewMetrics.topChallenge}
-                      </div>
-                      <div className="text-xs text-gray-600 mt-1">Most cited</div>
-                    </div>
-                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5">
-                      <div className="text-xs text-gray-500 uppercase tracking-wider mb-3">Digital Presence</div>
-                      <div className="text-3xl font-bold text-blue-400">
-                        {overviewMetrics.digitalPresencePct !== null ? `${overviewMetrics.digitalPresencePct}%` : 'N/A'}
-                      </div>
-                      <div className="text-xs text-gray-600 mt-1">Active social media</div>
-                    </div>
-                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5">
-                      <div className="text-xs text-gray-500 uppercase tracking-wider mb-3">Online Sales</div>
-                      <div className="text-3xl font-bold text-amber-400">
-                        {overviewMetrics.onlineSalesPct !== null ? `${overviewMetrics.onlineSalesPct}%` : 'N/A'}
-                      </div>
-                      <div className="text-xs text-gray-600 mt-1">Online sales active</div>
+                          <span className="text-xs font-semibold text-white w-8 text-right">
+                            {sector.pct}%
+                          </span>
+                        </div>
+                      ))}
                     </div>
                   </div>
-                </>
-              ) : (
-                <div className="text-center py-12 text-text-tertiary text-xs">
-                  Select an edition or region to load overview metrics.
+                )}
+
+                {/* SECTION 4 — Impact Story */}
+                <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
+                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5">
+                    <div className="text-xs text-gray-500 uppercase tracking-wider mb-3">Business Growth</div>
+                    <div className="text-3xl font-bold text-green-400">
+                      {overviewMetrics.businessGrowthPct !== null ? `${overviewMetrics.businessGrowthPct}%` : 'N/A'}
+                    </div>
+                    <div className="text-xs text-gray-600 mt-1">Reported improvement</div>
+                  </div>
+                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5">
+                    <div className="text-xs text-gray-500 uppercase tracking-wider mb-3">Total Employees</div>
+                    <div className="text-3xl font-bold text-white">
+                      {overviewMetrics.totalEmployees.toLocaleString()}
+                    </div>
+                    <div className="text-xs text-gray-600 mt-1">Across all vendors</div>
+                  </div>
+                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5">
+                    <div className="text-xs text-gray-500 uppercase tracking-wider mb-3">Top Benefit</div>
+                    <div className="text-xl font-bold text-white truncate">
+                      {overviewMetrics.topBenefit}
+                    </div>
+                    <div className="text-xs text-gray-600 mt-1">Most cited</div>
+                  </div>
+                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5">
+                    <div className="text-xs text-gray-500 uppercase tracking-wider mb-3">Top Challenge</div>
+                    <div className="text-xl font-bold text-white truncate">
+                      {overviewMetrics.topChallenge}
+                    </div>
+                    <div className="text-xs text-gray-600 mt-1">Most cited</div>
+                  </div>
+                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5">
+                    <div className="text-xs text-gray-500 uppercase tracking-wider mb-3">Digital Presence</div>
+                    <div className="text-3xl font-bold text-blue-400">
+                      {overviewMetrics.digitalPresencePct !== null ? `${overviewMetrics.digitalPresencePct}%` : 'N/A'}
+                    </div>
+                    <div className="text-xs text-gray-600 mt-1">Active social media</div>
+                  </div>
+                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5">
+                    <div className="text-xs text-gray-500 uppercase tracking-wider mb-3">Online Sales</div>
+                    <div className="text-3xl font-bold text-amber-400">
+                      {overviewMetrics.onlineSalesPct !== null ? `${overviewMetrics.onlineSalesPct}%` : 'N/A'}
+                    </div>
+                    <div className="text-xs text-gray-600 mt-1">Online sales active</div>
+                  </div>
                 </div>
-              )}
-            </div>
-          )}
-
-          {/* 2. VENDORS REGISTRY SCREEN */}
-          {activeNav === 'vendors' && (
-            <div className="space-y-5 animate-fade-in text-left">
-              <div>
-                <h1 className="text-xl font-bold tracking-tight text-text-primary">Vendors Directory</h1>
-                <p className="text-xs text-text-secondary mt-0.5">Detailed database list of registered vendors.</p>
+              </>
+            ) : (
+              <div className="text-center py-12 text-text-tertiary text-xs">
+                Select an edition or region to load overview metrics.
               </div>
+            )}
+          </div>
+        )}
 
-              {/* Shared filters row */}
-              <FilterBar
-                filters={filters}
-                onFiltersChange={(updates) => setFilters(prev => ({ ...prev, ...updates }))}
-                editions={editions}
-                businessTypes={BUSINESS_TYPES}
-                onClearFilters={() => setFilters({
-                  region: 'All',
-                  editionId: 'All',
-                  gender: 'All',
-                  statuses: [],
-                  minAge: '',
-                  maxAge: '',
-                  businessType: 'All',
-                  registrationType: 'All'
-                })}
+        {/* 2. VENDORS REGISTRY SCREEN */}
+        {activeNav === 'vendors' && (
+          <div className="space-y-5 animate-fade-in text-left">
+            <div>
+              <h1 className="text-xl font-bold tracking-tight text-text-primary">Vendors Directory</h1>
+              <p className="text-xs text-text-secondary mt-0.5">Detailed database list of registered vendors.</p>
+            </div>
+
+            {/* Shared filters row */}
+            <FilterBar
+              filters={filters}
+              onFiltersChange={(updates) => setFilters(prev => ({ ...prev, ...updates }))}
+              editions={editions}
+              businessTypes={BUSINESS_TYPES}
+              onClearFilters={() => setFilters({
+                region: 'All',
+                editionId: 'All',
+                gender: 'All',
+                statuses: [],
+                minAge: '',
+                maxAge: '',
+                businessType: 'All',
+                registrationType: 'All'
+              })}
+            />
+
+            {error && (
+              <div className="bg-red-soft border border-red/20 text-red rounded-lg p-5">
+                <div className="font-bold text-sm">Error Loading Vendors</div>
+                <div className="text-xs mt-1">{error}</div>
+              </div>
+            )}
+
+            {loadingVendors && !error && (
+              <div className="flex flex-col items-center justify-center p-12 bg-bg-surface border border-border rounded-xl">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green"></div>
+                <div className="text-xs text-text-secondary mt-3">Fetching live vendor directory...</div>
+              </div>
+            )}
+
+            {!loadingVendors && !error && (
+              <VendorTable
+                vendors={filteredVendors}
+                selectedVendorIds={selectedVendorIds}
+                onSelectVendor={(id, selected) => {
+                  if (selected) {
+                    setSelectedVendorIds([...selectedVendorIds, id]);
+                  } else {
+                    setSelectedVendorIds(selectedVendorIds.filter(x => x !== id));
+                  }
+                }}
+                onSelectAll={(selected) => {
+                  setSelectedVendorIds(selected ? filteredVendors.map(v => v.id) : []);
+                }}
+                onRowClick={(v) => {
+                  setSelectedVendorId(v.id);
+                  setIsDetailOpen(true);
+                }}
+                searchTerm={vendorSearch}
+                onSearchChange={setVendorSearch}
+                onDelete={handleDeleteVendor}
               />
+            )}
+          </div>
+        )}
 
-              {error && (
-                <div className="bg-red-soft border border-red/20 text-red rounded-lg p-5">
-                  <div className="font-bold text-sm">Error Loading Vendors</div>
-                  <div className="text-xs mt-1">{error}</div>
-                </div>
-              )}
+        {/* 3. WALK-INS LIST SCREEN */}
+        {activeNav === 'walkins' && (() => {
+          const filteredWalkins = walkins.filter(w => {
+            const walkinRegionVal = (w as any).region || 'Kampala';
+            if (walkinRegionFilter !== 'All' && walkinRegionVal !== walkinRegionFilter) return false;
 
-              {loadingVendors && !error && (
-                <div className="flex flex-col items-center justify-center p-12 bg-bg-surface border border-border rounded-xl">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green"></div>
-                  <div className="text-xs text-text-secondary mt-3">Fetching live vendor directory...</div>
-                </div>
-              )}
+            const walkinEditionVal = (w as any).editionId || 'may-2026';
+            if (walkinEditionFilter !== 'All' && walkinEditionVal !== walkinEditionFilter) return false;
 
-              {!loadingVendors && !error && (
-                <VendorTable
-                  vendors={filteredVendors}
-                  selectedVendorIds={selectedVendorIds}
-                  onSelectVendor={(id, selected) => {
-                    if (selected) {
-                      setSelectedVendorIds([...selectedVendorIds, id]);
-                    } else {
-                      setSelectedVendorIds(selectedVendorIds.filter(x => x !== id));
-                    }
-                  }}
-                  onSelectAll={(selected) => {
-                    setSelectedVendorIds(selected ? filteredVendors.map(v => v.id) : []);
-                  }}
-                  onRowClick={(v) => {
-                    setSelectedVendorId(v.id);
-                    setIsDetailOpen(true);
-                  }}
-                  searchTerm={vendorSearch}
-                  onSearchChange={setVendorSearch}
-                  onDelete={handleDeleteVendor}
-                />
-              )}
-            </div>
-          )}
+            if (walkinBusinessTypeFilter !== 'All' && (w as any).business_type !== walkinBusinessTypeFilter) return false;
 
-          {/* 3. WALK-INS LIST SCREEN */}
-          {activeNav === 'walkins' && (() => {
-            const filteredWalkins = walkins.filter(w => {
-              const walkinRegionVal = (w as any).region || 'Kampala';
-              if (walkinRegionFilter !== 'All' && walkinRegionVal !== walkinRegionFilter) return false;
-              
-              const walkinEditionVal = (w as any).editionId || 'may-2026';
-              if (walkinEditionFilter !== 'All' && walkinEditionVal !== walkinEditionFilter) return false;
+            if (walkinMinAgeFilter !== '' && w.age < walkinMinAgeFilter) return false;
+            if (walkinMaxAgeFilter !== '' && w.age > walkinMaxAgeFilter) return false;
 
-              if (walkinBusinessTypeFilter !== 'All' && (w as any).business_type !== walkinBusinessTypeFilter) return false;
+            return true;
+          });
 
-              if (walkinMinAgeFilter !== '' && w.age < walkinMinAgeFilter) return false;
-              if (walkinMaxAgeFilter !== '' && w.age > walkinMaxAgeFilter) return false;
-
-              return true;
-            });
-
-            return (
-              <div className="space-y-5 animate-fade-in text-left">
-                <div className="flex justify-between items-center">
-                  <div>
-                    <h1 className="text-xl font-bold tracking-tight text-text-primary">Walk-in Traffic Logs</h1>
-                    <p className="text-xs text-text-secondary mt-0.5">Logs of customer walk-ins entered during market days.</p>
-                  </div>
-                  <Button 
-                    variant="primary" 
-                    size="sm"
-                    onClick={() => {
-                      setActiveNav('quick-entry');
-                      setQuickEntryTab('walkin');
-                    }}
-                  >
-                    <Plus className="w-4 h-4 text-black" />
-                    <span>Register Walk-in Guest</span>
-                  </Button>
-                </div>
-
-                {/* Walk-ins Filter Bar */}
-                <div className="bg-bg-surface border border-border rounded-lg p-4 flex flex-wrap gap-4 items-end text-xs select-none">
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider block">Region</label>
-                    <select 
-                      value={walkinRegionFilter} 
-                      onChange={(e) => setWalkinRegionFilter(e.target.value)}
-                      className="bg-bg-elevated border border-border-light text-text-primary text-xs rounded-md px-3 py-2 cursor-pointer outline-none focus:border-green appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%209l3%203%203-3%22%20stroke%3D%22%238b949e%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[right_10px_center] bg-no-repeat pr-8 min-w-[120px]"
-                    >
-                      <option value="All">All Regions</option>
-                      {regions.map(r => <option key={r} value={r}>{r}</option>)}
-                    </select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider block">Edition</label>
-                    <select 
-                      value={walkinEditionFilter} 
-                      onChange={(e) => setWalkinEditionFilter(e.target.value)}
-                      className="bg-bg-elevated border border-border-light text-text-primary text-xs rounded-md px-3 py-2 cursor-pointer outline-none focus:border-green appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%209l3%203%203-3%22%20stroke%3D%22%238b949e%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[right_10px_center] bg-no-repeat pr-8 min-w-[140px]"
-                    >
-                      <option value="All">All Editions</option>
-                      {editions.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
-                    </select>
-                  </div>
-
-                  <div className="space-y-1">
-                    <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider block">Age Range</label>
-                    <div className="flex items-center gap-2">
-                      <input 
-                        type="number" 
-                        placeholder="Min" 
-                        value={walkinMinAgeFilter}
-                        onChange={(e) => setWalkinMinAgeFilter(e.target.value ? parseInt(e.target.value) : '')}
-                        className="w-16 bg-bg-elevated border border-border-light rounded-md px-2.5 py-1.5 text-text-primary text-xs outline-none focus:border-green"
-                      />
-                      <span className="text-text-tertiary font-bold">—</span>
-                      <input 
-                        type="number" 
-                        placeholder="Max" 
-                        value={walkinMaxAgeFilter}
-                        onChange={(e) => setWalkinMaxAgeFilter(e.target.value ? parseInt(e.target.value) : '')}
-                        className="w-16 bg-bg-elevated border border-border-light rounded-md px-2.5 py-1.5 text-text-primary text-xs outline-none focus:border-green"
-                      />
-                    </div>
-                  </div>
-
-                  {(walkinRegionFilter !== 'All' || walkinEditionFilter !== 'All' || walkinMinAgeFilter !== '' || walkinMaxAgeFilter !== '') && (
-                    <button 
-                      onClick={() => {
-                        setWalkinRegionFilter('All');
-                        setWalkinEditionFilter('All');
-                        setWalkinBusinessTypeFilter('All');
-                        setWalkinMinAgeFilter('');
-                        setWalkinMaxAgeFilter('');
-                      }}
-                      className="text-text-secondary hover:text-red transition-colors font-semibold py-2 flex items-center gap-1 cursor-pointer"
-                    >
-                      <X className="w-3.5 h-3.5" />
-                      <span>Clear Filters</span>
-                    </button>
-                  )}
-                </div>
-
-                <div className="bg-bg-surface border border-border rounded-lg overflow-hidden">
-                  <table className="w-full border-collapse text-left text-xs">
-                    <thead>
-                      <tr className="bg-bg-elevated border-b border-border">
-                        <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider">Full Name</th>
-                        <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider">Phone</th>
-                        <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider">Business Type</th>
-                        <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider text-center">Age</th>
-                        <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider">Recorded At</th>
-                        <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider text-center w-[60px]">Del</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-border/40 text-xs">
-                      {filteredWalkins.length === 0 ? (
-                        <tr>
-                          <td colSpan={6} className="p-8 text-center text-text-tertiary font-medium">
-                            No walk-in logs found. Try registering a new walk-in guest above.
-                          </td>
-                        </tr>
-                      ) : (
-                        filteredWalkins.map((w) => (
-                          <tr key={w.id} className="hover:bg-green-soft/10">
-                            <td className="p-3.5">
-                              <span className="block font-bold text-text-primary">{w.full_name}</span>
-                            </td>
-                            <td className="p-3.5 text-text-secondary font-medium">{w.phone || '—'}</td>
-                            <td className="p-3.5 text-text-secondary font-semibold">{w.business_type || '—'}</td>
-                            <td className="p-3.5 text-center">
-                              <Badge variant="neutral" size="sm" className="font-bold">{w.age}</Badge>
-                            </td>
-                            <td className="p-3.5 text-text-secondary font-medium">{w.date}</td>
-                            <td className="p-3.5 text-center">
-                              <button
-                                onClick={() => handleDeleteWalkin(w.id)}
-                                title="Delete walk-in"
-                                className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 transition-colors"
-                              >
-                                <Trash2 className="w-4 h-4" />
-                              </button>
-                            </td>
-                          </tr>
-                        ))
-                      )}
-                    </tbody>
-                  </table>
-                </div>
-              </div>
-            );
-          })()}
-
-          {/* 3.5 PAID VENDORS */}
-          {activeNav === 'paid-vendors' && (
+          return (
             <div className="space-y-5 animate-fade-in text-left">
-              <div className="flex items-center justify-between flex-wrap gap-3">
-                <div className="flex items-center gap-2">
-                  {showIncompleteVendors && (
-                    <button
-                      onClick={() => setShowIncompleteVendors(false)}
-                      className="flex items-center gap-1 text-xs text-gray-400 hover:text-white transition-colors font-medium mr-1"
-                    >
-                      <ChevronRight className="w-4 h-4 rotate-180" /> Back
-                    </button>
-                  )}
-                  <div className="w-1.5 h-5 bg-green-500 rounded-full" />
-                  <div>
-                    <h1 className="text-xl font-bold tracking-tight text-white">
-                      {showIncompleteVendors ? 'Incomplete Vendors' : 'Paid Vendors'}
-                    </h1>
-                    <p className="text-xs text-gray-400 mt-0.5">
-                      {showIncompleteVendors
-                        ? 'CSV-imported vendors with missing profile details.'
-                        : 'Vendor registration and payment tracking per edition.'}
-                    </p>
+              <div className="flex justify-between items-center">
+                <div>
+                  <h1 className="text-xl font-bold tracking-tight text-text-primary">Walk-in Traffic Logs</h1>
+                  <p className="text-xs text-text-secondary mt-0.5">Logs of customer walk-ins entered during market days.</p>
+                </div>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => {
+                    setActiveNav('quick-entry');
+                    setQuickEntryTab('walkin');
+                  }}
+                >
+                  <Plus className="w-4 h-4 text-black" />
+                  <span>Register Walk-in Guest</span>
+                </Button>
+              </div>
+
+              {/* Walk-ins Filter Bar */}
+              <div className="bg-bg-surface border border-border rounded-lg p-4 flex flex-wrap gap-4 items-end text-xs select-none">
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider block">Region</label>
+                  <select
+                    value={walkinRegionFilter}
+                    onChange={(e) => setWalkinRegionFilter(e.target.value)}
+                    className="bg-bg-elevated border border-border-light text-text-primary text-xs rounded-md px-3 py-2 cursor-pointer outline-none focus:border-green appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%209l3%203%203-3%22%20stroke%3D%22%238b949e%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[right_10px_center] bg-no-repeat pr-8 min-w-[120px]"
+                  >
+                    <option value="All">All Regions</option>
+                    {regions.map(r => <option key={r} value={r}>{r}</option>)}
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider block">Edition</label>
+                  <select
+                    value={walkinEditionFilter}
+                    onChange={(e) => setWalkinEditionFilter(e.target.value)}
+                    className="bg-bg-elevated border border-border-light text-text-primary text-xs rounded-md px-3 py-2 cursor-pointer outline-none focus:border-green appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%209l3%203%203-3%22%20stroke%3D%22%238b949e%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[right_10px_center] bg-no-repeat pr-8 min-w-[140px]"
+                  >
+                    <option value="All">All Editions</option>
+                    {editions.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
+                  </select>
+                </div>
+
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider block">Age Range</label>
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="number"
+                      placeholder="Min"
+                      value={walkinMinAgeFilter}
+                      onChange={(e) => setWalkinMinAgeFilter(e.target.value ? parseInt(e.target.value) : '')}
+                      className="w-16 bg-bg-elevated border border-border-light rounded-md px-2.5 py-1.5 text-text-primary text-xs outline-none focus:border-green"
+                    />
+                    <span className="text-text-tertiary font-bold">—</span>
+                    <input
+                      type="number"
+                      placeholder="Max"
+                      value={walkinMaxAgeFilter}
+                      onChange={(e) => setWalkinMaxAgeFilter(e.target.value ? parseInt(e.target.value) : '')}
+                      className="w-16 bg-bg-elevated border border-border-light rounded-md px-2.5 py-1.5 text-text-primary text-xs outline-none focus:border-green"
+                    />
                   </div>
                 </div>
-                {!showIncompleteVendors && (
-                  <div className="flex items-center gap-2">
-                    {/* Incomplete vendors button */}
-                    <button
-                      onClick={() => setShowIncompleteVendors(true)}
-                      className="flex items-center gap-2 text-xs font-bold text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 px-3 py-2 rounded-lg transition-colors"
-                    >
-                      <Users className="w-3.5 h-3.5" />
-                      Incomplete Vendors
-                    </button>
-                    {/* CSV Import button */}
-                    <button
-                      onClick={() => setIsCsvImportModalOpen(true)}
-                      disabled={!activeEdition}
-                      title={!activeEdition ? 'Select an edition first' : 'Import paid vendor list from CSV'}
-                      className="flex items-center gap-2 text-xs font-bold text-black bg-green-500 hover:bg-green-400 disabled:opacity-40 disabled:cursor-not-allowed px-3 py-2 rounded-lg transition-colors"
-                    >
-                      <Upload className="w-3.5 h-3.5" />
-                      CSV Import
-                    </button>
-                    {/* Import History button */}
-                    <button
-                      onClick={() => setIsImportHistoryOpen(true)}
-                      className="flex items-center gap-2 text-xs font-bold text-gray-300 bg-white/5 hover:bg-white/10 border border-white/10 px-3 py-2 rounded-lg transition-colors"
-                    >
-                      <History className="w-3.5 h-3.5" />
-                      History
-                    </button>
-                  </div>
+
+                {(walkinRegionFilter !== 'All' || walkinEditionFilter !== 'All' || walkinMinAgeFilter !== '' || walkinMaxAgeFilter !== '') && (
+                  <button
+                    onClick={() => {
+                      setWalkinRegionFilter('All');
+                      setWalkinEditionFilter('All');
+                      setWalkinBusinessTypeFilter('All');
+                      setWalkinMinAgeFilter('');
+                      setWalkinMaxAgeFilter('');
+                    }}
+                    className="text-text-secondary hover:text-red transition-colors font-semibold py-2 flex items-center gap-1 cursor-pointer"
+                  >
+                    <X className="w-3.5 h-3.5" />
+                    <span>Clear Filters</span>
+                  </button>
                 )}
               </div>
 
-              {/* Toggle: show incomplete vendors panel OR main paid vendor view */}
-              {showIncompleteVendors ? (
-                <IncompleteVendorsPanel
-                  onBack={() => setShowIncompleteVendors(false)}
-                />
-              ) : (
-                <>
-                  {!activeEdition ? (
-                    <div className="bg-[#0f1117] border border-white/5 rounded-xl p-12 text-center select-none">
-                      <CreditCard className="w-10 h-10 text-gray-500 mx-auto mb-3" />
-                      <p className="text-sm text-gray-300 font-semibold">Select an edition to view paid vendors</p>
-                    </div>
-                  ) : (
-                    <>
-                      {/* Live Count Cards */}
-                      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
-                          <div className="flex items-start justify-between mb-3">
-                            <div className="bg-green-500/10 text-green-400 p-2.5 rounded-lg">
-                              <CreditCard className="w-5 h-5" />
-                            </div>
-                            <span className="text-[10px] font-semibold text-green-400 bg-green-500/10 px-2 py-0.5 rounded-full uppercase tracking-wider">Confirmed</span>
-                          </div>
-                          <div className="text-3xl font-bold text-white tracking-tight">{paidVendorCounts.paid}</div>
-                          <div className="text-xs text-gray-400 uppercase tracking-wider mt-1">Paid Vendors</div>
-                        </div>
-
-                        <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
-                          <div className="flex items-start justify-between mb-3">
-                            <div className="bg-amber-500/10 text-amber-400 p-2.5 rounded-lg">
-                              <AlertTriangle className="w-5 h-5" />
-                            </div>
-                            <span className="text-[10px] font-semibold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full uppercase tracking-wider">Pending</span>
-                          </div>
-                          <div className="text-3xl font-bold text-white tracking-tight">{paidVendorCounts.unpaid}</div>
-                          <div className="text-xs text-gray-400 uppercase tracking-wider mt-1">Pending / Unpaid</div>
-                        </div>
-
-                        <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
-                          <div className="flex items-start justify-between mb-3">
-                            <div className="bg-purple-500/10 text-purple-400 p-2.5 rounded-lg">
-                              <TrendingUp className="w-5 h-5" />
-                            </div>
-                            <span className="text-[10px] font-semibold text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-full uppercase tracking-wider">Collection</span>
-                          </div>
-                          <div className="text-3xl font-bold text-white tracking-tight">UGX {paidVendorCounts.revenue.toLocaleString()}</div>
-                          <div className="text-xs text-gray-400 uppercase tracking-wider mt-1">Total Revenue</div>
-                        </div>
-                      </div>
-
-                      {/* Paid Vendors — Two-tab view: Registered / Not Yet Registered */}
-                      <div className="bg-[#0f1117] border border-white/5 rounded-xl overflow-hidden">
-                        {/* Tab header */}
-                        <div className="p-4 border-b border-white/5 bg-white/[0.02] space-y-3">
-                          {/* Combined total headline */}
-                          <div className="flex items-center justify-between flex-wrap gap-2">
-                            <div className="flex items-center gap-2 flex-wrap">
-                              <div className="w-1 h-3.5 bg-green-500 rounded-full" />
-                              <span className="text-xs font-bold text-white">
-                                {paidVendorCounts.paid} Paid Vendor{paidVendorCounts.paid !== 1 ? 's' : ''}
-                              </span>
-                              {paidVendorCounts.paid > 0 && (
-                                <span className="text-[10px] text-gray-500">
-                                  — {paidVendors.filter(pv => pv.payment_status === 'paid' && pv.hasFormData).length} registered
-                                  {' / '}
-                                  {paidVendors.filter(pv => pv.payment_status === 'paid' && !pv.hasFormData).length} not yet registered
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          {/* Tab pills */}
-                          <div className="flex items-center gap-2 flex-wrap">
+              <div className="bg-bg-surface border border-border rounded-lg overflow-hidden">
+                <table className="w-full border-collapse text-left text-xs">
+                  <thead>
+                    <tr className="bg-bg-elevated border-b border-border">
+                      <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider">Full Name</th>
+                      <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider">Phone</th>
+                      <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider">Business Type</th>
+                      <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider text-center">Age</th>
+                      <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider">Recorded At</th>
+                      <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider text-center w-[60px]">Del</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-border/40 text-xs">
+                    {filteredWalkins.length === 0 ? (
+                      <tr>
+                        <td colSpan={6} className="p-8 text-center text-text-tertiary font-medium">
+                          No walk-in logs found. Try registering a new walk-in guest above.
+                        </td>
+                      </tr>
+                    ) : (
+                      filteredWalkins.map((w) => (
+                        <tr key={w.id} className="hover:bg-green-soft/10">
+                          <td className="p-3.5">
+                            <span className="block font-bold text-text-primary">{w.full_name}</span>
+                          </td>
+                          <td className="p-3.5 text-text-secondary font-medium">{w.phone || '—'}</td>
+                          <td className="p-3.5 text-text-secondary font-semibold">{w.business_type || '—'}</td>
+                          <td className="p-3.5 text-center">
+                            <Badge variant="neutral" size="sm" className="font-bold">{w.age}</Badge>
+                          </td>
+                          <td className="p-3.5 text-text-secondary font-medium">{w.date}</td>
+                          <td className="p-3.5 text-center">
                             <button
-                              onClick={() => setPaidVendorTab('registered')}
-                              className={`flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-colors ${
-                                paidVendorTab === 'registered'
-                                  ? 'bg-green-500/15 border-green-500/30 text-green-400'
-                                  : 'bg-white/[0.03] border-white/10 text-gray-400 hover:text-white hover:border-white/20'
-                              }`}
+                              onClick={() => handleDeleteWalkin(w.id)}
+                              title="Delete walk-in"
+                              className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 transition-colors"
                             >
-                              <span className="w-1.5 h-1.5 rounded-full bg-green-400 shrink-0" />
-                              Registered ({paidVendors.filter(pv => pv.payment_status === 'paid' && pv.hasFormData).length})
+                              <Trash2 className="w-4 h-4" />
                             </button>
-                            <button
-                              onClick={() => setPaidVendorTab('pending')}
-                              className={`flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-colors ${
-                                paidVendorTab === 'pending'
-                                  ? 'bg-amber-500/15 border-amber-500/30 text-amber-400'
-                                  : 'bg-white/[0.03] border-white/10 text-gray-400 hover:text-white hover:border-white/20'
-                              }`}
-                            >
-                              <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
-                              Not Yet Registered ({paidVendors.filter(pv => pv.payment_status === 'paid' && !pv.hasFormData).length})
-                            </button>
-                          </div>
-                          {/* Business name search */}
-                          <div className="relative">
-                            <Search className="w-3.5 h-3.5 text-gray-500 absolute left-3 top-1/2 -translate-y-1/2" />
-                            <input
-                              type="text"
-                              value={paidVendorSearch}
-                              onChange={e => setPaidVendorSearch(e.target.value)}
-                              placeholder="Search business name..."
-                              className="w-full bg-white/[0.03] border border-white/10 rounded-lg pl-9 pr-3 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-green-500/40 focus:bg-white/[0.05] transition-colors"
-                            />
-                          </div>
-                        </div>
+                          </td>
+                        </tr>
+                      ))
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          );
+        })()}
 
-                        {loadingPaidVendors ? (
-                          <div className="p-12 text-center">
-                            <div className="animate-spin w-6 h-6 border-2 border-green-400 border-t-transparent rounded-full mx-auto mb-3" />
-                            <p className="text-xs text-gray-400 font-medium">Loading paid vendors...</p>
-                          </div>
-                        ) : (() => {
-                          const tabVendors = paidVendors.filter(pv => {
-                            if (pv.payment_status !== 'paid') return false;
-                            if (paidVendorTab === 'registered' ? !pv.hasFormData : pv.hasFormData) return false;
-                            if (paidVendorSearch) {
-                              const term = paidVendorSearch.toLowerCase();
-                              const hay = `${pv.business_name || ''} ${pv.contact_name || ''}`.toLowerCase();
-                              if (!hay.includes(term)) return false;
-                            }
-                            return true;
-                          });
-                          return tabVendors.length === 0 ? (
-                            <div className="p-12 text-center select-none">
-                              {paidVendorTab === 'registered' ? (
-                                <>
-                                  <CreditCard className="w-10 h-10 text-gray-600 mx-auto mb-3" />
-                                  <p className="text-sm text-gray-300 font-semibold">No registered vendors yet.</p>
-                                  <p className="text-xs text-gray-500 mt-1">Vendors who complete the registration form will appear here.</p>
-                                </>
-                              ) : (
-                                <>
-                                  <CreditCard className="w-10 h-10 text-gray-600 mx-auto mb-3" />
-                                  <p className="text-sm text-gray-300 font-semibold">All paid vendors have registered.</p>
-                                  <p className="text-xs text-gray-500 mt-1">CSV-imported vendors who haven&apos;t filled the form yet will appear here.</p>
-                                </>
-                              )}
-                            </div>
-                          ) : (
-                            <div className="w-full overflow-x-auto">
-                              <table className="w-full border-collapse text-left text-xs">
-                                <thead>
-                                  <tr className="bg-white/[0.02] border-b border-white/5">
-                                    <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Business Name</th>
-                                    <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Contact Name</th>
-                                    <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Phone</th>
-                                    <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Category</th>
-                                    <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest text-center">Status</th>
-                                    <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest text-right">Amount Paid</th>
-                                    {paidVendorTab === 'registered' ? (
-                                      <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Registered</th>
-                                    ) : (
-                                      <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest text-center">Action</th>
-                                    )}
-                                    <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest text-center w-[60px]">Del</th>
-                                  </tr>
-                                </thead>
-                                <tbody className="divide-y divide-white/5 text-xs">
-                                  {tabVendors.map((pv) => (
-                                    <tr
-                                      key={pv.id}
-                                      onClick={() => {
-                                        setSelectedPaidVendor(pv);
-                                        setIsPaidVendorModalOpen(true);
-                                      }}
-                                      className="hover:bg-white/[0.02] transition-colors cursor-pointer"
-                                    >
-                                      <td className="p-4 font-semibold text-white">{pv.business_name || '—'}</td>
-                                      <td className="p-4 text-gray-300 font-medium">{pv.contact_name || '—'}</td>
-                                      <td className="p-4 text-gray-400 font-mono text-[11px]">{pv.phone || <span className="text-gray-600 italic">No phone</span>}</td>
-                                      <td className="p-4 text-gray-300 font-medium">{pv.category || '—'}</td>
-                                      <td className="p-4 text-center">
-                                        <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${
-                                          pv.payment_status === 'paid' ? 'bg-green-500/10 text-green-400 border border-green-500/20' :
-                                          pv.payment_status === 'waived' ? 'bg-gray-500/10 text-gray-400 border border-white/10' :
-                                          'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                                        }`}>
-                                          {pv.payment_status}
-                                        </span>
-                                      </td>
-                                      <td className="p-4 text-right text-white font-bold font-mono">UGX {Number(pv.amount_paid).toLocaleString()}</td>
-                                      {paidVendorTab === 'registered' ? (
-                                        <td className="p-4 text-gray-400 font-medium">
-                                          {pv.created_at ? new Date(pv.created_at).toLocaleDateString() : '—'}
-                                        </td>
-                                      ) : (
-                                        <td className="p-4 text-center" onClick={e => e.stopPropagation()}>
-                                          <button
-                                            onClick={() => {
-                                              window.dispatchEvent(new CustomEvent('open-incomplete-vendors'));
-                                            }}
-                                            className="text-[10px] font-bold text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 px-2.5 py-1 rounded-lg transition-colors whitespace-nowrap"
-                                          >
-                                            Fill In Details →
-                                          </button>
-                                        </td>
-                                      )}
-                                      <td className="p-4 text-center" onClick={e => e.stopPropagation()}>
-                                        <button
-                                          onClick={() => handleDeletePaidVendor(pv)}
-                                          title="Delete paid vendor"
-                                          className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 transition-colors"
-                                        >
-                                          <Trash2 className="w-4 h-4" />
-                                        </button>
-                                      </td>
-                                    </tr>
-                                  ))}
-                                </tbody>
-                              </table>
-                            </div>
-                          );
-                        })()}
-                      </div>
-                    </>
-                  )}
-                </>
+        {/* 3.5 PAID VENDORS */}
+        {activeNav === 'paid-vendors' && (
+          <div className="space-y-5 animate-fade-in text-left">
+            <div className="flex items-center justify-between flex-wrap gap-3">
+              <div className="flex items-center gap-2">
+                {showIncompleteVendors && (
+                  <button
+                    onClick={() => setShowIncompleteVendors(false)}
+                    className="flex items-center gap-1 text-xs text-gray-400 hover:text-white transition-colors font-medium mr-1"
+                  >
+                    <ChevronRight className="w-4 h-4 rotate-180" /> Back
+                  </button>
+                )}
+                <div className="w-1.5 h-5 bg-green-500 rounded-full" />
+                <div>
+                  <h1 className="text-xl font-bold tracking-tight text-white">
+                    {showIncompleteVendors ? 'Incomplete Vendors' : 'Paid Vendors'}
+                  </h1>
+                  <p className="text-xs text-gray-400 mt-0.5">
+                    {showIncompleteVendors
+                      ? 'CSV-imported vendors with missing profile details.'
+                      : 'Vendor registration and payment tracking per edition.'}
+                  </p>
+                </div>
+              </div>
+              {!showIncompleteVendors && (
+                <div className="flex items-center gap-2">
+                  {/* Incomplete vendors button */}
+                  <button
+                    onClick={() => setShowIncompleteVendors(true)}
+                    className="flex items-center gap-2 text-xs font-bold text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 px-3 py-2 rounded-lg transition-colors"
+                  >
+                    <Users className="w-3.5 h-3.5" />
+                    Incomplete Vendors
+                  </button>
+                  {/* CSV Import button */}
+                  <button
+                    onClick={() => setIsCsvImportModalOpen(true)}
+                    disabled={!activeEdition}
+                    title={!activeEdition ? 'Select an edition first' : 'Import paid vendor list from CSV'}
+                    className="flex items-center gap-2 text-xs font-bold text-black bg-green-500 hover:bg-green-400 disabled:opacity-40 disabled:cursor-not-allowed px-3 py-2 rounded-lg transition-colors"
+                  >
+                    <Upload className="w-3.5 h-3.5" />
+                    CSV Import
+                  </button>
+                  {/* Import History button */}
+                  <button
+                    onClick={() => setIsImportHistoryOpen(true)}
+                    className="flex items-center gap-2 text-xs font-bold text-gray-300 bg-white/5 hover:bg-white/10 border border-white/10 px-3 py-2 rounded-lg transition-colors"
+                  >
+                    <History className="w-3.5 h-3.5" />
+                    History
+                  </button>
+                </div>
               )}
             </div>
-          )}
 
-          {/* 4. QUICK ENTRY PANEL */}
-          {activeNav === 'quick-entry' && (
-            <div className="space-y-5 animate-fade-in text-left max-w-2xl mx-auto">
+            {/* Toggle: show incomplete vendors panel OR main paid vendor view */}
+            {showIncompleteVendors ? (
+              <IncompleteVendorsPanel
+                onBack={() => setShowIncompleteVendors(false)}
+              />
+            ) : (
+              <>
+                {!activeEdition ? (
+                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-12 text-center select-none">
+                    <CreditCard className="w-10 h-10 text-gray-500 mx-auto mb-3" />
+                    <p className="text-sm text-gray-300 font-semibold">Select an edition to view paid vendors</p>
+                  </div>
+                ) : (
+                  <>
+                    {/* Live Count Cards */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                      <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="bg-green-500/10 text-green-400 p-2.5 rounded-lg">
+                            <CreditCard className="w-5 h-5" />
+                          </div>
+                          <span className="text-[10px] font-semibold text-green-400 bg-green-500/10 px-2 py-0.5 rounded-full uppercase tracking-wider">Confirmed</span>
+                        </div>
+                        <div className="text-3xl font-bold text-white tracking-tight">{paidVendorCounts.paid}</div>
+                        <div className="text-xs text-gray-400 uppercase tracking-wider mt-1">Paid Vendors</div>
+                      </div>
+
+                      <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="bg-amber-500/10 text-amber-400 p-2.5 rounded-lg">
+                            <AlertTriangle className="w-5 h-5" />
+                          </div>
+                          <span className="text-[10px] font-semibold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full uppercase tracking-wider">Pending</span>
+                        </div>
+                        <div className="text-3xl font-bold text-white tracking-tight">{paidVendorCounts.unpaid}</div>
+                        <div className="text-xs text-gray-400 uppercase tracking-wider mt-1">Pending / Unpaid</div>
+                      </div>
+
+                      <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
+                        <div className="flex items-start justify-between mb-3">
+                          <div className="bg-purple-500/10 text-purple-400 p-2.5 rounded-lg">
+                            <TrendingUp className="w-5 h-5" />
+                          </div>
+                          <span className="text-[10px] font-semibold text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-full uppercase tracking-wider">Collection</span>
+                        </div>
+                        <div className="text-3xl font-bold text-white tracking-tight">UGX {paidVendorCounts.revenue.toLocaleString()}</div>
+                        <div className="text-xs text-gray-400 uppercase tracking-wider mt-1">Total Revenue</div>
+                      </div>
+                    </div>
+
+                    {/* Paid Vendors — Two-tab view: Registered / Not Yet Registered */}
+                    <div className="bg-[#0f1117] border border-white/5 rounded-xl overflow-hidden">
+                      {/* Tab header */}
+                      <div className="p-4 border-b border-white/5 bg-white/[0.02] space-y-3">
+                        {/* Combined total headline */}
+                        <div className="flex items-center justify-between flex-wrap gap-2">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <div className="w-1 h-3.5 bg-green-500 rounded-full" />
+                            <span className="text-xs font-bold text-white">
+                              {paidVendorCounts.paid} Paid Vendor{paidVendorCounts.paid !== 1 ? 's' : ''}
+                            </span>
+                            {paidVendorCounts.paid > 0 && (
+                              <span className="text-[10px] text-gray-500">
+                                — {paidVendors.filter(pv => pv.payment_status === 'paid' && pv.hasFormData).length} registered
+                                {' / '}
+                                {paidVendors.filter(pv => pv.payment_status === 'paid' && !pv.hasFormData).length} not yet registered
+                              </span>
+                            )}
+                          </div>
+                        </div>
+                        {/* Tab pills */}
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <button
+                            onClick={() => setPaidVendorTab('registered')}
+                            className={`flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-colors ${paidVendorTab === 'registered'
+                                ? 'bg-green-500/15 border-green-500/30 text-green-400'
+                                : 'bg-white/[0.03] border-white/10 text-gray-400 hover:text-white hover:border-white/20'
+                              }`}
+                          >
+                            <span className="w-1.5 h-1.5 rounded-full bg-green-400 shrink-0" />
+                            Registered ({paidVendors.filter(pv => pv.payment_status === 'paid' && pv.hasFormData).length})
+                          </button>
+                          <button
+                            onClick={() => setPaidVendorTab('pending')}
+                            className={`flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-colors ${paidVendorTab === 'pending'
+                                ? 'bg-amber-500/15 border-amber-500/30 text-amber-400'
+                                : 'bg-white/[0.03] border-white/10 text-gray-400 hover:text-white hover:border-white/20'
+                              }`}
+                          >
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+                            Not Yet Registered ({paidVendors.filter(pv => pv.payment_status === 'paid' && !pv.hasFormData).length})
+                          </button>
+                        </div>
+                        {/* Business name search */}
+                        <div className="relative">
+                          <Search className="w-3.5 h-3.5 text-gray-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                          <input
+                            type="text"
+                            value={paidVendorSearch}
+                            onChange={e => setPaidVendorSearch(e.target.value)}
+                            placeholder="Search business name..."
+                            className="w-full bg-white/[0.03] border border-white/10 rounded-lg pl-9 pr-3 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-green-500/40 focus:bg-white/[0.05] transition-colors"
+                          />
+                        </div>
+                      </div>
+
+                      {loadingPaidVendors ? (
+                        <div className="p-12 text-center">
+                          <div className="animate-spin w-6 h-6 border-2 border-green-400 border-t-transparent rounded-full mx-auto mb-3" />
+                          <p className="text-xs text-gray-400 font-medium">Loading paid vendors...</p>
+                        </div>
+                      ) : (() => {
+                        const tabVendors = paidVendors.filter(pv => {
+                          if (pv.payment_status !== 'paid') return false;
+                          if (paidVendorTab === 'registered' ? !pv.hasFormData : pv.hasFormData) return false;
+                          if (paidVendorSearch) {
+                            const term = paidVendorSearch.toLowerCase();
+                            const hay = `${pv.business_name || ''} ${pv.contact_name || ''}`.toLowerCase();
+                            if (!hay.includes(term)) return false;
+                          }
+                          return true;
+                        });
+                        return tabVendors.length === 0 ? (
+                          <div className="p-12 text-center select-none">
+                            {paidVendorTab === 'registered' ? (
+                              <>
+                                <CreditCard className="w-10 h-10 text-gray-600 mx-auto mb-3" />
+                                <p className="text-sm text-gray-300 font-semibold">No registered vendors yet.</p>
+                                <p className="text-xs text-gray-500 mt-1">Vendors who complete the registration form will appear here.</p>
+                              </>
+                            ) : (
+                              <>
+                                <CreditCard className="w-10 h-10 text-gray-600 mx-auto mb-3" />
+                                <p className="text-sm text-gray-300 font-semibold">All paid vendors have registered.</p>
+                                <p className="text-xs text-gray-500 mt-1">CSV-imported vendors who haven&apos;t filled the form yet will appear here.</p>
+                              </>
+                            )}
+                          </div>
+                        ) : (
+                          <div className="w-full overflow-x-auto">
+                            <table className="w-full border-collapse text-left text-xs">
+                              <thead>
+                                <tr className="bg-white/[0.02] border-b border-white/5">
+                                  <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Business Name</th>
+                                  <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Contact Name</th>
+                                  <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Phone</th>
+                                  <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Category</th>
+                                  <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest text-center">Status</th>
+                                  <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest text-right">Amount Paid</th>
+                                  {paidVendorTab === 'registered' ? (
+                                    <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Registered</th>
+                                  ) : (
+                                    <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest text-center">Action</th>
+                                  )}
+                                  <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest text-center w-[60px]">Del</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-white/5 text-xs">
+                                {tabVendors.map((pv) => (
+                                  <tr
+                                    key={pv.id}
+                                    onClick={() => {
+                                      setSelectedPaidVendor(pv);
+                                      setIsPaidVendorModalOpen(true);
+                                    }}
+                                    className="hover:bg-white/[0.02] transition-colors cursor-pointer"
+                                  >
+                                    <td className="p-4 font-semibold text-white">{pv.business_name || '—'}</td>
+                                    <td className="p-4 text-gray-300 font-medium">{pv.contact_name || '—'}</td>
+                                    <td className="p-4 text-gray-400 font-mono text-[11px]">{pv.phone || <span className="text-gray-600 italic">No phone</span>}</td>
+                                    <td className="p-4 text-gray-300 font-medium">{pv.category || '—'}</td>
+                                    <td className="p-4 text-center">
+                                      <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${pv.payment_status === 'paid' ? 'bg-green-500/10 text-green-400 border border-green-500/20' :
+                                          pv.payment_status === 'waived' ? 'bg-gray-500/10 text-gray-400 border border-white/10' :
+                                            'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                        }`}>
+                                        {pv.payment_status}
+                                      </span>
+                                    </td>
+                                    <td className="p-4 text-right text-white font-bold font-mono">UGX {Number(pv.amount_paid).toLocaleString()}</td>
+                                    {paidVendorTab === 'registered' ? (
+                                      <td className="p-4 text-gray-400 font-medium">
+                                        {pv.created_at ? new Date(pv.created_at).toLocaleDateString() : '—'}
+                                      </td>
+                                    ) : (
+                                      <td className="p-4 text-center" onClick={e => e.stopPropagation()}>
+                                        <button
+                                          onClick={() => {
+                                            window.dispatchEvent(new CustomEvent('open-incomplete-vendors'));
+                                          }}
+                                          className="text-[10px] font-bold text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 px-2.5 py-1 rounded-lg transition-colors whitespace-nowrap"
+                                        >
+                                          Fill In Details →
+                                        </button>
+                                      </td>
+                                    )}
+                                    <td className="p-4 text-center" onClick={e => e.stopPropagation()}>
+                                      <button
+                                        onClick={() => handleDeletePaidVendor(pv)}
+                                        title="Delete paid vendor"
+                                        className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 transition-colors"
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </button>
+                                    </td>
+                                  </tr>
+                                ))}
+                              </tbody>
+                            </table>
+                          </div>
+                        );
+                      })()}
+                    </div>
+                  </>
+                )}
+              </>
+            )}
+          </div>
+        )}
+
+        {/* 4. QUICK ENTRY PANEL */}
+        {activeNav === 'quick-entry' && (
+          <div className="space-y-5 animate-fade-in text-left max-w-2xl mx-auto">
+            <div className="flex items-center gap-2">
+              <div className="w-1.5 h-5 bg-green-500 rounded-full" />
+              <div>
+                <h1 className="text-xl font-bold tracking-tight text-white">Quick Entry Panel</h1>
+                <p className="text-xs text-gray-400 mt-0.5">Admin-side data entry forms for fast registration workflows.</p>
+              </div>
+            </div>
+
+            {/* Active Workspace summary */}
+            <div className="bg-[#0f1117] border border-white/5 rounded-xl p-4 flex items-center justify-between select-none">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-green-500/10 text-green-400 flex items-center justify-center font-bold">
+                  <Map className="w-4 h-4" />
+                </div>
+                <div>
+                  <label className="text-[9px] font-semibold text-gray-400 uppercase tracking-widest block">Active Workspace</label>
+                  <span className="text-xs font-bold text-white flex items-center gap-1.5 mt-0.5">
+                    {activeRegion ? activeRegion.name : 'No Region'}
+                    <span className="text-gray-500 font-normal">/</span>
+                    <span className="text-green-400">{activeEdition ? activeEdition.name : 'No Edition'}</span>
+                  </span>
+                </div>
+              </div>
+              <Badge variant={activeEdition ? "success" : "neutral"} size="sm" className="font-extrabold select-none uppercase">
+                {activeEdition ? "Ready" : "Select Edition"}
+              </Badge>
+            </div>
+
+            <QuickEntryPanel
+              disabled={!activeEdition}
+              activeTab={quickEntryTab}
+              onTabChange={setQuickEntryTab}
+              isOpen={isQuickEntryOpen}
+              onToggleCollapse={() => setIsQuickEntryOpen(!isQuickEntryOpen)}
+              activeEdition={activeEdition}
+              onPaidSubmit={handleDynamicPaidSubmit}
+              onCollectionSubmit={handleDynamicCollectionSubmit}
+              onWalkinSubmit={handleDynamicWalkinSubmit}
+              onPhoneLookup={handleDynamicPhoneLookup}
+              onGenerateLink={handleGenerateQuickEntryLink}
+              paidCount={runningCount}
+              collectionCount={dataCollectedListCount}
+              walkinCount={runningWalkins}
+              paidSuccessState={{
+                show: paidSuccessState.show,
+                name: paidSuccessState.vendorName,
+                onAddAnother: () => resetPaidForm()
+              }}
+              collectionSuccessState={{
+                show: collectionSuccessState.show,
+                name: collectionSuccessState.vendorName,
+                onAddAnother: () => resetCollectionForm()
+              }}
+              walkinSuccessState={{
+                show: walkinSuccessState.show,
+                name: walkinSuccessState.visitorName,
+                onAddAnother: () => resetWalkinForm()
+              }}
+            />
+
+            {/* Live Session Activity Feed */}
+            <div className="bg-[#0f1117] border border-white/5 rounded-xl overflow-hidden mt-6 animate-fade-in select-none">
+              <div className="p-4 bg-white/[0.02] border-b border-white/5 flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                  </span>
+                  <h3 className="text-xs font-semibold text-gray-300 uppercase tracking-widest">Live Session Entries</h3>
+                </div>
+                {recentActivities.length > 0 && (
+                  <button
+                    onClick={() => setRecentActivities([])}
+                    className="text-[10px] font-semibold text-red-400 hover:underline cursor-pointer transition-all"
+                  >
+                    Clear Log
+                  </button>
+                )}
+              </div>
+
+              <div className="p-4 max-h-[380px] overflow-y-auto space-y-2.5">
+                {recentActivities.length === 0 ? (
+                  <div className="text-center py-8 border border-dashed border-white/10 rounded-lg bg-white/[0.01]">
+                    <p className="text-xs text-gray-400">No entries recorded this session yet.</p>
+                    <p className="text-[10px] text-gray-500 mt-1">Newly submitted registrations will appear here in real-time.</p>
+                  </div>
+                ) : (
+                  recentActivities.map((activity) => {
+                    const getIcon = () => {
+                      switch (activity.type) {
+                        case 'paid': return <Users className="w-4 h-4 text-green-400" />;
+                        case 'collection': return <Database className="w-4 h-4 text-blue-400" />;
+                        case 'walkin': return <Footprints className="w-4 h-4 text-purple-400" />;
+                      }
+                    };
+                    const getBadgeColor = () => {
+                      switch (activity.type) {
+                        case 'paid': return 'bg-green-500/10 text-green-400 border-green-500/20';
+                        case 'collection': return 'bg-blue-500/10 text-blue-400 border-blue-500/20';
+                        case 'walkin': return 'bg-purple-500/10 text-purple-400 border-purple-500/20';
+                      }
+                    };
+                    const getLabel = () => {
+                      switch (activity.type) {
+                        case 'paid': return 'Paid Vendor';
+                        case 'collection': return 'Collection';
+                        case 'walkin': return 'Walk-in';
+                      }
+                    };
+
+                    return (
+                      <div
+                        key={activity.id}
+                        className="flex items-center justify-between p-3.5 rounded-lg border border-white/5 bg-white/[0.02] hover:bg-white/[0.04] transition-all"
+                      >
+                        <div className="flex items-center gap-3">
+                          <div className="p-2 rounded-lg bg-[#161922] border border-white/10 flex items-center justify-center">
+                            {getIcon()}
+                          </div>
+                          <div className="space-y-0.5">
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold text-white text-xs">{activity.name}</span>
+                              <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${getBadgeColor()}`}>
+                                {getLabel()}
+                              </span>
+                            </div>
+                            <div className="text-[10px] text-gray-400 flex items-center gap-1.5">
+                              <span>{activity.detail}</span>
+                              {activity.phone && (
+                                <>
+                                  <span className="text-gray-600">•</span>
+                                  <span className="font-mono">{activity.phone}</span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <span className="text-[10px] font-mono font-medium text-gray-500">{activity.timestamp}</span>
+                        </div>
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* IMPORT/EXPORT PANEL */}
+        {activeNav === 'import-export' && (
+          <div className="space-y-6 animate-fade-in text-left">
+            <div className="flex justify-between items-center flex-wrap gap-4">
               <div className="flex items-center gap-2">
                 <div className="w-1.5 h-5 bg-green-500 rounded-full" />
                 <div>
-                  <h1 className="text-xl font-bold tracking-tight text-white">Quick Entry Panel</h1>
-                  <p className="text-xs text-gray-400 mt-0.5">Admin-side data entry forms for fast registration workflows.</p>
-                </div>
-              </div>
-
-              {/* Active Workspace summary */}
-              <div className="bg-[#0f1117] border border-white/5 rounded-xl p-4 flex items-center justify-between select-none">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-green-500/10 text-green-400 flex items-center justify-center font-bold">
-                    <Map className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <label className="text-[9px] font-semibold text-gray-400 uppercase tracking-widest block">Active Workspace</label>
-                    <span className="text-xs font-bold text-white flex items-center gap-1.5 mt-0.5">
-                      {activeRegion ? activeRegion.name : 'No Region'} 
-                      <span className="text-gray-500 font-normal">/</span> 
-                      <span className="text-green-400">{activeEdition ? activeEdition.name : 'No Edition'}</span>
-                    </span>
-                  </div>
-                </div>
-                <Badge variant={activeEdition ? "success" : "neutral"} size="sm" className="font-extrabold select-none uppercase">
-                  {activeEdition ? "Ready" : "Select Edition"}
-                </Badge>
-              </div>
-
-              <QuickEntryPanel
-                disabled={!activeEdition}
-                activeTab={quickEntryTab}
-                onTabChange={setQuickEntryTab}
-                isOpen={isQuickEntryOpen}
-                onToggleCollapse={() => setIsQuickEntryOpen(!isQuickEntryOpen)}
-                activeEdition={activeEdition}
-                onPaidSubmit={handleDynamicPaidSubmit}
-                onCollectionSubmit={handleDynamicCollectionSubmit}
-                onWalkinSubmit={handleDynamicWalkinSubmit}
-                onPhoneLookup={handleDynamicPhoneLookup}
-                onGenerateLink={handleGenerateQuickEntryLink}
-                paidCount={runningCount}
-                collectionCount={dataCollectedListCount}
-                walkinCount={runningWalkins}
-                paidSuccessState={{
-                  show: paidSuccessState.show,
-                  name: paidSuccessState.vendorName,
-                  onAddAnother: () => resetPaidForm()
-                }}
-                collectionSuccessState={{
-                  show: collectionSuccessState.show,
-                  name: collectionSuccessState.vendorName,
-                  onAddAnother: () => resetCollectionForm()
-                }}
-                walkinSuccessState={{
-                  show: walkinSuccessState.show,
-                  name: walkinSuccessState.visitorName,
-                  onAddAnother: () => resetWalkinForm()
-                }}
-              />
-
-              {/* Live Session Activity Feed */}
-              <div className="bg-[#0f1117] border border-white/5 rounded-xl overflow-hidden mt-6 animate-fade-in select-none">
-                <div className="p-4 bg-white/[0.02] border-b border-white/5 flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="relative flex h-2 w-2">
-                      <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                      <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
-                    </span>
-                    <h3 className="text-xs font-semibold text-gray-300 uppercase tracking-widest">Live Session Entries</h3>
-                  </div>
-                  {recentActivities.length > 0 && (
-                    <button 
-                      onClick={() => setRecentActivities([])}
-                      className="text-[10px] font-semibold text-red-400 hover:underline cursor-pointer transition-all"
-                    >
-                      Clear Log
-                    </button>
-                  )}
-                </div>
-                
-                <div className="p-4 max-h-[380px] overflow-y-auto space-y-2.5">
-                  {recentActivities.length === 0 ? (
-                    <div className="text-center py-8 border border-dashed border-white/10 rounded-lg bg-white/[0.01]">
-                      <p className="text-xs text-gray-400">No entries recorded this session yet.</p>
-                      <p className="text-[10px] text-gray-500 mt-1">Newly submitted registrations will appear here in real-time.</p>
-                    </div>
-                  ) : (
-                    recentActivities.map((activity) => {
-                      const getIcon = () => {
-                        switch (activity.type) {
-                          case 'paid': return <Users className="w-4 h-4 text-green-400" />;
-                          case 'collection': return <Database className="w-4 h-4 text-blue-400" />;
-                          case 'walkin': return <Footprints className="w-4 h-4 text-purple-400" />;
-                        }
-                      };
-                      const getBadgeColor = () => {
-                        switch (activity.type) {
-                          case 'paid': return 'bg-green-500/10 text-green-400 border-green-500/20';
-                          case 'collection': return 'bg-blue-500/10 text-blue-400 border-blue-500/20';
-                          case 'walkin': return 'bg-purple-500/10 text-purple-400 border-purple-500/20';
-                        }
-                      };
-                      const getLabel = () => {
-                        switch (activity.type) {
-                          case 'paid': return 'Paid Vendor';
-                          case 'collection': return 'Collection';
-                          case 'walkin': return 'Walk-in';
-                        }
-                      };
-
-                      return (
-                        <div 
-                          key={activity.id} 
-                          className="flex items-center justify-between p-3.5 rounded-lg border border-white/5 bg-white/[0.02] hover:bg-white/[0.04] transition-all"
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className="p-2 rounded-lg bg-[#161922] border border-white/10 flex items-center justify-center">
-                              {getIcon()}
-                            </div>
-                            <div className="space-y-0.5">
-                              <div className="flex items-center gap-2">
-                                <span className="font-semibold text-white text-xs">{activity.name}</span>
-                                <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${getBadgeColor()}`}>
-                                  {getLabel()}
-                                </span>
-                              </div>
-                              <div className="text-[10px] text-gray-400 flex items-center gap-1.5">
-                                <span>{activity.detail}</span>
-                                {activity.phone && (
-                                  <>
-                                    <span className="text-gray-600">•</span>
-                                    <span className="font-mono">{activity.phone}</span>
-                                  </>
-                                )}
-                              </div>
-                            </div>
-                          </div>
-                          <div className="text-right">
-                            <span className="text-[10px] font-mono font-medium text-gray-500">{activity.timestamp}</span>
-                          </div>
-                        </div>
-                      );
-                    })
-                  )}
+                  <h1 className="text-xl font-bold tracking-tight text-white">Data Import & Export Pipeline</h1>
+                  <p className="text-xs text-gray-400 mt-0.5">Upload external CSV records or extract compiled event data sheets.</p>
                 </div>
               </div>
             </div>
-          )}
 
-          {/* IMPORT/EXPORT PANEL */}
-          {activeNav === 'import-export' && (
-            <div className="space-y-6 animate-fade-in text-left">
-              <div className="flex justify-between items-center flex-wrap gap-4">
-                <div className="flex items-center gap-2">
-                  <div className="w-1.5 h-5 bg-green-500 rounded-full" />
-                  <div>
-                    <h1 className="text-xl font-bold tracking-tight text-white">Data Import & Export Pipeline</h1>
-                    <p className="text-xs text-gray-400 mt-0.5">Upload external CSV records or extract compiled event data sheets.</p>
-                  </div>
+            {/* Active Workspace summary */}
+            <div className="bg-[#0f1117] border border-white/5 rounded-xl p-4 flex items-center justify-between select-none max-w-xl">
+              <div className="flex items-center gap-3">
+                <div className="w-8 h-8 rounded-lg bg-green-500/10 text-green-400 flex items-center justify-center font-bold">
+                  <Map className="w-4 h-4" />
                 </div>
-              </div>
-
-              {/* Active Workspace summary */}
-              <div className="bg-[#0f1117] border border-white/5 rounded-xl p-4 flex items-center justify-between select-none max-w-xl">
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-green-500/10 text-green-400 flex items-center justify-center font-bold">
-                    <Map className="w-4 h-4" />
-                  </div>
-                  <div>
-                    <label className="text-[9px] font-semibold text-gray-400 uppercase tracking-widest block">Active Workspace</label>
-                    <span className="text-xs font-bold text-white flex items-center gap-1.5 mt-0.5">
-                      {activeRegion ? activeRegion.name : 'No Region'} 
-                      <span className="text-gray-500 font-normal">/</span> 
-                      <span className="text-green-400">{activeEdition ? activeEdition.name : 'No Edition'}</span>
-                    </span>
-                  </div>
-                </div>
-                <Badge variant={activeEdition ? "success" : "neutral"} size="sm" className="font-extrabold select-none uppercase">
-                  {activeEdition ? "Ready" : "Select Edition"}
-                </Badge>
-              </div>
-
-              {/* Hidden file inputs */}
-              <input 
-                type="file" 
-                ref={fileInputRef1} 
-                className="hidden" 
-                accept=".csv" 
-                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImportCollectedData(f); }} 
-              />
-              <input 
-                type="file" 
-                ref={fileInputRef2} 
-                className="hidden" 
-                accept=".csv" 
-                onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImportWalkins(f); }} 
-              />
-
-              {/* Upload Cards Grid */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 select-none">
-                {/* Card 1: Kobo data */}
-                <div className="bg-[#0f1117] border border-white/5 rounded-xl p-6 flex flex-col justify-between relative overflow-hidden">
-                  {!activeEdition && (
-                    <div className="absolute inset-0 bg-[#0f1117]/85 backdrop-blur-xs flex items-center justify-center p-4 text-center z-10">
-                      <span className="text-xs text-gray-400 font-semibold">Select active edition to upload</span>
-                    </div>
-                  )}
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center">
-                        <Database className="w-5 h-5 animate-pulse" />
-                      </div>
-                      <h3 className="font-bold text-sm text-white">Upload Collected Data (Kobo / CSV)</h3>
-                    </div>
-                    <p className="text-xs text-gray-400 leading-relaxed">
-                      Historical demographics survey or direct Kobo export sheets from past market activities.
-                    </p>
-                    <p className="text-[10px] text-gray-500 italic leading-relaxed">
-                      Note: CSV must be exported from the standard Quonnect KoboCollect form. Older form exports may have missing fields.
-                    </p>
-                    <div className="inline-block bg-white/5 border border-white/10 rounded-md px-3 py-1.5 text-[10px] text-gray-300 font-mono">
-                      name · phone · business_name · category · employees
-                    </div>
-                  </div>
-                  <div className="pt-5">
-                    <Button variant="primary" fullWidth onClick={() => fileInputRef1.current?.click()} disabled={isImporting} className="bg-green-500 hover:bg-green-600 text-black font-semibold">
-                      <span>{isImporting ? "Importing..." : "Upload CSV"}</span>
-                    </Button>
-                  </div>
-                </div>
-
-                {/* Card 2: Walk-in records */}
-                <div className="bg-[#0f1117] border border-white/5 rounded-xl p-6 flex flex-col justify-between relative overflow-hidden">
-                  {!activeEdition && (
-                    <div className="absolute inset-0 bg-[#0f1117]/85 backdrop-blur-xs flex items-center justify-center p-4 text-center z-10">
-                      <span className="text-xs text-gray-400 font-semibold">Select active edition to upload</span>
-                    </div>
-                  )}
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center">
-                        <Footprints className="w-5 h-5 animate-pulse" />
-                      </div>
-                      <h3 className="font-bold text-sm text-white">Upload Walk-in Records</h3>
-                    </div>
-                    <p className="text-xs text-gray-400 leading-relaxed">
-                      Visitor log sheets compiled manually or through gate-keeping forms outside the network range.
-                    </p>
-                    <div className="inline-block bg-white/5 border border-white/10 rounded-md px-3 py-1.5 text-[10px] text-gray-300 font-mono">
-                      Full Name · Phone Number · Email · Business Type · Age
-                    </div>
-                  </div>
-                  <div className="pt-5">
-                    <Button variant="primary" fullWidth onClick={() => fileInputRef2.current?.click()} className="bg-green-500 hover:bg-green-600 text-black font-semibold">
-                      <span>Upload CSV</span>
-                    </Button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Clear Edition Data Section */}
-              <div className="bg-[#0f1117] border border-red-500/20 rounded-xl p-6 select-none flex flex-col md:flex-row items-center justify-between gap-4">
-                <div className="space-y-1 text-left flex-1">
-                  <h3 className="font-bold text-sm text-red-400">Clear responses for active edition</h3>
-                  <p className="text-xs text-gray-400 leading-normal max-w-xl">
-                    Delete existing survey responses and imported vendor records associated with <span className="font-bold text-white">{activeEdition ? activeEdition.name : 'the selected edition'}</span>. This lets you re-import clean CSV files without duplicates.
-                  </p>
-                </div>
-                <div className="shrink-0">
-                  <Button variant="danger" onClick={handleClearEditionData} disabled={!activeEdition} className="bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20">
-                    <span>Clear & Reset Data</span>
-                  </Button>
-                </div>
-              </div>
-
-              {/* Export Sheets Panel */}
-              <div className="bg-[#0f1117] border border-white/5 rounded-xl p-6 select-none space-y-4">
                 <div>
-                  <h3 className="font-bold text-sm text-white">Export Active Region Data Sheets</h3>
-                  <p className="text-xs text-gray-400 mt-0.5">
-                    Download complete data spreadsheets filtered for active region: <span className="font-bold text-green-400">{activeRegion ? activeRegion.name : 'No active region'}</span>.
+                  <label className="text-[9px] font-semibold text-gray-400 uppercase tracking-widest block">Active Workspace</label>
+                  <span className="text-xs font-bold text-white flex items-center gap-1.5 mt-0.5">
+                    {activeRegion ? activeRegion.name : 'No Region'}
+                    <span className="text-gray-500 font-normal">/</span>
+                    <span className="text-green-400">{activeEdition ? activeEdition.name : 'No Edition'}</span>
+                  </span>
+                </div>
+              </div>
+              <Badge variant={activeEdition ? "success" : "neutral"} size="sm" className="font-extrabold select-none uppercase">
+                {activeEdition ? "Ready" : "Select Edition"}
+              </Badge>
+            </div>
+
+            {/* Hidden file inputs */}
+            <input
+              type="file"
+              ref={fileInputRef1}
+              className="hidden"
+              accept=".csv"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImportCollectedData(f); }}
+            />
+            <input
+              type="file"
+              ref={fileInputRef2}
+              className="hidden"
+              accept=".csv"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) handleImportWalkins(f); }}
+            />
+
+            {/* Upload Cards Grid */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-5 select-none">
+              {/* Card 1: Kobo data */}
+              <div className="bg-[#0f1117] border border-white/5 rounded-xl p-6 flex flex-col justify-between relative overflow-hidden">
+                {!activeEdition && (
+                  <div className="absolute inset-0 bg-[#0f1117]/85 backdrop-blur-xs flex items-center justify-center p-4 text-center z-10">
+                    <span className="text-xs text-gray-400 font-semibold">Select active edition to upload</span>
+                  </div>
+                )}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center">
+                      <Database className="w-5 h-5 animate-pulse" />
+                    </div>
+                    <h3 className="font-bold text-sm text-white">Upload Collected Data (Kobo / CSV)</h3>
+                  </div>
+                  <p className="text-xs text-gray-400 leading-relaxed">
+                    Historical demographics survey or direct Kobo export sheets from past market activities.
                   </p>
+                  <p className="text-[10px] text-gray-500 italic leading-relaxed">
+                    Note: CSV must be exported from the standard Quonnect KoboCollect form. Older form exports may have missing fields.
+                  </p>
+                  <div className="inline-block bg-white/5 border border-white/10 rounded-md px-3 py-1.5 text-[10px] text-gray-300 font-mono">
+                    name · phone · business_name · category · employees
+                  </div>
                 </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-                  <Button variant="secondary" onClick={handleExportVendors} disabled={!activeRegion} className="bg-white/5 border border-white/10 text-white hover:bg-white/10">
-                    <span>Export Vendors CSV</span>
+                <div className="pt-5">
+                  <Button variant="primary" fullWidth onClick={() => fileInputRef1.current?.click()} disabled={isImporting} className="bg-green-500 hover:bg-green-600 text-black font-semibold">
+                    <span>{isImporting ? "Importing..." : "Upload CSV"}</span>
                   </Button>
-                  <Button variant="secondary" onClick={handleExportWalkins} disabled={!activeRegion} className="bg-white/5 border border-white/10 text-white hover:bg-white/10">
-                    <span>Export Walk-ins CSV</span>
-                  </Button>
-                  <Button variant="secondary" onClick={handleExportResponses} disabled={!activeRegion} className="bg-white/5 border border-white/10 text-white hover:bg-white/10">
-                    <span>Export Survey Responses CSV</span>
-                  </Button>
-                </div>
-              </div>
-
-              {/* Recent Uploads Table */}
-              <div className="bg-[#0f1117] border border-white/5 rounded-xl p-6 select-none">
-                <div className="font-bold text-xs text-white mb-3">Recent Uploads Log</div>
-                <div className="text-xs text-gray-400 py-2">
-                  No recent spreadsheet uploads logged for the selected edition/region.
                 </div>
               </div>
 
-              {/* Data Audit Panel */}
-              <div className="pt-2">
-                <DataAuditPanel onRefresh={() => { fetchVendors(); fetchSurveyResponses(); }} />
+              {/* Card 2: Walk-in records */}
+              <div className="bg-[#0f1117] border border-white/5 rounded-xl p-6 flex flex-col justify-between relative overflow-hidden">
+                {!activeEdition && (
+                  <div className="absolute inset-0 bg-[#0f1117]/85 backdrop-blur-xs flex items-center justify-center p-4 text-center z-10">
+                    <span className="text-xs text-gray-400 font-semibold">Select active edition to upload</span>
+                  </div>
+                )}
+                <div className="space-y-3">
+                  <div className="flex items-center gap-3">
+                    <div className="w-10 h-10 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center">
+                      <Footprints className="w-5 h-5 animate-pulse" />
+                    </div>
+                    <h3 className="font-bold text-sm text-white">Upload Walk-in Records</h3>
+                  </div>
+                  <p className="text-xs text-gray-400 leading-relaxed">
+                    Visitor log sheets compiled manually or through gate-keeping forms outside the network range.
+                  </p>
+                  <div className="inline-block bg-white/5 border border-white/10 rounded-md px-3 py-1.5 text-[10px] text-gray-300 font-mono">
+                    Full Name · Phone Number · Email · Business Type · Age
+                  </div>
+                </div>
+                <div className="pt-5">
+                  <Button variant="primary" fullWidth onClick={() => fileInputRef2.current?.click()} className="bg-green-500 hover:bg-green-600 text-black font-semibold">
+                    <span>Upload CSV</span>
+                  </Button>
+                </div>
               </div>
             </div>
-          )}
 
-          {/* CREATE MARKET PANEL */}
-          {activeNav === 'markets' && (
-            <MarketConfigurationPanel />
-          )}
-
-          {/* 6. FORM TEMPLATE LIST / FORM BUILDER MANAGEMENT SCREEN */}
-          {activeNav === 'formbuilder' && (
-            <FormBuilderPanel />
-          )}
-
-          {/* JOBS SUPPORTED */}
-          {activeNav === 'jobs' && (
-            <JobsSupportedPanel
-              activeRegion={activeRegion}
-              activeEdition={activeEdition}
-              editions={ctxEditions}
-            />
-          )}
-
-          {/* SETTINGS */}
-          {activeNav === 'settings' && (
-            <UserManagementSettings
-              currentUserRole={role}
-              currentUserId={profile?.user_id || ''}
-            />
-          )}
-
-          {/* 7. OTHER SYSTEM PLACES (PLACEHOLDERS) */}
-          {!['overview', 'vendors', 'walkins', 'quick-entry', 'formbuilder', 'import-export', 'markets', 'jobs', 'paid-vendors', 'settings'].includes(activeNav) && (
-            <div className="py-24 text-center border border-dashed border-border rounded-lg select-none text-left animate-fade-in">
-              <ClipboardList className="w-12 h-12 text-green mx-auto mb-3 opacity-80" />
-              <h3 className="text-sm font-bold text-text-primary">Module Under Implementation</h3>
-              <p className="text-xs text-text-secondary max-w-sm mx-auto mt-2">
-                The <span className="text-green font-semibold">"{activeNav}"</span> screen has scaffolding definitions ready and is scheduled for implementation in the next milestone phase.
-              </p>
-              <div className="mt-5 flex justify-center gap-2.5">
-                <Button variant="secondary" onClick={() => setActiveNav('overview')}>
-                  Return to Dashboard
+            {/* Clear Edition Data Section */}
+            <div className="bg-[#0f1117] border border-red-500/20 rounded-xl p-6 select-none flex flex-col md:flex-row items-center justify-between gap-4">
+              <div className="space-y-1 text-left flex-1">
+                <h3 className="font-bold text-sm text-red-400">Clear responses for active edition</h3>
+                <p className="text-xs text-gray-400 leading-normal max-w-xl">
+                  Delete existing survey responses and imported vendor records associated with <span className="font-bold text-white">{activeEdition ? activeEdition.name : 'the selected edition'}</span>. This lets you re-import clean CSV files without duplicates.
+                </p>
+              </div>
+              <div className="shrink-0">
+                <Button variant="danger" onClick={handleClearEditionData} disabled={!activeEdition} className="bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20">
+                  <span>Clear & Reset Data</span>
                 </Button>
               </div>
             </div>
-          )}
-        </>
+
+            {/* Export Sheets Panel */}
+            <div className="bg-[#0f1117] border border-white/5 rounded-xl p-6 select-none space-y-4">
+              <div>
+                <h3 className="font-bold text-sm text-white">Export Active Region Data Sheets</h3>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Download complete data spreadsheets filtered for active region: <span className="font-bold text-green-400">{activeRegion ? activeRegion.name : 'No active region'}</span>.
+                </p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+                <Button variant="secondary" onClick={handleExportVendors} disabled={!activeRegion} className="bg-white/5 border border-white/10 text-white hover:bg-white/10">
+                  <span>Export Vendors CSV</span>
+                </Button>
+                <Button variant="secondary" onClick={handleExportWalkins} disabled={!activeRegion} className="bg-white/5 border border-white/10 text-white hover:bg-white/10">
+                  <span>Export Walk-ins CSV</span>
+                </Button>
+                <Button variant="secondary" onClick={handleExportResponses} disabled={!activeRegion} className="bg-white/5 border border-white/10 text-white hover:bg-white/10">
+                  <span>Export Survey Responses CSV</span>
+                </Button>
+              </div>
+            </div>
+
+            {/* Recent Uploads Table */}
+            <div className="bg-[#0f1117] border border-white/5 rounded-xl p-6 select-none">
+              <div className="font-bold text-xs text-white mb-3">Recent Uploads Log</div>
+              <div className="text-xs text-gray-400 py-2">
+                No recent spreadsheet uploads logged for the selected edition/region.
+              </div>
+            </div>
+
+            {/* Data Audit Panel */}
+            <div className="pt-2">
+              <DataAuditPanel onRefresh={() => { fetchVendors(); fetchSurveyResponses(); }} />
+            </div>
+          </div>
+        )}
+
+        {/* CREATE MARKET PANEL */}
+        {activeNav === 'markets' && (
+          <MarketConfigurationPanel />
+        )}
+
+        {/* 6. FORM TEMPLATE LIST / FORM BUILDER MANAGEMENT SCREEN */}
+        {activeNav === 'formbuilder' && (
+          <FormBuilderPanel />
+        )}
+
+        {/* JOBS SUPPORTED */}
+        {activeNav === 'jobs' && (
+          <JobsSupportedPanel
+            activeRegion={activeRegion}
+            activeEdition={activeEdition}
+            editions={ctxEditions}
+          />
+        )}
+
+        {/* SETTINGS */}
+        {activeNav === 'settings' && (
+          <UserManagementSettings
+            currentUserRole={role}
+            currentUserId={profile?.user_id || ''}
+          />
+        )}
+
+        {/* 7. OTHER SYSTEM PLACES (PLACEHOLDERS) */}
+        {!['overview', 'vendors', 'walkins', 'quick-entry', 'formbuilder', 'import-export', 'markets', 'jobs', 'paid-vendors', 'settings'].includes(activeNav) && (
+          <div className="py-24 text-center border border-dashed border-border rounded-lg select-none text-left animate-fade-in">
+            <ClipboardList className="w-12 h-12 text-green mx-auto mb-3 opacity-80" />
+            <h3 className="text-sm font-bold text-text-primary">Module Under Implementation</h3>
+            <p className="text-xs text-text-secondary max-w-sm mx-auto mt-2">
+              The <span className="text-green font-semibold">"{activeNav}"</span> screen has scaffolding definitions ready and is scheduled for implementation in the next milestone phase.
+            </p>
+            <div className="mt-5 flex justify-center gap-2.5">
+              <Button variant="secondary" onClick={() => setActiveNav('overview')}>
+                Return to Dashboard
+              </Button>
+            </div>
+          </div>
+        )}
+      </>
 
       {/* ==========================================
           MODALS & DRAWERS OVERLAYS
@@ -4096,11 +4093,10 @@ export default function Home() {
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className={`flex items-center gap-3 p-3.5 rounded-lg shadow-lg text-xs font-semibold text-white animate-slide-up pointer-events-auto border ${
-              toast.type === 'success' 
-                ? 'bg-green-soft/90 border-green text-green' 
+            className={`flex items-center gap-3 p-3.5 rounded-lg shadow-lg text-xs font-semibold text-white animate-slide-up pointer-events-auto border ${toast.type === 'success'
+                ? 'bg-green-soft/90 border-green text-green'
                 : 'bg-red-soft/90 border-red text-red'
-            }`}
+              }`}
           >
             {toast.type === 'success' ? (
               <CheckCircle2 className="w-4 h-4 text-green shrink-0" />
@@ -4108,7 +4104,7 @@ export default function Home() {
               <AlertCircle className="w-4 h-4 text-red shrink-0" />
             )}
             <span className="flex-1">{toast.message}</span>
-            <button 
+            <button
               onClick={() => setToasts((prev) => prev.filter((t) => t.id !== toast.id))}
               className="text-text-secondary hover:text-text-primary p-0.5"
             >

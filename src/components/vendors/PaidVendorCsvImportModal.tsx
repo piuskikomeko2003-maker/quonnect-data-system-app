@@ -377,6 +377,7 @@ export const PaidVendorCsvImportModal: React.FC<PaidVendorCsvImportModalProps> =
                     { label: 'Phone', hint: 'phone / phone_number / mobile' },
                     { label: 'Email', hint: 'email / email_address' },
                     { label: 'Category', hint: 'category / business_type / sector' },
+                    { label: 'Amount', hint: 'amount / amount_paid / payment / fee' },
                   ].map(col => (
                     <div key={col.label} className="flex flex-col gap-0.5">
                       <span className="text-[10px] font-bold text-white">{col.label}</span>
@@ -417,6 +418,7 @@ export const PaidVendorCsvImportModal: React.FC<PaidVendorCsvImportModalProps> =
                 {colMap.phoneHeader && <ColTag label="Phone" value={colMap.phoneHeader} color="purple" />}
                 {colMap.emailHeader && <ColTag label="Email" value={colMap.emailHeader} color="gray" />}
                 {colMap.categoryHeader && <ColTag label="Category" value={colMap.categoryHeader} color="gray" />}
+                {colMap.amountHeader && <ColTag label="Amount" value={colMap.amountHeader} color="green" />}
               </div>
 
               {/* Summary chips */}
@@ -460,7 +462,7 @@ export const PaidVendorCsvImportModal: React.FC<PaidVendorCsvImportModalProps> =
                           row.status === 'exact_duplicate' && !row.importAnyway ? 'opacity-40' : ''
                         }`}>
                           <td className="p-3 font-semibold text-white max-w-[140px] truncate">
-                            {row.contactName || row.businessName}
+                            {row.businessName || row.contactName}
                           </td>
                           <td className="p-3 text-gray-400 font-mono text-[11px] hidden sm:table-cell">
                             {row.phone || <span className="text-gray-600 italic">—</span>}
