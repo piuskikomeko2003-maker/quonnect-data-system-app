@@ -1,0 +1,14 @@
+{
+  "totalCompleted": 1050,
+  "successCount": 1050,
+  "failureCount": 0,
+  "totalTimeSec": 496.2,
+  "throughput": 2.12,
+  "minLatency": 1287,
+  "medianLatency": 1329,
+  "avgLatency": 1355.5,
+  "p95Latency": 1505,
+  "p99Latency": 1830,
+  "maxLatency": 2512,
+  "errors": []
+}
