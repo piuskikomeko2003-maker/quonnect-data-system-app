@@ -186,7 +186,7 @@ export const AdminShell: React.FC<AdminShellProps> = ({
   };
 
   return (
-    <div className="flex min-h-screen bg-[#0a0c10] text-white overflow-x-hidden">
+    <div className="flex h-screen bg-[#0a0c10] text-white overflow-hidden">
       {/* Mobile Drawer Backdrop */}
       {isMobileMenuOpen && (
         <div
@@ -196,9 +196,9 @@ export const AdminShell: React.FC<AdminShellProps> = ({
         />
       )}
 
-      {/* Sidebar: w-[268px] on desktop, off-canvas drawer on mobile */}
+      {/* Sidebar: always fixed — never scrolls with content */}
       <aside
-        className={`fixed md:sticky top-0 left-0 h-screen bg-[#0f1117] border-r border-white/5 flex flex-col z-50 transition-all duration-300 ${
+        className={`fixed top-0 left-0 h-screen bg-[#0f1117] border-r border-white/5 flex flex-col z-50 transition-all duration-300 ${
           isMobileMenuOpen
             ? 'w-[268px] translate-x-0 shadow-2xl'
             : '-translate-x-full md:translate-x-0 ' + (isDesktopCollapsed ? 'md:w-[60px]' : 'md:w-[268px]')
@@ -436,8 +436,10 @@ export const AdminShell: React.FC<AdminShellProps> = ({
         </div>
       </aside>
 
-      {/* Main Content Area */}
-      <main className="flex-1 min-w-0 overflow-x-hidden flex flex-col bg-[#0a0c10]">
+      {/* Main Content Area — left margin accounts for fixed sidebar */}
+      <main className={`flex-1 min-w-0 flex flex-col bg-[#0a0c10] overflow-hidden transition-all duration-300 ${
+        isDesktopCollapsed ? 'md:ml-[60px]' : 'md:ml-[268px]'
+      }`}>
         {/* Header container */}
         <header 
           className="px-3 sm:px-4 py-3 border-b border-white/5 bg-[#0f1117] flex items-center justify-between select-none shrink-0 gap-2"

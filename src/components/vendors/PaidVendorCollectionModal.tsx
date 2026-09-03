@@ -3,21 +3,16 @@
 import React, { useState, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { DynamicQuickEntryForm, FormDataCache } from '@/components/forms/DynamicQuickEntryForm';
-import { Button } from '@/components/ui/Button';
 import {
   X,
   Loader2,
-  FileText,
-  UserPlus,
   Database,
-  Phone,
-  Mail,
-  Tag,
   AlertCircle,
   Info,
+  ChevronLeft,
 } from 'lucide-react';
 
-type ViewMode = 'actions' | 'form';
+
 
 const PREFILL_FIELDS = new Set([
   'full_name',
@@ -71,6 +66,7 @@ interface PaidVendor {
 export interface PaidVendorCollectionModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onBack?: () => void;
   vendor: PaidVendor | null;
   activeEdition: { id: string; name: string } | null;
   onSaved: (vendorName: string) => void;
@@ -79,22 +75,24 @@ export interface PaidVendorCollectionModalProps {
 export const PaidVendorCollectionModal: React.FC<PaidVendorCollectionModalProps> = ({
   isOpen,
   onClose,
+  onBack,
   vendor,
   activeEdition,
   onSaved,
 }) => {
-  const [viewMode, setViewMode] = useState<ViewMode>('actions');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [prefillAnswers, setPrefillAnswers] = useState<Record<string, string>>({});
   const [prefillSource, setPrefillSource] = useState<Record<string, 'registration' | 'last_visit' | 'both'>>({});
   const [formDataCache, setFormDataCache] = useState<FormDataCache | undefined>(undefined);
+  const [ready, setReady] = useState(false);
 
   const buildPrefillData = useCallback(async () => {
     if (!vendor || !activeEdition) return;
 
     setLoading(true);
     setError(null);
+    setReady(false);
 
     try {
       const supabase = createClient();
@@ -221,7 +219,7 @@ export const PaidVendorCollectionModal: React.FC<PaidVendorCollectionModalProps>
         sectionRules: slData || [],
       });
 
-      setViewMode('form');
+      setReady(true);
     } catch (err: unknown) {
       let msg = 'Failed to load pre-fill data';
       if (err instanceof Error) {
@@ -397,38 +395,63 @@ export const PaidVendorCollectionModal: React.FC<PaidVendorCollectionModalProps>
   };
 
   const handleClose = () => {
-    setViewMode('actions');
-    setError(null);
-    setPrefillAnswers({});
-    setPrefillSource({});
-    setFormDataCache(undefined);
     onClose();
   };
+
+  const handleBack = () => {
+    onClose();
+    if (onBack) onBack();
+  };
+
+  // Auto-load prefill data whenever the modal opens with a new vendor
+  const vendorKey = vendor ? `${vendor.id ?? vendor.vendor_id ?? ''}-${activeEdition?.id ?? ''}` : null;
+  React.useEffect(() => {
+    if (isOpen && vendor && activeEdition) {
+      setReady(false);
+      setError(null);
+      setPrefillAnswers({});
+      setPrefillSource({});
+      setFormDataCache(undefined);
+      buildPrefillData();
+    }
+    // Only re-run when the modal opens or vendor/edition changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, vendorKey]);
 
   if (!isOpen || !vendor) return null;
 
   return (
-    <div 
-      className="fixed inset-0 z-[1100] flex items-center sm:items-start justify-center p-3 sm:p-4 select-none overflow-y-auto"
+    <div
+      className="fixed inset-0 z-[1150] flex items-center sm:items-start justify-center p-3 sm:p-4 select-none overflow-y-auto"
       style={{
         paddingTop: 'max(1rem, env(safe-area-inset-top))',
         paddingBottom: 'max(1rem, env(safe-area-inset-bottom))',
       }}
     >
       <div
-        className="fixed inset-0 bg-black/60 backdrop-blur-xs animate-fade-in"
+        className="fixed inset-0 bg-black/65 backdrop-blur-sm animate-fade-in"
         onClick={handleClose}
       />
 
       <div className="relative bg-bg-surface border border-border rounded-xl shadow-modal z-10 w-full max-w-[600px] max-h-[90vh] sm:max-h-[85vh] overflow-y-auto animate-scale-up sm:mt-[4vh]">
+        {/* Header */}
         <div className="sticky top-0 bg-bg-surface border-b border-border p-4 flex items-center justify-between z-10 rounded-t-xl">
-          <div>
-            <h2 className="text-sm font-bold text-text-primary">
-              {viewMode === 'actions' ? 'Paid Vendor' : 'Field Data Collection'}
-            </h2>
-            <p className="text-[10px] text-text-tertiary mt-0.5">
-              {vendor.business_name} — {activeEdition?.name || 'Current Edition'}
-            </p>
+          <div className="flex items-center gap-2">
+            {onBack && (
+              <button
+                onClick={handleBack}
+                className="flex items-center gap-1 text-[11px] font-semibold text-text-secondary hover:text-text-primary transition-colors cursor-pointer mr-1"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                Back
+              </button>
+            )}
+            <div>
+              <h2 className="text-sm font-bold text-text-primary">Field Data Collection</h2>
+              <p className="text-[10px] text-text-tertiary mt-0.5">
+                {vendor.business_name || vendor.contact_name} — {activeEdition?.name || 'Current Edition'}
+              </p>
+            </div>
           </div>
           <button
             onClick={handleClose}
@@ -439,92 +462,32 @@ export const PaidVendorCollectionModal: React.FC<PaidVendorCollectionModalProps>
         </div>
 
         <div className="p-5">
-          {viewMode === 'actions' && (
-            <div className="space-y-4 text-left">
-              <div className="bg-bg-elevated border border-border rounded-lg p-4 space-y-2">
-                <h3 className="text-xs font-bold text-text-primary">Vendor Details</h3>
-                <div className="grid grid-cols-2 gap-2 text-[11px]">
-                  <div className="text-text-tertiary">Contact:</div>
-                  <div className="text-text-primary font-medium">{vendor.contact_name || '—'}</div>
-                  <div className="text-text-tertiary flex items-center gap-1"><Phone className="w-3 h-3" />Phone:</div>
-                  <div className="text-text-primary font-mono">{vendor.phone || '—'}</div>
-                  {vendor.email && (
-                    <>
-                      <div className="text-text-tertiary flex items-center gap-1"><Mail className="w-3 h-3" />Email:</div>
-                      <div className="text-text-primary">{vendor.email}</div>
-                    </>
-                  )}
-                  <div className="text-text-tertiary flex items-center gap-1"><Tag className="w-3 h-3" />Category:</div>
-                  <div className="text-text-primary">{vendor.category || '—'}</div>
-                  <div className="text-text-tertiary">Payment:</div>
-                  <div>
-                    <span className={`inline-block px-2 py-0.5 rounded-full text-[10px] font-bold uppercase ${
-                      vendor.payment_status === 'paid' ? 'bg-green-500/10 text-green-400 border border-green-500/20' :
-                      'bg-amber-500/10 text-amber-400 border border-amber-500/20'
-                    }`}>
-                      {vendor.payment_status}
-                    </span>
-                  </div>
-                </div>
-              </div>
-
-              <div className="grid gap-3">
-                <button
-                  onClick={buildPrefillData}
-                  disabled={loading}
-                  className="bg-bg-elevated border border-border hover:border-green/50 rounded-lg p-4 text-left transition-all cursor-pointer group disabled:opacity-50"
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 bg-green-muted text-green rounded-lg flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                      {loading ? <Loader2 className="w-5 h-5 animate-spin" /> : <UserPlus className="w-5 h-5" />}
-                    </div>
-                    <div>
-                      <h3 className="text-xs font-bold text-text-primary">Start Field Data Collection</h3>
-                      <p className="text-[10px] text-text-secondary mt-0.5">
-                        Open the field data form pre-filled with vendor info and any data from their last visit.
-                        Event-specific fields (attendance, market-day questions) will be blank.
-                      </p>
-                    </div>
-                  </div>
-                </button>
-
-                <button
-                  onClick={() => {
-                    handleClose();
-                    setTimeout(() => {
-                      if (vendor.vendor_id) {
-                        window.dispatchEvent(new CustomEvent('edit-vendor-from-paid', {
-                          detail: { vendorId: vendor.vendor_id, vendorName: vendor.business_name || vendor.contact_name },
-                        }));
-                      }
-                    }, 100);
-                  }}
-                  className="bg-bg-elevated border border-border hover:border-blue/50 rounded-lg p-4 text-left transition-all cursor-pointer group"
-                >
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 bg-blue-muted/50 text-blue rounded-lg flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
-                      <FileText className="w-5 h-5" />
-                    </div>
-                    <div>
-                      <h3 className="text-xs font-bold text-text-primary">Edit Existing Submission</h3>
-                      <p className="text-[10px] text-text-secondary mt-0.5">
-                        Edit this vendor&apos;s previously submitted field data for the current edition.
-                      </p>
-                    </div>
-                  </div>
-                </button>
-              </div>
-
-              {error && (
-                <div className="bg-red-soft/10 border border-red/20 rounded-lg p-3 flex items-start gap-2">
-                  <AlertCircle className="w-4 h-4 text-red shrink-0 mt-0.5" />
-                  <p className="text-[11px] text-text-secondary">{error}</p>
-                </div>
-              )}
+          {/* Loading state */}
+          {loading && (
+            <div className="flex flex-col items-center justify-center gap-3 py-16 text-text-secondary">
+              <Loader2 className="w-6 h-6 animate-spin text-green" />
+              <p className="text-xs font-medium">Loading form data…</p>
             </div>
           )}
 
-          {viewMode === 'form' && formDataCache && (
+          {/* Error state */}
+          {error && !loading && (
+            <div className="space-y-4">
+              <div className="bg-red-muted border border-red/20 rounded-lg p-3 flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-red shrink-0 mt-0.5" />
+                <p className="text-[11px] text-text-secondary">{error}</p>
+              </div>
+              <button
+                onClick={buildPrefillData}
+                className="w-full text-xs font-bold text-text-secondary hover:text-text-primary bg-bg-elevated border border-border hover:border-border-light rounded-lg py-2 transition-colors"
+              >
+                Retry
+              </button>
+            </div>
+          )}
+
+          {/* Form */}
+          {ready && formDataCache && !loading && (
             <div className="text-left">
               {Object.keys(prefillSource).length > 0 && (
                 <div className="bg-green-soft/30 border border-green/15 rounded-lg p-3 mb-5">

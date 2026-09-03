@@ -11,6 +11,7 @@ import {
   RefreshCw,
   AlertCircle,
   Check,
+  ChevronLeft,
 } from 'lucide-react';
 
 interface FormQuestion {
@@ -47,6 +48,7 @@ type ViewMode = 'choice' | 'form';
 export interface EditVendorModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onBack?: () => void;
   vendorId: string;
   vendorName: string;
   activeEdition: { id: string; name: string } | null;
@@ -56,6 +58,7 @@ export interface EditVendorModalProps {
 export const EditVendorModal: React.FC<EditVendorModalProps> = ({
   isOpen,
   onClose,
+  onBack,
   vendorId,
   vendorName,
   activeEdition,
@@ -427,6 +430,16 @@ export const EditVendorModal: React.FC<EditVendorModalProps> = ({
     onClose();
   };
 
+  const handleBack = () => {
+    setViewMode('choice');
+    setError(null);
+    setFormDataCache(undefined);
+    setOrphanedAnswers({});
+    setEditModeEditor(false);
+    onClose();
+    if (onBack) onBack();
+  };
+
   if (!isOpen) return null;
 
   return (
@@ -444,13 +457,24 @@ export const EditVendorModal: React.FC<EditVendorModalProps> = ({
 
       <div className="relative bg-bg-surface border border-border rounded-xl shadow-modal z-10 w-full max-w-[600px] max-h-[90vh] sm:max-h-[85vh] overflow-y-auto animate-scale-up sm:mt-[4vh]">
         <div className="sticky top-0 bg-bg-surface border-b border-border p-4 flex items-center justify-between z-10 rounded-t-xl">
-          <div>
-            <h2 className="text-sm font-bold text-text-primary">
-              {viewMode === 'choice' ? 'Edit Vendor Submission' : 'Editing Submission'}
-            </h2>
-            <p className="text-[10px] text-text-tertiary mt-0.5">
-              {vendorName} — {activeEdition?.name || 'Current Edition'}
-            </p>
+          <div className="flex items-center gap-2">
+            {onBack && (
+              <button
+                onClick={handleBack}
+                className="flex items-center gap-1 text-[11px] font-semibold text-text-secondary hover:text-text-primary transition-colors cursor-pointer mr-1"
+              >
+                <ChevronLeft className="w-4 h-4" />
+                Back
+              </button>
+            )}
+            <div>
+              <h2 className="text-sm font-bold text-text-primary">
+                {viewMode === 'choice' ? 'Edit Vendor Submission' : 'Editing Submission'}
+              </h2>
+              <p className="text-[10px] text-text-tertiary mt-0.5">
+                {vendorName} — {activeEdition?.name || 'Current Edition'}
+              </p>
+            </div>
           </div>
           <button
             onClick={handleClose}

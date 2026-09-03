@@ -26,6 +26,8 @@ import { VendorTable, Vendor } from '@/components/vendors/VendorTable';
 import { VendorDetailPanel } from '@/components/vendors/VendorDetailPanel';
 import { EditVendorModal } from '@/components/vendors/EditVendorModal';
 import { PaidVendorCollectionModal } from '@/components/vendors/PaidVendorCollectionModal';
+import { PaidVendorDetailsModal } from '@/components/vendors/PaidVendorDetailsModal';
+import { VendorFormChoiceModal } from '@/components/vendors/VendorFormChoiceModal';
 import { VendorFeeEditModal } from '@/components/vendors/VendorFeeEditModal';
 import { PaidVendorCsvImportModal } from '@/components/vendors/PaidVendorCsvImportModal';
 import { PaidVendorImportHistoryModal } from '@/components/vendors/PaidVendorImportHistoryModal';
@@ -1417,6 +1419,14 @@ export default function Home() {
   // Paid Vendor Collection State
   const [isPaidVendorModalOpen, setIsPaidVendorModalOpen] = useState(false);
   const [selectedPaidVendor, setSelectedPaidVendor] = useState<any>(null);
+
+  // Vendor Form Choice Modal State
+  const [isChoiceModalOpen, setIsChoiceModalOpen] = useState(false);
+  const [selectedVendorForChoice, setSelectedVendorForChoice] = useState<any>(null);
+
+  // Paid Vendor Details Edit Modal State
+  const [isPaidDetailsModalOpen, setIsPaidDetailsModalOpen] = useState(false);
+  const [selectedVendorForDetails, setSelectedVendorForDetails] = useState<any>(null);
 
   // Vendor Fee Override Edit State
   const [isVendorFeeModalOpen, setIsVendorFeeModalOpen] = useState(false);
@@ -3370,6 +3380,10 @@ export default function Home() {
             {showIncompleteVendors ? (
               <IncompleteVendorsPanel
                 onBack={() => setShowIncompleteVendors(false)}
+                onFillDetails={(vendor) => {
+                  setSelectedVendorForChoice(vendor);
+                  setIsChoiceModalOpen(true);
+                }}
               />
             ) : (
               <>
@@ -3528,8 +3542,8 @@ export default function Home() {
                                   <tr
                                     key={pv.id}
                                     onClick={() => {
-                                      setSelectedPaidVendor(pv);
-                                      setIsPaidVendorModalOpen(true);
+                                      setSelectedVendorForChoice(pv);
+                                      setIsChoiceModalOpen(true);
                                     }}
                                     className="hover:bg-white/[0.02] transition-colors cursor-pointer"
                                   >
@@ -3573,7 +3587,8 @@ export default function Home() {
                                       <td className="p-4 text-center" onClick={e => e.stopPropagation()}>
                                         <button
                                           onClick={() => {
-                                            window.dispatchEvent(new CustomEvent('open-incomplete-vendors'));
+                                            setSelectedVendorForChoice(pv);
+                                            setIsChoiceModalOpen(true);
                                           }}
                                           className="text-[10px] font-bold text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 px-2.5 py-1 rounded-lg transition-colors whitespace-nowrap"
                                         >
@@ -4019,6 +4034,15 @@ export default function Home() {
           setEditingVendorId(null);
           setEditingVendorName('');
         }}
+        onBack={() => {
+          setIsEditModalOpen(false);
+          setEditingVendorId(null);
+          setEditingVendorName('');
+          // Re-open choice modal if we came from it
+          if (selectedVendorForChoice) {
+            setIsChoiceModalOpen(true);
+          }
+        }}
         vendorId={editingVendorId || ''}
         vendorName={editingVendorName}
         activeEdition={activeEdition}
@@ -4026,6 +4050,7 @@ export default function Home() {
           setIsEditModalOpen(false);
           setEditingVendorId(null);
           setEditingVendorName('');
+          setSelectedVendorForChoice(null);
           fetchVendors();
           fetchSurveyResponses();
           fetchOverviewCounts();
@@ -4033,11 +4058,68 @@ export default function Home() {
         }}
       />
 
-      {/* Paid Vendor Collection Modal */}
+      {/* Vendor Form Choice Modal — intercepts all 'Fill In Details' entry points */}
+      <VendorFormChoiceModal
+        isOpen={isChoiceModalOpen}
+        onClose={() => {
+          setIsChoiceModalOpen(false);
+          setSelectedVendorForChoice(null);
+        }}
+        vendor={selectedVendorForChoice}
+        activeEdition={activeEdition}
+        onChoosePaidDetails={(vendor) => {
+          setIsChoiceModalOpen(false);
+          setSelectedVendorForDetails(vendor);
+          setSelectedVendorForChoice(vendor); // keep reference for back-nav
+          setIsPaidDetailsModalOpen(true);
+        }}
+        onChooseFieldData={(vendor) => {
+          setIsChoiceModalOpen(false);
+          setSelectedPaidVendor(vendor);
+          setIsPaidVendorModalOpen(true);
+        }}
+      />
+
+      {/* Paid Vendor Details Edit Modal */}
+      <PaidVendorDetailsModal
+        isOpen={isPaidDetailsModalOpen}
+        onClose={() => {
+          setIsPaidDetailsModalOpen(false);
+          setSelectedVendorForDetails(null);
+        }}
+        onBack={() => {
+          setIsPaidDetailsModalOpen(false);
+          setSelectedVendorForDetails(null);
+          if (selectedVendorForChoice) {
+            setIsChoiceModalOpen(true);
+          }
+        }}
+        vendor={selectedVendorForDetails}
+        activeEdition={activeEdition}
+        onSaved={() => {
+          setIsPaidDetailsModalOpen(false);
+          setSelectedVendorForDetails(null);
+          setSelectedVendorForChoice(null);
+          fetchVendors();
+          fetchPaidVendors();
+          addToast(`Vendor details updated successfully!`, 'success');
+        }}
+      />
+
+      {/* Paid Vendor Field Data Collection Modal */}
       <PaidVendorCollectionModal
         isOpen={isPaidVendorModalOpen}
         onClose={() => {
           setIsPaidVendorModalOpen(false);
+          setSelectedPaidVendor(null);
+        }}
+        onBack={() => {
+          setIsPaidVendorModalOpen(false);
+          // Re-open choice modal for the same vendor
+          if (selectedPaidVendor) {
+            setSelectedVendorForChoice(selectedPaidVendor);
+            setIsChoiceModalOpen(true);
+          }
           setSelectedPaidVendor(null);
         }}
         vendor={selectedPaidVendor}
