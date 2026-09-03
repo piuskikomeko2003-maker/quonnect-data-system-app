@@ -78,6 +78,30 @@ const FORM_CONFIG: Record<string, {
   },
 };
 
+const globalFormMetaCache: Record<string, { formId: string; questions: any[] }> = {};
+
+async function fetchFormMetaCached(supabase: NonNullable<ReturnType<typeof createClient>>, slug: string) {
+  if (globalFormMetaCache[slug]) return globalFormMetaCache[slug];
+  if (!supabase) throw new Error('Client not initialized');
+  const { data: formData, error: fErr } = await supabase
+    .from('forms')
+    .select('id')
+    .eq('slug', slug)
+    .single();
+
+  if (fErr || !formData) throw new Error(`Form not found: ${slug}`);
+  const formId = formData.id;
+
+  const { data: questions } = await supabase
+    .from('survey_questions')
+    .select('id, csv_column, question_text, question_type, is_required, options, sort_order, section_id')
+    .eq('form_id', formId);
+
+  const result = { formId, questions: (questions || []) as any[] };
+  globalFormMetaCache[slug] = result;
+  return result;
+}
+
 export default function CollectPage() {
   const params = useParams();
   const token = typeof params.token === 'string' ? params.token : '';
@@ -96,6 +120,7 @@ export default function CollectPage() {
   const syncIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const linkDataRef = useRef<LinkData | null>(null);
   const editionRef = useRef<EditionData | null>(null);
+  const formMetaCacheRef = useRef<Record<string, { formId: string; questions: any[] }>>({});
 
   const [successState, setSuccessState] = useState<{
     show: boolean;
@@ -306,6 +331,12 @@ export default function CollectPage() {
   const handleFormDataCached = useCallback(
     (data: { questions: unknown[]; sections: unknown[]; questionRules: unknown[]; sectionRules: unknown[] }) => {
       if (!linkData) return;
+      if (data.questions && data.questions.length > 0) {
+        formMetaCacheRef.current[linkData.form_slug] = {
+          formId: (data.questions[0] as any)?.form_id || formMetaCacheRef.current[linkData.form_slug]?.formId || '',
+          questions: data.questions as any[],
+        };
+      }
       cacheSchema({
         token,
         edition_id: linkData.edition_id,
@@ -534,19 +565,7 @@ export default function CollectPage() {
         vendorId = newVendor[0].id;
       }
 
-      const { data: formData } = await supabase
-        .from('forms')
-        .select('id')
-        .eq('slug', 'vendor_data_collection')
-        .single();
-
-      if (!formData) throw new Error('Form not found');
-      const formId = formData.id;
-
-      const { data: questions } = await supabase
-        .from('survey_questions')
-        .select('id, csv_column, question_text, question_type, is_required, options, sort_order, section_id')
-        .eq('form_id', formId);
+      const { formId, questions } = await fetchFormMetaCached(supabase, 'vendor_data_collection');
 
       const questionSnapshot = (questions || []).map((q: any) => ({
         id: q.id,
@@ -1043,14 +1062,7 @@ async function replaySubmission(
         vendorId = newVendor[0].id;
       }
 
-      const { data: formData } = await supabase
-        .from('forms')
-        .select('id')
-        .eq('slug', 'vendor_data_collection')
-        .single();
-
-      if (!formData) throw new Error('Replay: form not found');
-      const formId = formData.id;
+      const { formId, questions } = await fetchFormMetaCached(supabase, 'vendor_data_collection');
 
       const { error: resError } = await supabase.from('survey_responses').insert({
         id: submission.id,
@@ -1065,11 +1077,6 @@ async function replaySubmission(
       if (resError && resError.code !== '23505') {
         throw new Error('Replay: ' + resError.message);
       }
-
-      const { data: questions } = await supabase
-        .from('survey_questions')
-        .select('id, csv_column')
-        .eq('form_id', formId);
 
       if (questions && questions.length > 0) {
         const answersToInsert: { response_id: string; question_id: string; answer: string }[] = [];

@@ -19,7 +19,7 @@ export async function POST(request: NextRequest) {
       .from('user_profiles')
       .select('role')
       .eq('user_id', user.id)
-      .maybeSingle();
+      .maybeSingle() as { data: { role: string } | null; error: any };
 
     if (!actorProfile || (actorProfile.role !== 'super_admin' && actorProfile.role !== 'admin')) {
       return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });

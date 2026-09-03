@@ -12,8 +12,8 @@ export default function LoginPage() {
 
   useEffect(() => {
     const supabase = createClient();
-    supabase.auth.getSession().then(({ data }) => {
-      if (data.session) {
+    supabase.auth.getSession().then(({ data }: { data: { session: any } }) => {
+      if (data?.session) {
         window.location.href = '/';
       } else {
         setChecking(false);

@@ -18,7 +18,7 @@ export async function GET() {
     .from('user_profiles')
     .select('role')
     .eq('user_id', user.id)
-    .maybeSingle();
+    .maybeSingle() as { data: { role: string } | null; error: any };
 
   if (!actorProfile || (actorProfile.role !== 'super_admin' && actorProfile.role !== 'admin')) {
     return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
@@ -51,7 +51,7 @@ export async function PATCH(request: NextRequest) {
     .from('user_profiles')
     .select('role')
     .eq('user_id', user.id)
-    .maybeSingle();
+    .maybeSingle() as { data: { role: string } | null; error: any };
 
   if (!actorProfile) {
     return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
@@ -76,7 +76,7 @@ export async function PATCH(request: NextRequest) {
     .from('user_profiles')
     .select('role')
     .eq('id', profileId)
-    .maybeSingle();
+    .maybeSingle() as { data: { role: string } | null; error: any };
 
   if (!targetProfile) {
     return NextResponse.json({ error: 'User not found' }, { status: 404 });
@@ -86,8 +86,8 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: 'Cannot change role of a Super Admin' }, { status: 403 });
   }
 
-  const { data: updated, error } = await serviceClient
-    .from('user_profiles')
+  const { data: updated, error } = await (serviceClient
+    .from('user_profiles') as any)
     .update({ role })
     .eq('id', profileId)
     .select()
@@ -115,7 +115,7 @@ export async function DELETE(request: NextRequest) {
     .from('user_profiles')
     .select('role, user_id')
     .eq('user_id', user.id)
-    .maybeSingle();
+    .maybeSingle() as { data: { role: string; user_id: string } | null; error: any };
 
   if (!actorProfile) {
     return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
@@ -132,7 +132,7 @@ export async function DELETE(request: NextRequest) {
     .from('user_profiles')
     .select('role, user_id')
     .eq('id', profileId)
-    .maybeSingle();
+    .maybeSingle() as { data: { role: string; user_id: string } | null; error: any };
 
   if (!targetProfile) {
     return NextResponse.json({ error: 'User not found' }, { status: 404 });
@@ -150,8 +150,8 @@ export async function DELETE(request: NextRequest) {
     return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
   }
 
-  const { error: deleteError } = await serviceClient
-    .from('user_profiles')
+  const { error: deleteError } = await (serviceClient
+    .from('user_profiles') as any)
     .delete()
     .eq('id', profileId);
 

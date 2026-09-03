@@ -1275,48 +1275,48 @@ export default function Home() {
 
       const supabase = createClient();
       if (supabase) {
-        vendorsChannel = supabase
+        vendorsChannel = (supabase as any)
           .channel('public-vendors-realtime')
           .on(
             'postgres_changes',
             { event: '*', schema: 'public', table: 'vendors' },
-            (payload) => {
+            (payload: any) => {
               console.log('Realtime update: vendors table', payload);
               fetchVendors();
             }
           )
           .subscribe();
 
-        regionsChannel = supabase
+        regionsChannel = (supabase as any)
           .channel('public-regions-realtime')
           .on(
             'postgres_changes',
             { event: '*', schema: 'public', table: 'regions' },
-            (payload) => {
+            (payload: any) => {
               console.log('Realtime update: regions table', payload);
               fetchRegions();
             }
           )
           .subscribe();
 
-        walkinsChannel = supabase
+        walkinsChannel = (supabase as any)
           .channel('public-walkins-realtime')
           .on(
             'postgres_changes',
             { event: '*', schema: 'public', table: 'walkins' },
-            (payload) => {
+            (payload: any) => {
               console.log('Realtime update: walkins table', payload);
               fetchWalkins();
             }
           )
           .subscribe();
 
-        responsesChannel = supabase
+        responsesChannel = (supabase as any)
           .channel('public-responses-realtime')
           .on(
             'postgres_changes',
             { event: '*', schema: 'public', table: 'survey_responses' },
-            (payload) => {
+            (payload: any) => {
               console.log('Realtime update: survey_responses table', payload);
               fetchSurveyResponses();
               // W6 FIX: Also refresh Overview charts so gender, age, sectors, growth %
@@ -1326,7 +1326,7 @@ export default function Home() {
           )
           .subscribe();
 
-        vendorRegistrationsChannel = supabase
+        vendorRegistrationsChannel = (supabase as any)
           .channel('public-vendor_registrations-realtime')
           .on(
             'postgres_changes',
