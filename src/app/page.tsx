@@ -256,6 +256,8 @@ export default function Home() {
     /** Vendors with payment_status='paid' but no survey_response for this edition */
     paidPendingCount: number;
     walkinCount: number;
+    /** Manual estimated total attendance for the active edition (dashboard headline). */
+    walkinEstimateTotal: number | null;
     surveyCount: number;
     genderSplit: { female: number; male: number; femalePct: number | null; malePct: number | null; total: number };
     avgVendorAge: number;
@@ -266,7 +268,7 @@ export default function Home() {
     retentionPct: number | null;
     retentionCount: number;
     retentionTotal: number;
-    editionGrowth: { id: string; name: string; surveyCount: number; paidCount: number; walkinCount: number; firstTimers: number; returning: number }[];
+    editionGrowth: { id: string; name: string; surveyCount: number; paidCount: number; walkinCount: number; walkinEstimate: number | null; walkinDisplay: number; firstTimers: number; returning: number }[];
     sectors: { name: string; count: number; pct: number }[];
     businessGrowthPct: number | null;
     totalEmployees: number;
@@ -342,6 +344,18 @@ export default function Home() {
       }
       const walkinCount = walkinRes.count ?? 0;
       const surveyCount = surveyRes.count ?? 0;
+
+      // Manual estimated total attendance for the active edition (independent of
+      // the individually-logged walk-in records above).
+      let walkinEstimateTotal: number | null = null;
+      if (edId) {
+        const { data: estData } = await supabase
+          .from('walkin_estimates')
+          .select('estimated_total')
+          .eq('market_day_id', edId)
+          .maybeSingle();
+        walkinEstimateTotal = estData?.estimated_total ?? null;
+      }
 
       let surveyAnswers: any[] = [];
       let genderFemale = 0;
@@ -458,7 +472,6 @@ export default function Home() {
           .filter((a: any) => a.survey_questions?.csv_column === 'number_of_employees')
           .slice(0, 10)
           .map((a: any) => a.answer);
-        console.log("Employee answers sample:", employeeSample);
 
         allFlat.filter((a: any) => a.survey_questions?.csv_column === 'quonnect_benefits').forEach((a: any) => {
           if (a.answer) benefitCounts[a.answer] = (benefitCounts[a.answer] || 0) + 1;
@@ -516,10 +529,11 @@ export default function Home() {
 
         if (editionsData && editionsData.length > 0) {
           const growthPromises = editionsData.map(async (ed: any) => {
-            const [edPaid, edWalk, edSurv] = await Promise.all([
+            const [edPaid, edWalk, edSurv, edEst] = await Promise.all([
               supabase.from('vendor_registrations').select('*', { count: 'exact', head: true }).eq('market_day_id', ed.id),
               supabase.from('walkins').select('*', { count: 'exact', head: true }).eq('market_day_id', ed.id),
               supabase.from('survey_responses').select('*', { count: 'exact', head: true }).eq('context_id', ed.id),
+              supabase.from('walkin_estimates').select('estimated_total').eq('market_day_id', ed.id).maybeSingle(),
             ]);
 
             let edFirst = 0;
@@ -540,11 +554,14 @@ export default function Home() {
               }
             }
 
+            const edWalkinEstimate = edEst?.data?.estimated_total ?? null;
             return {
               id: ed.id, name: ed.name,
               surveyCount: edSurv.count ?? 0,
               paidCount: edPaid.count ?? 0,
               walkinCount: edWalk.count ?? 0,
+              walkinEstimate: edWalkinEstimate,
+              walkinDisplay: edWalkinEstimate ?? (edWalk.count ?? 0),
               firstTimers: edFirst, returning: edReturn,
             };
           });
@@ -603,21 +620,12 @@ export default function Home() {
         retentionPct = retentionTotal > 0 ? Math.round((retentionCount / retentionTotal) * 100) : null;
       }
 
-      console.log("Overview metrics:", {
-        walkins: walkinCount,
-        surveys: surveyCount,
-        paid: paidCount,
-        female: genderFemale, male: genderMale, femalePct,
-        avgAge: avgVendorAge,
-        firstTimerCount, returningCount,
-        retention: { count: retentionCount, total: retentionTotal, pct: retentionPct },
-      });
-
       setOverviewMetrics({
         paidVendorCount: paidCount,
         paidRegisteredCount,
         paidPendingCount,
         walkinCount,
+        walkinEstimateTotal,
         surveyCount,
         genderSplit: { female: genderFemale, male: genderMale, femalePct, malePct, total: genderTotal },
         avgVendorAge,
@@ -640,7 +648,6 @@ export default function Home() {
 
       setOverviewCounts({ paidVendors: paidCount, walkins: walkinCount, surveyResponses: surveyCount });
     } catch (err: any) {
-      console.error('Error fetching overview metrics:', err);
     } finally {
       setOverviewLoading(false);
     }
@@ -662,7 +669,6 @@ export default function Home() {
         return;
       }
 
-      console.log("Fetching vendors for region:", activeRegion.id);
 
       let surveyQuery = supabase
         .from('survey_responses')
@@ -687,7 +693,6 @@ export default function Home() {
       const { data: surveyData, error: surveyError } = await surveyQuery;
 
       if (surveyError) {
-        console.error("Survey fetch error:", surveyError.message);
         throw surveyError;
       }
 
@@ -727,10 +732,6 @@ export default function Home() {
 
       const allVendorIds = [...new globalThis.Set([...surveyVendorIds, ...paidVendorIds])];
 
-      console.log("Paid vendor IDs:", [...paidVendorIds]);
-      console.log("Survey vendor IDs:", surveyVendorIds.size);
-      console.log("All vendor IDs:", allVendorIds.length);
-      console.log("Active edition:", activeEdition?.id, activeEdition?.name);
 
       if (allVendorIds.length === 0) {
         setVendors([]);
@@ -745,7 +746,6 @@ export default function Home() {
         .in('id', allVendorIds);
 
       if (vendorError) {
-        console.error("Vendor fetch error:", vendorError.message);
         throw vendorError;
       }
 
@@ -796,9 +796,7 @@ export default function Home() {
         both: mappedVendors.filter((v: any) => v.registrationType === 'both').length,
         unknown: mappedVendors.filter((v: any) => v.registrationType === 'unknown').length
       };
-      console.log("Registration type counts:", rtCounts);
     } catch (err: any) {
-      console.error("Supabase error fetching vendors:", err);
       setVendors([]);
       setError(err.message || String(err));
     } finally {
@@ -852,7 +850,6 @@ export default function Home() {
       setWalkins(mappedWalkins);
       setRunningWalkins(mappedWalkins.length);
     } catch (err: any) {
-      console.error("Supabase error fetching walkins:", err);
       setWalkins([]);
     }
   };
@@ -957,7 +954,6 @@ export default function Home() {
         throw innerErr;
       }
     } catch (err: any) {
-      console.error("Error fetching paid vendors:", err);
       setPaidVendors([]);
       setPaidVendorCounts({ paid: 0, unpaid: 0, revenue: 0 });
       setLoadingPaidVendors(false);
@@ -986,7 +982,6 @@ export default function Home() {
       fetchOverviewCounts();
       fetchOverviewMetrics();
     } catch (err: any) {
-      console.error('Delete vendor failed:', err);
       window.alert(`Failed to delete vendor: ${err?.message || err}`);
     }
   };
@@ -1000,7 +995,6 @@ export default function Home() {
       fetchWalkins();
       fetchOverviewCounts();
     } catch (err: any) {
-      console.error('Delete walk-in failed:', err);
       window.alert(`Failed to delete walk-in: ${err?.message || err}`);
     }
   };
@@ -1016,7 +1010,6 @@ export default function Home() {
       fetchOverviewCounts();
       fetchOverviewMetrics();
     } catch (err: any) {
-      console.error('Delete paid vendor failed:', err);
       window.alert(`Failed to delete paid vendor: ${err?.message || err}`);
     }
   };
@@ -1066,7 +1059,6 @@ export default function Home() {
       const { data, error } = await query.order('submitted_at', { ascending: false });
 
       if (error) {
-        console.error("Supabase error:", error.message, error.code, error.details);
         setSurveyResponses([]);
         return;
       }
@@ -1088,7 +1080,6 @@ export default function Home() {
       });
       setRecentActivities(activities);
     } catch (err: any) {
-      console.error("Supabase error fetching responses:", err?.message, err?.code, err?.details, JSON.stringify(err));
       setSurveyResponses([]);
     }
   };
@@ -1118,7 +1109,7 @@ export default function Home() {
         surveyResponses: surveyRes.count ?? 0,
       });
     } catch (err: any) {
-      console.error("Error fetching overview counts:", err);
+      // Ignore non-critical load errors.
     }
   };
 
@@ -1146,7 +1137,7 @@ export default function Home() {
         }
       }
     } catch (err: any) {
-      console.error("Failed to fetch regions from Supabase:", err);
+      // Ignore non-critical load errors.
     }
   };
 
@@ -1189,7 +1180,7 @@ export default function Home() {
         }
       }
     } catch (err: any) {
-      console.error("Failed to fetch market days:", err);
+      // Ignore non-critical load errors.
     }
   };
 
@@ -1254,7 +1245,7 @@ export default function Home() {
         }
       }
     } catch (err: any) {
-      console.error("Failed to fetch forms and questions:", err);
+      // Ignore non-critical load errors.
     }
   };
 
@@ -1283,7 +1274,6 @@ export default function Home() {
             'postgres_changes',
             { event: '*', schema: 'public', table: 'vendors' },
             (payload: any) => {
-              console.log('Realtime update: vendors table', payload);
               fetchVendors();
             }
           )
@@ -1295,7 +1285,6 @@ export default function Home() {
             'postgres_changes',
             { event: '*', schema: 'public', table: 'regions' },
             (payload: any) => {
-              console.log('Realtime update: regions table', payload);
               fetchRegions();
             }
           )
@@ -1307,7 +1296,6 @@ export default function Home() {
             'postgres_changes',
             { event: '*', schema: 'public', table: 'walkins' },
             (payload: any) => {
-              console.log('Realtime update: walkins table', payload);
               fetchWalkins();
             }
           )
@@ -1319,7 +1307,6 @@ export default function Home() {
             'postgres_changes',
             { event: '*', schema: 'public', table: 'survey_responses' },
             (payload: any) => {
-              console.log('Realtime update: survey_responses table', payload);
               fetchSurveyResponses();
               // W6 FIX: Also refresh Overview charts so gender, age, sectors, growth %
               // update in real-time after Quick Entry or CSV import — not just the count chips.
@@ -1626,7 +1613,6 @@ export default function Home() {
 
       return result;
     } catch (err) {
-      console.error("Phone lookup error:", err);
       return null;
     }
   };
@@ -1742,7 +1728,6 @@ export default function Home() {
 
       addToast(`Paid vendor "${contactName}" registered successfully!`, "success");
     } catch (err: any) {
-      console.error("Supabase error saving vendor:", err);
       addToast("Error saving vendor: " + (err.message || err), "error");
       throw err;
     }
@@ -1898,7 +1883,6 @@ export default function Home() {
         recorded_at: new Date().toISOString(),
       });
       if (walkErr) {
-        console.error('Auto-walkin insert failed:', walkErr);
       }
 
       fetchSurveyResponses();
@@ -1926,7 +1910,6 @@ export default function Home() {
       if (err.message === "Vendor not found" || err.message === "No active edition") {
         throw err;
       }
-      console.error("Supabase error submitting survey:", err);
       addToast("Error submitting survey: " + (err.message || err), "error");
       throw err;
     }
@@ -1985,7 +1968,6 @@ export default function Home() {
       addToast("Walk-in guest logged successfully!", "success");
     } catch (err: any) {
       if (err.message === "No active edition") throw err;
-      console.error("Supabase error inserting walk-in:", err);
       addToast("Error submitting walk-in: " + (err.message || err), "error");
       throw err;
     }
@@ -2014,7 +1996,6 @@ export default function Home() {
       setNewRegionName('');
       alert('Region created successfully!');
     } catch (err: any) {
-      console.error("Error creating region:", err);
       alert("Error creating region: " + (err.message || err));
     }
   };
@@ -2067,7 +2048,6 @@ export default function Home() {
       setNewEditionVenue('');
       alert('Upcoming Edition created successfully!');
     } catch (err: any) {
-      console.error("Error creating edition:", err);
       alert("Error creating edition: " + (err.message || err));
     }
   };
@@ -2097,7 +2077,6 @@ export default function Home() {
 
       alert('Merge approved and duplicate record removed!');
     } catch (err: any) {
-      console.error("Merge error:", err);
       alert("Error merging profiles: " + (err.message || err));
     }
   };
@@ -2141,7 +2120,6 @@ export default function Home() {
       setGeneratedLinkPass(activeEdition.name);
       setIsLinkModalOpen(true);
     } catch (err: any) {
-      console.error("Failed to generate link:", err);
       addToast("Failed to generate link: " + (err.message || err), "error");
     }
   };
@@ -2185,7 +2163,6 @@ export default function Home() {
       setGeneratedLinkPass(activeEdition.name);
       setIsLinkModalOpen(true);
     } catch (err: any) {
-      console.error("Failed to generate link:", err);
       addToast("Failed to generate link: " + (err.message || err), "error");
     }
   };
@@ -2504,7 +2481,6 @@ export default function Home() {
           .from('walkins')
           .insert(chunk);
         if (error) {
-          console.error("Walkin chunk error:", i, error.message, error.code);
         } else {
           inserted += chunk.length;
         }
@@ -2514,7 +2490,6 @@ export default function Home() {
       addToast(`${inserted} walk-ins imported successfully`, "success");
       fetchWalkins();
     } catch (err: any) {
-      console.error(err);
       addToast("Import failed: " + err.message, "error");
     }
   };
@@ -2567,7 +2542,6 @@ export default function Home() {
       downloadCSV(csvContent, `vendors_export_${activeRegion.slug}.csv`);
       addToast("Vendors list exported successfully!", "success");
     } catch (err: any) {
-      console.error(err);
       addToast("Export failed: " + err.message, "error");
     }
   };
@@ -2613,7 +2587,6 @@ export default function Home() {
       downloadCSV(csvContent, `walkins_export_${activeRegion.slug}.csv`);
       addToast("Walk-in records exported successfully!", "success");
     } catch (err: any) {
-      console.error(err);
       addToast("Export failed: " + err.message, "error");
     }
   };
@@ -2664,7 +2637,6 @@ export default function Home() {
       downloadCSV(csvContent, `survey_responses_export_${activeRegion.slug}.csv`);
       addToast("Survey responses exported successfully!", "success");
     } catch (err: any) {
-      console.error(err);
       addToast("Export failed: " + err.message, "error");
     }
   };
@@ -2731,7 +2703,6 @@ export default function Home() {
             .delete()
             .in('id', deleteVendorIds);
           if (vendErr) {
-            console.error("Error deleting isolated vendors:", vendErr);
           }
         }
       }
@@ -2740,7 +2711,6 @@ export default function Home() {
       fetchVendors();
       fetchSurveyResponses();
     } catch (err: any) {
-      console.error(err);
       addToast("Failed to clear data: " + err.message, "error");
     }
   };
@@ -2840,8 +2810,19 @@ export default function Home() {
                         <Footprints className="w-4 h-4" />
                       </div>
                     </div>
-                    <div className="text-2xl sm:text-3xl font-bold text-white tracking-tight">{overviewMetrics.walkinCount}</div>
-                    <div className="text-[11px] text-gray-500 uppercase tracking-wider mt-1">Walk-ins</div>
+                    <div className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
+                      {overviewMetrics.walkinEstimateTotal !== null
+                        ? `${overviewMetrics.walkinEstimateTotal.toLocaleString()}+`
+                        : overviewMetrics.walkinCount.toLocaleString()}
+                    </div>
+                    <div className="text-[11px] text-gray-500 uppercase tracking-wider mt-1">
+                      {overviewMetrics.walkinEstimateTotal !== null ? 'Walk-ins (Est.)' : 'Walk-ins (Logged)'}
+                    </div>
+                    <div className="text-[9px] text-gray-600 mt-1.5 leading-snug">
+                      {overviewMetrics.walkinEstimateTotal !== null
+                        ? `Profiles logged: ${overviewMetrics.walkinCount} of ${overviewMetrics.walkinEstimateTotal.toLocaleString()}+`
+                        : 'No estimate set for this edition'}
+                    </div>
                   </div>
 
                   <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-4 flex flex-col justify-between">
@@ -2983,7 +2964,7 @@ export default function Home() {
                             <YAxis tick={{ fontSize: 10, fill: '#6b7280' }} axisLine={false} tickLine={false} dx={-2} />
                             <Tooltip content={<CustomGrowthTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.03)' }} />
                             <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '11px', color: '#6b7280', paddingTop: '16px' }} />
-                            <Bar dataKey="walkinCount" name="Walk-ins" fill="url(#walkinsGrad)" radius={[4, 4, 0, 0]} />
+                            <Bar dataKey="walkinDisplay" name="Walk-ins" fill="url(#walkinsGrad)" radius={[4, 4, 0, 0]} />
                           </BarChart>
                         </ResponsiveContainer>
                       </div>
