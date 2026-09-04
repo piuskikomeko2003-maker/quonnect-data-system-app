@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
+import { getAppOrigin } from '@/lib/app-url';
 import { cookies } from 'next/headers';
 
 export async function POST(request: NextRequest) {
@@ -32,12 +33,7 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Email is required' }, { status: 400 });
     }
 
-    const forwardedHost = request.headers.get('x-forwarded-host');
-    const isLocal = process.env.NODE_ENV === 'development';
-    const origin = isLocal
-      ? request.nextUrl.origin
-      : `https://${forwardedHost || request.nextUrl.host}`;
-    const redirectTo = `${origin}/auth/callback`;
+    const redirectTo = `${getAppOrigin(request)}/auth/callback`;
 
     const { data: inviteData, error: inviteError } = await serviceClient.auth.admin.inviteUserByEmail(email, {
       redirectTo,

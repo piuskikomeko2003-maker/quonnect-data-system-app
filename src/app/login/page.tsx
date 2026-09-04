@@ -12,13 +12,18 @@ export default function LoginPage() {
 
   useEffect(() => {
     const supabase = createClient();
-    supabase.auth.getSession().then(({ data }: { data: { session: any } }) => {
-      if (data?.session) {
-        window.location.href = '/';
-      } else {
+    supabase.auth
+      .getUser()
+      .then(({ data }: { data: { user: any } }) => {
+        if (data?.user) {
+          window.location.href = '/';
+        } else {
+          setChecking(false);
+        }
+      })
+      .catch(() => {
         setChecking(false);
-      }
-    });
+      });
   }, []);
 
   const handleLogin = async (e: React.FormEvent) => {

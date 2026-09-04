@@ -16,23 +16,6 @@ import type { Submission, CachedSchema } from '@/lib/db';
 import { DynamicQuickEntryForm, type FormDataCache } from '@/components/forms/DynamicQuickEntryForm';
 import { Users, Database, Footprints, Loader2, AlertCircle, WifiOff, CloudOff, RefreshCw, Clock } from 'lucide-react';
 
-const AUTOFILL_FIELDS = new Set([
-  'full_name',
-  'business_name',
-  'phone_number',
-  'phone',
-  'email',
-  'gender',
-  'age',
-  'business_category',
-  'how_long_in_business',
-  'primary_source_of_income',
-  'products_primarily_from',
-  'business_operates_as',
-  'active_social_media',
-  'online_sales',
-]);
-
 // Change to 'latest_closed_edition' to look back only at completed editions
 type AutofillLookback = 'latest_any_edition' | 'latest_closed_edition';
 const AUTOFILL_LOOKBACK: AutofillLookback = 'latest_any_edition';
@@ -366,21 +349,30 @@ export default function CollectPage() {
       if (error || !data || data.length === 0) return null;
 
       const v = data[0];
-      const autofilledFields: string[] = ['contact_name', 'business_name', 'phone', 'email', 'category'];
 
+      // Map vendor table columns to every csv_column name the collection forms
+      // use, so base contact details autofill regardless of which form is active.
       const vendorData: Record<string, string> = {
         contact_name: v.contact_name || '',
+        full_name: v.contact_name || '',
         business_name: v.business_name || '',
         phone: v.phone || phone,
+        phone_number: v.phone || phone,
         email: v.email || '',
         category: v.category || '',
+        business_category: v.category || '',
       };
 
-      // Fetch previous survey answers for autofill
+      const autofilledFields: string[] = Object.entries(vendorData)
+        .filter(([, value]) => value)
+        .map(([key]) => key);
+
+      // Fetch the vendor's previous survey answers and autofill every question
+      // they previously answered.
       const prevAnswers = await fetchPreviousAnswers(supabase, v.id);
       if (prevAnswers) {
         for (const [csvColumn, value] of Object.entries(prevAnswers)) {
-          if (AUTOFILL_FIELDS.has(csvColumn) && value) {
+          if (value) {
             vendorData[csvColumn] = value;
             if (!autofilledFields.includes(csvColumn)) {
               autofilledFields.push(csvColumn);
@@ -426,7 +418,7 @@ export default function CollectPage() {
       const result: Record<string, string> = {};
       for (const row of answers as unknown as { answer: string; survey_questions: { csv_column: string } }[]) {
         const csvColumn = row.survey_questions?.csv_column;
-        if (csvColumn && AUTOFILL_FIELDS.has(csvColumn) && row.answer) {
+        if (csvColumn && row.answer) {
           result[csvColumn] = row.answer;
         }
       }
