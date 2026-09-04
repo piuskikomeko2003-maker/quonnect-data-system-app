@@ -42,7 +42,7 @@ export const WalkinForm: React.FC<WalkinFormProps> = ({
           Recorded walk-in guest <span className="text-green font-bold">{successState.visitorName || values.fullName || 'Anonymous Visitor'}</span>.
         </p>
         <Button variant="primary" onClick={successState.onAddAnother} className="w-full">
-          <Plus className="w-4 h-4 text-black" />
+          <Plus className="w-4 h-4 text-white" />
           <span>Add Another Guest</span>
         </Button>
       </div>

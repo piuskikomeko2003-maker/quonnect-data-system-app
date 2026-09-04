@@ -57,7 +57,7 @@ export const PaidVendorForm: React.FC<PaidVendorFormProps> = ({
           Registered <span className="text-green font-bold">{successState.vendorName || values.name}</span> as a paid vendor.
         </p>
         <Button variant="primary" onClick={successState.onAddAnother} className="w-full">
-          <Plus className="w-4 h-4 text-black" />
+          <Plus className="w-4 h-4 text-white" />
           <span>Add Another Vendor</span>
         </Button>
       </div>

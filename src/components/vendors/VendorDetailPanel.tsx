@@ -200,7 +200,7 @@ export const VendorDetailPanel: React.FC<VendorDetailPanelProps> = ({
               onClick={() => onEdit(vendor.id)}
               className="flex-1"
             >
-              <Edit2 className="w-4 h-4 text-black shrink-0" />
+              <Edit2 className="w-4 h-4 text-white shrink-0" />
               <span>Edit Profile</span>
             </Button>
           )}

@@ -516,7 +516,7 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
           Pending sync — will upload automatically when back online
         </p>
         <Button variant="primary" onClick={resetOfflineForm} className="w-full">
-          <Plus className="w-4 h-4 text-black" />
+          <Plus className="w-4 h-4 text-white" />
           <span>Add Another Entry</span>
         </Button>
       </div>
@@ -534,7 +534,7 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
           Recorded <span className="text-green font-bold">{successState.name || 'New Entry'}</span> for this edition.
         </p>
         <Button variant="primary" onClick={resetForm} className="w-full">
-          <Plus className="w-4 h-4 text-black" />
+          <Plus className="w-4 h-4 text-white" />
           <span>Add Another Entry</span>
         </Button>
       </div>
@@ -850,12 +850,12 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
           >
             {submitting ? (
               <span className="flex items-center gap-2">
-                <Loader2 className="w-3.5 h-3.5 animate-spin text-black" />
+                <Loader2 className="w-3.5 h-3.5 animate-spin text-white" />
                 Saving...
               </span>
             ) : editMode ? (
               <span className="flex items-center gap-2">
-                <Check className="w-4 h-4 text-black" />
+                <Check className="w-4 h-4 text-white" />
                 Save Changes
               </span>
             ) : (

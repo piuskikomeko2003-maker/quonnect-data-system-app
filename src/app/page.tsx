@@ -3181,7 +3181,7 @@ export default function Home() {
                     setQuickEntryTab('walkin');
                   }}
                 >
-                  <Plus className="w-4 h-4 text-black" />
+                  <Plus className="w-4 h-4 text-white" />
                   <span>Register Walk-in Guest</span>
                 </Button>
               </div>

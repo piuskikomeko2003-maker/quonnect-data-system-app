@@ -1302,7 +1302,7 @@ export const FormBuilderPanel: React.FC = () => {
                                   onClick={() => handleOpenAddQuestion(section.id)}
                                   className="text-[10px] px-2 py-1 font-semibold"
                                 >
-                                  <Plus className="w-3 h-3 text-black mr-1" />
+                                  <Plus className="w-3 h-3 text-white mr-1" />
                                   <span>Add Question</span>
                                 </Button>
                               </>
@@ -1764,7 +1764,7 @@ export const FormBuilderPanel: React.FC = () => {
                   disabled={isSavingLogic || !logicTargetId}
                   className="font-bold px-4"
                 >
-                  <Plus className="w-3.5 h-3.5 text-black mr-1" />
+                  <Plus className="w-3.5 h-3.5 text-white mr-1" />
                   <span>{isSavingLogic ? 'Saving...' : 'Add Skip Rule'}</span>
                 </Button>
               </div>

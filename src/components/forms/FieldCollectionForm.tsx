@@ -66,7 +66,7 @@ export const FieldCollectionForm: React.FC<FieldCollectionFormProps> = ({
           Saved collector profile sheet for <span className="text-green font-bold">{successState.vendorName || values.name}</span>.
         </p>
         <Button variant="primary" onClick={successState.onAddAnother} className="w-full">
-          <Plus className="w-4 h-4 text-black" />
+          <Plus className="w-4 h-4 text-white" />
           <span>Collect Next Profile</span>
         </Button>
       </div>

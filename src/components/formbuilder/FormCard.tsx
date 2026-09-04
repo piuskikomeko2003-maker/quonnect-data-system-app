@@ -76,7 +76,7 @@ export const FormCard: React.FC<FormCardProps> = ({
                 onClick={() => onEdit(form.id)}
                 className="flex-1 text-[11px]"
               >
-                <Edit3 className="w-3.5 h-3.5 text-black" />
+                <Edit3 className="w-3.5 h-3.5 text-white" />
                 <span>Edit Form</span>
               </Button>
               <Button 

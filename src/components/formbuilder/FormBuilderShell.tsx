@@ -130,7 +130,7 @@ export const FormBuilderShell: React.FC<FormBuilderShellProps> = ({
             size="sm"
             className="text-[11px]"
           >
-            <Save className="w-3.5 h-3.5 text-black" />
+            <Save className="w-3.5 h-3.5 text-white" />
             <span>{isSaving ? 'Saving Form...' : 'Save Template'}</span>
           </Button>
         </div>
