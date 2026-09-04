@@ -278,6 +278,7 @@ export default function CollectPage() {
           sections: [],
           question_logic: [],
           section_logic: [],
+          prefill_defaults: {},
         });
       } catch (err: unknown) {
         const isNetworkError =
@@ -312,7 +313,13 @@ export default function CollectPage() {
   }, [token]);
 
   const handleFormDataCached = useCallback(
-    (data: { questions: unknown[]; sections: unknown[]; questionRules: unknown[]; sectionRules: unknown[] }) => {
+    (data: {
+      questions: unknown[];
+      sections: unknown[];
+      questionRules: unknown[];
+      sectionRules: unknown[];
+      prefillDefaults?: Record<string, string>;
+    }) => {
       if (!linkData) return;
       if (data.questions && data.questions.length > 0) {
         formMetaCacheRef.current[linkData.form_slug] = {
@@ -330,6 +337,7 @@ export default function CollectPage() {
         sections: data.sections,
         question_logic: data.questionRules,
         section_logic: data.sectionRules,
+        prefill_defaults: data.prefillDefaults || {},
       });
     },
     [token, linkData, edition]
@@ -928,6 +936,7 @@ export default function CollectPage() {
                     sections: (cachedFormData.sections || []) as FormDataCache['sections'],
                     questionRules: (cachedFormData.question_logic || []) as FormDataCache['questionRules'],
                     sectionRules: (cachedFormData.section_logic || []) as FormDataCache['sectionRules'],
+                    prefillDefaults: (cachedFormData.prefill_defaults || {}) as FormDataCache['prefillDefaults'],
                   } as FormDataCache)
                 : undefined
             }

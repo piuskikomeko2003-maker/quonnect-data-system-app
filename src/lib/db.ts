@@ -21,6 +21,7 @@ export interface CachedSchema {
   sections: unknown[];
   question_logic: unknown[];
   section_logic: unknown[];
+  prefill_defaults?: Record<string, string>;
   cached_at: Date;
 }
 

@@ -50,6 +50,7 @@ export interface FormDataCache {
   sections: { id: string; name: string; sort_order: number }[];
   questionRules: QuestionLogic[];
   sectionRules: SectionLogic[];
+  prefillDefaults?: Record<string, string>;
 }
 
 export interface DynamicQuickEntryFormProps {
@@ -106,6 +107,10 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
   const [autofilledFields, setAutofilledFields] = useState<Set<string>>(
     new Set(initialAnswers ? Object.keys(initialAnswers) : [])
   );
+  const [prefillDefaults, setPrefillDefaults] = useState<Record<string, string>>(
+    cachedData?.prefillDefaults || {}
+  );
+  const [defaultedFields, setDefaultedFields] = useState<Set<string>>(new Set());
   const [syncFeedback, setSyncFeedback] = useState<{ message: string; type: 'success' | 'info' | 'error' } | null>(null);
   const [offlineSave, setOfflineSave] = useState<{ show: boolean; name?: string }>({ show: false });
 
@@ -118,11 +123,14 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
 
       const { data: formData, error: fErr } = await supabase
         .from('forms')
-        .select('id')
+        .select('id, prefill_defaults')
         .eq('slug', formSlug)
         .single();
 
       if (fErr || !formData) throw new Error(`Form not found: ${formSlug}`);
+
+      const defaults = (formData.prefill_defaults || {}) as Record<string, string>;
+      setPrefillDefaults(defaults);
 
       const { data: qData, error: qErr } = await supabase
         .from('survey_questions')
@@ -189,6 +197,7 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
           sections: secs,
           questionRules: fetchedQL,
           sectionRules: fetchedSL,
+          prefillDefaults: defaults,
         });
       }
     } catch (err: unknown) {
@@ -215,6 +224,7 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
       setSections(cachedData.sections);
       setQuestionRules(cachedData.questionRules);
       setSectionRules(cachedData.sectionRules);
+      setPrefillDefaults(cachedData.prefillDefaults || {});
       setLoading(false);
       setLoadError(null);
 
@@ -289,6 +299,46 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
     return true;
   }, [questionRules, isSectionVisible, checkRuleCondition]);
 
+  // Apply admin-set defaults to any visible question whose answer is still
+  // empty. Re-runs as answers change so conditionally-shown questions (e.g.
+  // "How many employees?" when "paid employees" is set to Yes) get pre-filled
+  // the moment they become visible. Fields with a value are left untouched.
+  useEffect(() => {
+    if (questions.length === 0) return;
+    const keys = Object.keys(prefillDefaults);
+    if (keys.length === 0) return;
+
+    const qByColumn = new Map(questions.map(q => [q.csv_column, q]));
+    const toApply: string[] = [];
+    for (const csvColumn of keys) {
+      const q = qByColumn.get(csvColumn);
+      if (!q) continue;
+      if (touchedFields.has(csvColumn)) continue;
+      const current = answers[csvColumn];
+      if (current !== undefined && current !== '') continue;
+      if (isQuestionVisible(q)) toApply.push(csvColumn);
+    }
+
+    if (toApply.length === 0) return;
+
+    setAnswers(prev => {
+      const next = { ...prev };
+      let changed = false;
+      for (const csvColumn of toApply) {
+        if (next[csvColumn] === undefined || next[csvColumn] === '') {
+          next[csvColumn] = prefillDefaults[csvColumn];
+          changed = true;
+        }
+      }
+      return changed ? next : prev;
+    });
+    setDefaultedFields(prev => {
+      const next = new Set(prev);
+      for (const csvColumn of toApply) next.add(csvColumn);
+      return next;
+    });
+  }, [questions, prefillDefaults, answers, touchedFields, isQuestionVisible]);
+
   const handleAnswerChange = (csvColumn: string, value: string) => {
     setAnswers(prev => ({ ...prev, [csvColumn]: value }));
     setValidationErrors([]);
@@ -298,6 +348,11 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
       return next;
     });
     setAutofilledFields(prev => {
+      const next = new Set(prev);
+      next.delete(csvColumn);
+      return next;
+    });
+    setDefaultedFields(prev => {
       const next = new Set(prev);
       next.delete(csvColumn);
       return next;
@@ -335,6 +390,11 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
     }
     setAnswers(prev => ({ ...prev, [csvColumn]: updated.join('||') }));
     setValidationErrors([]);
+    setDefaultedFields(prev => {
+      const next = new Set(prev);
+      next.delete(csvColumn);
+      return next;
+    });
   };
 
   const handleFieldBlur = (csvColumn: string) => {
@@ -364,7 +424,16 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
     setSubmitting(true);
     setSyncFeedback(null);
     try {
-      const result = await onSubmit(answers);
+      // Only submit answers for questions that are actually visible, so
+      // hidden (skipped) questions don't submit their pre-filled defaults.
+      const visibleAnswers: Record<string, string> = {};
+      questions.filter(q => isQuestionVisible(q)).forEach(q => {
+        const val = answers[q.csv_column];
+        if (val !== undefined && val !== '') {
+          visibleAnswers[q.csv_column] = val;
+        }
+      });
+      const result = await onSubmit(visibleAnswers);
       if (!result.synced) {
         const name = result.name ||
           answers.contact_name || answers.full_name || answers.name || '';
@@ -417,6 +486,7 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
     setOfflineSave({ show: false });
     setTouchedFields(new Set());
     setAutofilledFields(new Set());
+    setDefaultedFields(new Set());
     successState.onAddAnother();
   };
 
@@ -428,6 +498,7 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
     setOfflineSave({ show: false });
     setTouchedFields(new Set());
     setAutofilledFields(new Set());
+    setDefaultedFields(new Set());
     (window as unknown as { _offlineCountIncrement?: () => void })._offlineCountIncrement?.();
   };
 
@@ -718,6 +789,7 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
                   isTouched={touchedFields.has(q.csv_column)}
                   hasError={!answers[q.csv_column]}
                   isPrefilled={autofilledFields.has(q.csv_column)}
+                  isDefault={defaultedFields.has(q.csv_column)}
                   onFieldBlur={() => handleFieldBlur(q.csv_column)}
                 />
               ))}
@@ -817,14 +889,20 @@ const QuestionField: React.FC<{
   isTouched?: boolean;
   hasError?: boolean;
   isPrefilled?: boolean;
+  isDefault?: boolean;
   onFieldBlur?: () => void;
-}> = ({ question, renderField, isTouched, hasError, isPrefilled, onFieldBlur }) => {
+}> = ({ question, renderField, isTouched, hasError, isPrefilled, isDefault, onFieldBlur }) => {
   const showError = isTouched && hasError && question.is_required;
   return (
     <div onBlur={onFieldBlur}>
       <label className={`text-[11px] font-semibold uppercase tracking-wider flex items-center justify-between mb-1.5 select-none ${showError ? 'text-red' : 'text-text-tertiary'}`}>
         <span className="flex items-center gap-1.5">
           {question.question_text}
+          {isDefault && (
+            <span className="text-[9px] font-medium text-blue bg-blue/10 px-1.5 py-0.5 rounded uppercase border border-blue/20">
+              Default
+            </span>
+          )}
           {isPrefilled && (
             <span className="text-[9px] font-medium text-amber bg-amber/10 px-1.5 py-0.5 rounded uppercase border border-amber/20">
               Pre-filled
