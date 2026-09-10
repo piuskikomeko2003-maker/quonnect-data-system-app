@@ -19,7 +19,7 @@ export interface Market {
   type: 'flagship' | 'regional' | 'pilot';
   vendorsCount: number;
 }
-import { LiveCounter } from '@/components/dashboard/LiveCounter';
+import { isTestEdition } from '@/lib/editions';
 import { AlertBanner } from '@/components/dashboard/AlertBanner';
 import { FilterBar, FilterState } from '@/components/dashboard/FilterBar';
 import { VendorTable, Vendor } from '@/components/vendors/VendorTable';
@@ -528,7 +528,8 @@ export default function Home() {
           .order('event_date');
 
         if (editionsData && editionsData.length > 0) {
-          const growthPromises = editionsData.map(async (ed: any) => {
+          const realEditions = editionsData.filter((ed: any) => !isTestEdition(ed));
+          const growthPromises = realEditions.map(async (ed: any) => {
             const [edPaid, edWalk, edSurv, edEst] = await Promise.all([
               supabase.from('vendor_registrations').select('*', { count: 'exact', head: true }).eq('market_day_id', ed.id),
               supabase.from('walkins').select('*', { count: 'exact', head: true }).eq('market_day_id', ed.id),
@@ -877,6 +878,8 @@ export default function Home() {
               payment_status,
               amount_paid,
               fee_source,
+              stall_number,
+              notes,
               created_at,
               vendors (
                 id,
@@ -903,6 +906,8 @@ export default function Home() {
               id,
               payment_status,
               amount_paid,
+              stall_number,
+              notes,
               created_at,
               vendors (
                 id,
@@ -933,6 +938,9 @@ export default function Home() {
           payment_status: r.payment_status,
           amount_paid: r.amount_paid,
           fee_source: r.fee_source || 'standard',
+          stall_number: r.stall_number || '',
+          notes: r.notes || '',
+          ticket_number: r.stall_number || (r.notes?.match(/TKT-\d+/)?.[0]) || '',
           created_at: r.created_at,
           business_name: r.vendors?.business_name || '',
           contact_name: r.vendors?.contact_name || '',
@@ -1164,13 +1172,15 @@ export default function Home() {
       if (error) throw error;
 
       if (data) {
-        const mappedEditions = data.map((md: any) => ({
-          id: md.id,
-          name: md.edition || md.name || 'Untitled Edition',
-        }));
+        const mappedEditions = data
+          .filter((md: any) => !isTestEdition(md))
+          .map((md: any) => ({
+            id: md.id,
+            name: md.edition || md.name || 'Untitled Edition',
+          }));
         setEditions(mappedEditions);
         // Prefer the activeEdition if set, otherwise default to the most recent
-        const preferred = activeEdition?.id
+        const preferred = (activeEdition?.id && !isTestEdition(activeEdition))
           ? mappedEditions.find((e: any) => e.id === activeEdition.id)
           : null;
         if (preferred) {
@@ -1396,6 +1406,7 @@ export default function Home() {
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
   const [generatedLinkUrl, setGeneratedLinkUrl] = useState('');
   const [generatedLinkPass, setGeneratedLinkPass] = useState('');
+  const [generatedLinkSlug, setGeneratedLinkSlug] = useState('');
   const [copiedText, setCopiedText] = useState(false);
 
   // Edit Vendor Modal State
@@ -1684,15 +1695,39 @@ export default function Home() {
           .limit(1);
 
         if (!existingReg || existingReg.length === 0) {
-          const { error: regError } = await supabase
+          const { count: earlierCount } = await supabase
             .from('vendor_registrations')
-            .insert({
-              market_day_id: activeEdition.id,
-              vendor_id: vendorId,
-              amount_paid: amountPaid,
-              payment_status: paymentStatus,
-            });
-          if (regError) throw regError;
+            .select('id', { count: 'exact', head: true })
+            .eq('market_day_id', activeEdition.id);
+
+          const ticketNumber = (earlierCount || 0) + 1;
+          const ticketCode = `TKT-${String(ticketNumber).padStart(3, '0')}`;
+
+          const payload: Record<string, unknown> = {
+            market_day_id: activeEdition.id,
+            vendor_id: vendorId,
+            amount_paid: amountPaid,
+            payment_status: paymentStatus,
+            stall_number: ticketCode,
+            notes: `Ticket #${ticketNumber} (${ticketCode})`,
+          };
+
+          try {
+            const { error: regError } = await supabase
+              .from('vendor_registrations')
+              .insert({ ...payload, ticket_number: ticketCode });
+            if (regError) {
+              if (regError.code === '42703' || regError.message?.includes('ticket_number')) {
+                const { error: fallbackErr } = await supabase.from('vendor_registrations').insert(payload);
+                if (fallbackErr) throw fallbackErr;
+              } else {
+                throw regError;
+              }
+            }
+          } catch {
+            const { error: fallbackErr } = await supabase.from('vendor_registrations').insert(payload);
+            if (fallbackErr) throw fallbackErr;
+          }
         } else {
           const { error: regUpdateError } = await supabase
             .from('vendor_registrations')
@@ -2106,18 +2141,33 @@ export default function Home() {
       const baseUrl = window.location.origin;
       const linkUrl = `${baseUrl}/collect/${token}`;
 
-      const { error: linkError } = await supabase
-        .from('form_links')
-        .insert({
-          token,
-          form_slug: template.slug,
-          edition_id: activeEdition.id,
-        });
+      const linkPayload: Record<string, unknown> = {
+        token,
+        form_slug: template.slug,
+        edition_id: activeEdition.id,
+        is_single_use: template.slug === 'paid_vendor_registration',
+      };
 
-      if (linkError) throw linkError;
+      try {
+        const { error: linkError } = await supabase
+          .from('form_links')
+          .insert(linkPayload);
+        if (linkError && (linkError.code === '42703' || linkError.message?.includes('is_single_use'))) {
+          delete linkPayload.is_single_use;
+          const { error: fallbackError } = await supabase.from('form_links').insert(linkPayload);
+          if (fallbackError) throw fallbackError;
+        } else if (linkError) {
+          throw linkError;
+        }
+      } catch {
+        delete linkPayload.is_single_use;
+        const { error: fallbackError } = await supabase.from('form_links').insert(linkPayload);
+        if (fallbackError) throw fallbackError;
+      }
 
       setGeneratedLinkUrl(linkUrl);
       setGeneratedLinkPass(activeEdition.name);
+      setGeneratedLinkSlug(template.slug);
       setIsLinkModalOpen(true);
     } catch (err: any) {
       addToast("Failed to generate link: " + (err.message || err), "error");
@@ -2149,18 +2199,33 @@ export default function Home() {
       const baseUrl = window.location.origin;
       const linkUrl = `${baseUrl}/collect/${token}`;
 
-      const { error: linkError } = await supabase
-        .from('form_links')
-        .insert({
-          token,
-          form_slug: slug,
-          edition_id: activeEdition.id,
-        });
+      const linkPayload: Record<string, unknown> = {
+        token,
+        form_slug: slug,
+        edition_id: activeEdition.id,
+        is_single_use: slug === 'paid_vendor_registration',
+      };
 
-      if (linkError) throw linkError;
+      try {
+        const { error: linkError } = await supabase
+          .from('form_links')
+          .insert(linkPayload);
+        if (linkError && (linkError.code === '42703' || linkError.message?.includes('is_single_use'))) {
+          delete linkPayload.is_single_use;
+          const { error: fallbackError } = await supabase.from('form_links').insert(linkPayload);
+          if (fallbackError) throw fallbackError;
+        } else if (linkError) {
+          throw linkError;
+        }
+      } catch {
+        delete linkPayload.is_single_use;
+        const { error: fallbackError } = await supabase.from('form_links').insert(linkPayload);
+        if (fallbackError) throw fallbackError;
+      }
 
       setGeneratedLinkUrl(linkUrl);
       setGeneratedLinkPass(activeEdition.name);
+      setGeneratedLinkSlug(slug);
       setIsLinkModalOpen(true);
     } catch (err: any) {
       addToast("Failed to generate link: " + (err.message || err), "error");
@@ -2743,17 +2808,6 @@ export default function Home() {
                 <p className="text-xs text-text-secondary mt-0.5">Real-time indicators and metrics for {currentMarket.name}.</p>
               </div>
             </div>
-
-            {/* Live Status Counter Component */}
-            <LiveCounter
-              isActiveEdition={!!activeEdition}
-              paidVendorsCount={runningCount}
-              dataCollectedCount={dataCollectedListCount}
-              totalPaidVendorsCount={totalUniqueVendorsCount}
-              walkinsCount={runningWalkins}
-              onRefresh={handleRefreshLiveCounter}
-              isRefreshing={isRefreshing}
-            />
 
             {/* Alert Banners */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -3504,6 +3558,7 @@ export default function Home() {
                             <table className="w-full border-collapse text-left text-xs">
                               <thead>
                                 <tr className="bg-white/[0.02] border-b border-white/5">
+                                  <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest text-center">Ticket #</th>
                                   <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Business Name</th>
                                   <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Contact Name</th>
                                   <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Phone</th>
@@ -3528,6 +3583,15 @@ export default function Home() {
                                     }}
                                     className="hover:bg-white/[0.02] transition-colors cursor-pointer"
                                   >
+                                    <td className="p-4 text-center">
+                                      {pv.ticket_number ? (
+                                        <span className="inline-block px-2 py-0.5 rounded font-mono text-[11px] font-bold bg-green-500/15 text-green-400 border border-green-500/25">
+                                          {pv.ticket_number}
+                                        </span>
+                                      ) : (
+                                        <span className="text-gray-600 font-mono text-[11px]">—</span>
+                                      )}
+                                    </td>
                                     <td className="p-4 font-semibold text-white">{pv.business_name || '—'}</td>
                                     <td className="p-4 text-gray-300 font-medium">{pv.contact_name || '—'}</td>
                                     <td className="p-4 text-gray-400 font-mono text-[11px]">{pv.phone || <span className="text-gray-600 italic">No phone</span>}</td>
@@ -4140,14 +4204,20 @@ export default function Home() {
                 <LinkIcon className="w-5 h-5 text-green" />
               </div>
               <div>
-                <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider">Collection Link Created</h3>
-                <span className="text-[10px] text-text-tertiary font-semibold uppercase mt-0.5">Secure Form Distribution</span>
+                <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider">
+                  {generatedLinkSlug === 'paid_vendor_registration' ? 'Single-Use Vendor Ticket Link' : 'Collection Link Created'}
+                </h3>
+                <span className="text-[10px] text-text-tertiary font-semibold uppercase mt-0.5">
+                  {generatedLinkSlug === 'paid_vendor_registration' ? 'One-Time Registration & Ticket Issuance' : 'Secure Form Distribution'}
+                </span>
               </div>
             </div>
 
             <div className="space-y-3">
               <p className="text-xs text-text-secondary leading-normal">
-                Share this secure URL with field data collectors. Session keys will automatically clear on tab close.
+                {generatedLinkSlug === 'paid_vendor_registration'
+                  ? 'Share this secure one-time link with a vendor. As soon as they complete registration, this link will automatically expire and assign them their official admission ticket number based on earlier registrations.'
+                  : 'Share this secure URL with field data collectors. Session keys will automatically clear on tab close.'}
               </p>
 
               {/* URL Link Input copy box */}

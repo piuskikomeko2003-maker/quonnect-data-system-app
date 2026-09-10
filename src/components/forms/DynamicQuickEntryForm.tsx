@@ -13,6 +13,9 @@ import {
   ExternalLink,
   WifiOff,
   CloudOff,
+  Ticket,
+  Copy,
+  Printer,
 } from 'lucide-react';
 
 interface FormQuestion {
@@ -61,6 +64,18 @@ export interface DynamicQuickEntryFormProps {
   successState: {
     show: boolean;
     name?: string;
+    ticketData?: {
+      ticketNumber: number;
+      ticketCode: string;
+      editionName: string;
+      vendorName: string;
+      businessName?: string;
+      phone: string;
+      category?: string;
+      amountPaid?: number;
+      paymentStatus?: string;
+      registeredAt: string;
+    };
     onAddAnother: () => void;
   };
   runningCount: number;
@@ -101,6 +116,7 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
   const [loading, setLoading] = useState(!cachedData);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [copiedTicket, setCopiedTicket] = useState(false);
   const [lookupStatus, setLookupStatus] = useState<'idle' | 'searching' | 'returning' | 'new'>('idle');
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [touchedFields, setTouchedFields] = useState<Set<string>>(new Set());
@@ -524,6 +540,125 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
   }
 
   if (successState.show) {
+    if (formSlug === 'paid_vendor_registration' || successState.ticketData) {
+      const ticket = successState.ticketData || {
+        ticketNumber: runningCount || 1,
+        ticketCode: `TKT-${String(runningCount || 1).padStart(3, '0')}`,
+        editionName: activeEdition?.name || 'Event Edition',
+        vendorName: successState.name || 'Confirmed Vendor',
+        businessName: '',
+        phone: '',
+        category: '',
+        amountPaid: undefined,
+        paymentStatus: 'paid',
+        registeredAt: new Date().toISOString(),
+      };
+
+      return (
+        <div className="bg-bg-surface border border-green/30 rounded-xl p-6 sm:p-8 text-left shadow-2xl relative overflow-hidden animate-fade-in select-none">
+          {/* Decorative Glow */}
+          <div className="absolute -top-24 -right-24 w-48 h-48 bg-green/10 rounded-full blur-3xl pointer-events-none" />
+          <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-green/5 rounded-full blur-3xl pointer-events-none" />
+
+          {/* Ticket Header */}
+          <div className="flex items-center justify-between pb-4 border-b border-border-light relative z-10">
+            <div className="flex items-center gap-2.5">
+              <div className="w-10 h-10 rounded-lg bg-green/15 border border-green/30 flex items-center justify-center text-green">
+                <Ticket className="w-5 h-5" />
+              </div>
+              <div>
+                <span className="text-[10px] font-bold text-green uppercase tracking-widest block">Official Vendor Pass</span>
+                <h2 className="text-sm font-bold text-text-primary">{ticket.editionName}</h2>
+              </div>
+            </div>
+            <Badge variant="success" size="sm" className="font-mono text-xs uppercase font-extrabold tracking-wider">
+              {ticket.paymentStatus || 'Confirmed'}
+            </Badge>
+          </div>
+
+          {/* Ticket Number Hero Box */}
+          <div className="my-6 p-5 bg-[#0a0d12] border border-green/30 rounded-xl text-center relative z-10 shadow-inner">
+            <span className="text-[10px] text-text-tertiary uppercase tracking-widest font-semibold block mb-1">
+              Admission Ticket Number
+            </span>
+            <div className="text-3xl sm:text-4xl font-extrabold font-mono text-green tracking-wider my-1">
+              {ticket.ticketCode}
+            </div>
+            <p className="text-[11px] text-text-secondary">
+              Vendor #{ticket.ticketNumber} &middot; Registered for this edition
+            </p>
+          </div>
+
+          {/* Ticket Details Grid */}
+          <div className="space-y-2.5 bg-bg-input/60 border border-border/50 rounded-lg p-4 text-xs relative z-10">
+            <div className="flex justify-between items-center py-1 border-b border-border/30">
+              <span className="text-text-tertiary">Vendor Name</span>
+              <span className="font-semibold text-text-primary">{ticket.vendorName}</span>
+            </div>
+            {ticket.businessName && (
+              <div className="flex justify-between items-center py-1 border-b border-border/30">
+                <span className="text-text-tertiary">Business</span>
+                <span className="font-semibold text-text-primary">{ticket.businessName}</span>
+              </div>
+            )}
+            {ticket.category && (
+              <div className="flex justify-between items-center py-1 border-b border-border/30">
+                <span className="text-text-tertiary">Category</span>
+                <span className="font-semibold text-text-primary">{ticket.category}</span>
+              </div>
+            )}
+            {ticket.phone && (
+              <div className="flex justify-between items-center py-1 border-b border-border/30">
+                <span className="text-text-tertiary">Phone Number</span>
+                <span className="font-mono font-medium text-text-secondary">{ticket.phone}</span>
+              </div>
+            )}
+            <div className="flex justify-between items-center py-1">
+              <span className="text-text-tertiary">Issued At</span>
+              <span className="font-mono text-[11px] text-text-secondary">
+                {new Date(ticket.registeredAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+              </span>
+            </div>
+          </div>
+
+          {/* Single-Use Warning & Actions */}
+          <div className="mt-5 space-y-3 relative z-10">
+            <div className="p-3 bg-amber/10 border border-amber/20 rounded-md text-[11px] text-amber flex items-start gap-2">
+              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+              <span>
+                <strong>Single-Use Link Closed:</strong> This registration link has now expired and cannot be reused. Please screenshot or print this ticket for check-in on event day.
+              </span>
+            </div>
+
+            <div className="flex gap-2 pt-1">
+              <Button
+                type="button"
+                variant="primary"
+                onClick={() => window.print()}
+                className="flex-1 py-2.5 flex items-center justify-center gap-2 text-xs font-bold cursor-pointer"
+              >
+                <Printer className="w-4 h-4" />
+                <span>Print / Save Ticket</span>
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => {
+                  navigator.clipboard.writeText(ticket.ticketCode);
+                  setCopiedTicket(true);
+                  setTimeout(() => setCopiedTicket(false), 2000);
+                }}
+                className="px-4 py-2.5 flex items-center justify-center gap-1.5 text-xs font-semibold cursor-pointer"
+              >
+                {copiedTicket ? <Check className="w-4 h-4 text-green" /> : <Copy className="w-4 h-4" />}
+                <span>{copiedTicket ? 'Copied!' : 'Copy Code'}</span>
+              </Button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
     return (
       <div className="bg-bg-surface border border-border rounded-lg p-8 text-center flex flex-col items-center justify-center min-h-[380px] select-none text-left">
         <div className="w-16 h-16 bg-green-muted text-green rounded-full flex items-center justify-center mb-5 animate-pulse">

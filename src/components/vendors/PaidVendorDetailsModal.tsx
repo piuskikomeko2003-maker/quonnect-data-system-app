@@ -31,6 +31,8 @@ export interface PaidVendorDetailsVendor {
   amount_paid?: number;
   payment_status?: string;
   fee_source?: string;
+  ticket_number?: string;
+  stall_number?: string;
   [key: string]: any;
 }
 
@@ -196,10 +198,17 @@ export const PaidVendorDetailsModal: React.FC<PaidVendorDetailsModalProps> = ({
               </button>
             )}
             <div>
-              <h2 className="text-sm font-bold text-text-primary flex items-center gap-1.5">
-                <CreditCard className="w-3.5 h-3.5 text-blue" />
-                Paid Vendor Details
-              </h2>
+              <div className="flex items-center gap-2">
+                <h2 className="text-sm font-bold text-text-primary flex items-center gap-1.5">
+                  <CreditCard className="w-3.5 h-3.5 text-blue" />
+                  Paid Vendor Details
+                </h2>
+                {(vendor.ticket_number || vendor.stall_number) && (
+                  <span className="font-mono text-[10px] font-bold text-green-400 bg-green-500/15 px-2 py-0.5 rounded border border-green-500/25">
+                    {vendor.ticket_number || vendor.stall_number}
+                  </span>
+                )}
+              </div>
               <p className="text-[10px] text-text-tertiary mt-0.5">
                 {vendor.business_name || vendor.contact_name || 'Vendor'} — {activeEdition?.name || 'Current Edition'}
               </p>

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { isTestEdition } from '@/lib/editions';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import {
@@ -93,9 +94,9 @@ export const StandardFeeSettings: React.FC = () => {
           .order('event_date', { ascending: false });
 
         if (mdFallback.error) throw mdFallback.error;
-        marketDays = mdFallback.data || [];
+        marketDays = (mdFallback.data || []).filter((m: any) => !isTestEdition(m));
       } else {
-        marketDays = mdWithFee.data || [];
+        marketDays = (mdWithFee.data || []).filter((m: any) => !isTestEdition(m));
       }
 
       // 2. Fetch vendor registrations

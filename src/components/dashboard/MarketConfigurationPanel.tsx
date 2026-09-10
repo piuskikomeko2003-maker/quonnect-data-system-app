@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { isTestEdition } from '@/lib/editions';
 import { useRegion } from '@/context/RegionContext';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
@@ -162,7 +163,7 @@ export const MarketConfigurationPanel: React.FC = () => {
 
       // Group market_days rows by unique names to construct nested structure
       const formatted: Region[] = (data || []).map((reg: any) => {
-        const rawMarketDays = reg.market_days || [];
+        const rawMarketDays = (reg.market_days || []).filter((m: any) => !isTestEdition(m));
         
         // Find unique market names
         const uniqueNames = Array.from(new Set(rawMarketDays.map((m: any) => m.name))) as string[];

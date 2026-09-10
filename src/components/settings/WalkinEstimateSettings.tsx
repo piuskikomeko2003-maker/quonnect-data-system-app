@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { isTestEdition } from '@/lib/editions';
 import { useAuth } from '@/hooks/useAuth';
 import { Button } from '@/components/ui/Button';
 import {
@@ -77,7 +78,9 @@ export const WalkinEstimateSettings: React.FC = () => {
         if (w.market_day_id) loggedMap[w.market_day_id] = (loggedMap[w.market_day_id] || 0) + 1;
       });
 
-      const rows: EditionEstimateItem[] = (mdRes.data || []).map((m: any) => {
+      const rows: EditionEstimateItem[] = (mdRes.data || [])
+        .filter((m: any) => !isTestEdition(m))
+        .map((m: any) => {
         const est = estimateMap[m.id];
         return {
           id: m.id,

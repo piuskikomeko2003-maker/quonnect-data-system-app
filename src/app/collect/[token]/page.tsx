@@ -14,7 +14,7 @@ import {
 } from '@/lib/db';
 import type { Submission, CachedSchema } from '@/lib/db';
 import { DynamicQuickEntryForm, type FormDataCache } from '@/components/forms/DynamicQuickEntryForm';
-import { Users, Database, Footprints, Loader2, AlertCircle, WifiOff, CloudOff, RefreshCw, Clock } from 'lucide-react';
+import { Users, Database, Footprints, Loader2, AlertCircle, WifiOff, CloudOff, RefreshCw, Clock, Lock, Ticket } from 'lucide-react';
 
 // Change to 'latest_closed_edition' to look back only at completed editions
 type AutofillLookback = 'latest_any_edition' | 'latest_closed_edition';
@@ -105,9 +105,24 @@ export default function CollectPage() {
   const editionRef = useRef<EditionData | null>(null);
   const formMetaCacheRef = useRef<Record<string, { formId: string; questions: any[] }>>({});
 
+  const [isLinkAlreadyUsed, setIsLinkAlreadyUsed] = useState(false);
+  const [existingTicketData, setExistingTicketData] = useState<any | null>(null);
+
   const [successState, setSuccessState] = useState<{
     show: boolean;
     name?: string;
+    ticketData?: {
+      ticketNumber: number;
+      ticketCode: string;
+      editionName: string;
+      vendorName: string;
+      businessName?: string;
+      phone: string;
+      category?: string;
+      amountPaid?: number;
+      paymentStatus?: string;
+      registeredAt: string;
+    };
     onAddAnother: () => void;
   }>({ show: false, name: undefined, onAddAnother: () => {} });
 
@@ -241,7 +256,7 @@ export default function CollectPage() {
 
         const { data: linkResult, error: linkErr } = await supabase
           .from('form_links')
-          .select('token, form_slug, edition_id')
+          .select('token, form_slug, edition_id, expires_at')
           .eq('token', token)
           .single();
 
@@ -251,6 +266,36 @@ export default function CollectPage() {
 
         if (!FORM_CONFIG[linkResult.form_slug]) {
           throw new Error('Unknown form type for this link.');
+        }
+
+        // Check if link was already used / expired
+        const isExpired = linkResult.expires_at && new Date(linkResult.expires_at) <= new Date();
+        if (isExpired) {
+          setIsLinkAlreadyUsed(true);
+          try {
+            const saved = localStorage.getItem(`ticket_${token}`);
+            if (saved) {
+              const parsed = JSON.parse(saved);
+              setExistingTicketData(parsed);
+              setSuccessState({
+                show: true,
+                name: parsed.vendorName,
+                ticketData: parsed,
+                onAddAnother: () => {},
+              });
+            }
+          } catch {}
+
+          // Also fetch edition data so ticket header renders nicely
+          const { data: editionData } = await supabase
+            .from('market_days')
+            .select('id, name')
+            .eq('id', linkResult.edition_id)
+            .single();
+          if (editionData) setEdition(editionData);
+          setLinkData(linkResult);
+          setLoading(false);
+          return;
         }
 
         setLinkData(linkResult);
@@ -437,16 +482,35 @@ export default function CollectPage() {
   }
 
   const handlePaidSubmit = useCallback(
-    async (answers: Record<string, string>, submissionId?: string): Promise<{ synced: boolean; message?: string; name?: string }> => {
+    async (answers: Record<string, string>, submissionId?: string): Promise<{ synced: boolean; message?: string; name?: string; ticketData?: any }> => {
       if (!edition) throw new Error('No edition');
 
       const supabase = createClient();
       if (!supabase) throw new Error('Client not initialized');
 
+      // Atomic check: ensure link has not already been used
+      const { data: currentLink } = await supabase
+        .from('form_links')
+        .select('expires_at')
+        .eq('token', token)
+        .single();
+      if (currentLink?.expires_at && new Date(currentLink.expires_at) <= new Date()) {
+        throw new Error('This registration link has already been used and is closed.');
+      }
+
+      // Count earlier registrations for this edition to determine sequential ticket number
+      const { count: earlierCount } = await supabase
+        .from('vendor_registrations')
+        .select('id', { count: 'exact', head: true })
+        .eq('market_day_id', edition.id);
+
+      const ticketNumber = (earlierCount || 0) + 1;
+      const ticketCode = `TKT-${String(ticketNumber).padStart(3, '0')}`;
+
       const phone = answers.phone || answers.phone_number || '';
-      const contactName = answers.contact_name || '';
+      const contactName = answers.contact_name || answers.full_name || answers.name || '';
       const businessName = answers.business_name || '';
-      const category = answers.category || '';
+      const category = answers.category || answers.business_category || '';
       const amountPaid = answers.amount_paid ? parseFloat(answers.amount_paid) : 0;
       const paymentStatus = answers.payment_status || 'paid';
 
@@ -473,7 +537,7 @@ export default function CollectPage() {
         const { data: inserted, error: insErr } = await supabase
           .from('vendors')
           .insert({
-            business_name: businessName,
+            business_name: businessName || contactName || 'Unknown Vendor',
             contact_name: contactName,
             phone,
             email: answers.email || '',
@@ -488,41 +552,100 @@ export default function CollectPage() {
 
       const { data: existingReg } = await supabase
         .from('vendor_registrations')
-        .select('id')
+        .select('id, stall_number, notes')
         .eq('vendor_id', vendorId)
         .eq('market_day_id', edition.id)
         .limit(1);
 
-      if (!existingReg || existingReg.length === 0) {
+      let finalTicketNumber = ticketNumber;
+      let finalTicketCode = ticketCode;
+
+      if (existingReg && existingReg.length > 0) {
+        // Vendor was already registered; preserve their existing stall / ticket if present
+        if (existingReg[0].stall_number) {
+          finalTicketCode = existingReg[0].stall_number;
+          const matchNum = existingReg[0].stall_number.match(/\d+/);
+          if (matchNum) finalTicketNumber = parseInt(matchNum[0], 10);
+        }
+      } else {
         const payload: Record<string, unknown> = {
           market_day_id: edition.id,
           vendor_id: vendorId,
           amount_paid: amountPaid,
           payment_status: paymentStatus,
+          stall_number: ticketCode,
+          notes: `Ticket #${ticketNumber} (${ticketCode})`,
         };
         if (submissionId) payload.id = submissionId;
-        const { error: regErr } = await supabase.from('vendor_registrations').insert(payload);
-        if (regErr && regErr.code === '23505') {
-          // duplicate key — already synced on a prior attempt
-        } else if (regErr) {
-          throw regErr;
+
+        try {
+          const { error: regErr } = await supabase.from('vendor_registrations').insert({
+            ...payload,
+            ticket_number: ticketCode,
+          });
+          if (regErr) {
+            if (regErr.code === '42703' || regErr.message?.includes('ticket_number')) {
+              const { error: fallbackErr } = await supabase.from('vendor_registrations').insert(payload);
+              if (fallbackErr && fallbackErr.code !== '23505') throw fallbackErr;
+            } else if (regErr.code !== '23505') {
+              throw regErr;
+            }
+          }
+        } catch {
+          const { error: fallbackErr } = await supabase.from('vendor_registrations').insert(payload);
+          if (fallbackErr && fallbackErr.code !== '23505') throw fallbackErr;
         }
-        return { synced: true, name: businessName || contactName };
       }
+
+      // Mark the link as used / closed immediately so it can never be used again
+      const nowIso = new Date().toISOString();
+      try {
+        await supabase
+          .from('form_links')
+          .update({
+            expires_at: nowIso,
+            used_at: nowIso,
+            ticket_number: finalTicketCode,
+            used_by_vendor_id: vendorId,
+          })
+          .eq('token', token);
+      } catch {
+        await supabase
+          .from('form_links')
+          .update({
+            expires_at: nowIso,
+          })
+          .eq('token', token);
+      }
+
+      const ticketData = {
+        ticketNumber: finalTicketNumber,
+        ticketCode: finalTicketCode,
+        editionName: edition.name,
+        vendorName: contactName,
+        businessName,
+        phone,
+        category,
+        amountPaid,
+        paymentStatus,
+        registeredAt: nowIso,
+      };
+
+      try {
+        localStorage.setItem(`ticket_${token}`, JSON.stringify(ticketData));
+      } catch {}
 
       setRunningCount(c => c + 1);
       setSuccessState({
         show: true,
         name: contactName,
-        onAddAnother: () => {
-          setRunningCount(c => c + 1);
-          setSuccessState({ show: false, name: undefined, onAddAnother: () => {} });
-        },
+        ticketData,
+        onAddAnother: () => {},
       });
 
-      return { synced: true };
+      return { synced: true, name: businessName || contactName, ticketData };
     },
-    [edition]
+    [edition, token]
   );
 
   const handleCollectionSubmit = useCallback(
@@ -787,6 +910,30 @@ export default function CollectPage() {
       <div className="min-h-screen bg-[#0d1117] flex flex-col items-center justify-center space-y-4">
         <Loader2 className="w-8 h-8 animate-spin text-green" />
         <p className="text-xs text-[#8b949e]">Loading collection form...</p>
+      </div>
+    );
+  }
+
+  if (isLinkAlreadyUsed && !existingTicketData) {
+    return (
+      <div className="min-h-screen bg-[#0d1117] flex flex-col items-center justify-center p-6 text-center select-none">
+        <div className="bg-[#161b22] border border-[#30363d] rounded-xl max-w-md w-full p-8 shadow-2xl relative overflow-hidden">
+          <div className="w-16 h-16 bg-amber/10 border border-amber/20 rounded-full flex items-center justify-center mx-auto mb-4 text-amber">
+            <Lock className="w-7 h-7" />
+          </div>
+          <h2 className="text-base font-bold text-[#c9d1d9] mb-1">Registration Link Closed</h2>
+          <span className="text-[10px] font-semibold text-amber uppercase tracking-wider bg-amber/10 px-2 py-0.5 rounded border border-amber/20 inline-block mb-4">
+            Single-Use Link Already Redeemed
+          </span>
+          <p className="text-xs text-[#8b949e] leading-relaxed mb-6">
+            This one-time registration link has already been used to register a vendor and cannot be submitted again.
+            Each vendor admission ticket requires a unique, active registration link.
+          </p>
+          <div className="bg-[#0d1117] border border-[#21262d] rounded-lg p-3 text-[11px] text-[#8b949e] text-left">
+            <p className="text-[#c9d1d9] font-semibold mb-1">Need assistance?</p>
+            <p>If you have already registered and need your ticket pass, please check the device where you completed registration or contact the event organizers.</p>
+          </div>
+        </div>
       </div>
     );
   }

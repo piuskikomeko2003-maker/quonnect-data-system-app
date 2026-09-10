@@ -2,6 +2,7 @@
 
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { isTestEdition } from '@/lib/editions';
 
 export interface Region {
   id: string;
@@ -62,13 +63,15 @@ export const RegionProvider: React.FC<{ children: React.ReactNode }> = ({ childr
 
         if (eErr) throw eErr;
 
-        const mappedEditions: Edition[] = (eData || []).map((row: any) => ({
-          id: row.id,
-          name: row.edition || row.name || 'Untitled Edition',
-          date: row.event_date || '',
-          venue: row.notes || '',
-          is_active: row.status === 'active'
-        }));
+        const mappedEditions: Edition[] = (eData || [])
+          .filter((row: any) => !isTestEdition(row))
+          .map((row: any) => ({
+            id: row.id,
+            name: row.edition || row.name || 'Untitled Edition',
+            date: row.event_date || '',
+            venue: row.notes || '',
+            is_active: row.status === 'active'
+          }));
         setEditions(mappedEditions);
 
         // Keep activeEdition synced or set default
@@ -80,10 +83,17 @@ export const RegionProvider: React.FC<{ children: React.ReactNode }> = ({ childr
             if (found) {
               setActiveEdition(found);
             } else {
-              setActiveEdition(mappedEditions[0] || null);
+              const fallback = mappedEditions.find(e => e.is_active) || mappedEditions[0] || null;
+              setActiveEdition(fallback);
+              if (fallback) {
+                localStorage.setItem('activeEdition', JSON.stringify(fallback));
+              } else {
+                localStorage.removeItem('activeEdition');
+              }
             }
           } catch (e) {
-            setActiveEdition(mappedEditions[0] || null);
+            const fallback = mappedEditions.find(e => e.is_active) || mappedEditions[0] || null;
+            setActiveEdition(fallback);
           }
         } else if (mappedEditions.length > 0) {
           const activeOrFirst = mappedEditions.find(e => e.is_active) || mappedEditions[0];
