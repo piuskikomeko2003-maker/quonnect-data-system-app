@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
+import { toPng } from 'html-to-image';
 import {
   Check,
   Plus,
@@ -16,6 +17,7 @@ import {
   Ticket,
   Copy,
   Printer,
+  Download,
 } from 'lucide-react';
 
 interface FormQuestion {
@@ -117,6 +119,8 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
   const [loadError, setLoadError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [copiedTicket, setCopiedTicket] = useState(false);
+  const [downloadingImage, setDownloadingImage] = useState(false);
+  const ticketCardRef = useRef<HTMLDivElement>(null);
   const [lookupStatus, setLookupStatus] = useState<'idle' | 'searching' | 'returning' | 'new'>('idle');
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [touchedFields, setTouchedFields] = useState<Set<string>>(new Set());
@@ -487,7 +491,7 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
           message: errMsg,
           type: 'error',
         });
-        console.error('Submit error:', errMsg);
+        console.warn('Submit error:', errMsg);
       }
     } finally {
       setSubmitting(false);
@@ -554,91 +558,147 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
         registeredAt: new Date().toISOString(),
       };
 
+      const handleDownloadImage = async () => {
+        if (!ticketCardRef.current) return;
+        setDownloadingImage(true);
+        try {
+          const dataUrl = await toPng(ticketCardRef.current, {
+            quality: 1,
+            pixelRatio: 2,
+            backgroundColor: '#161b22',
+          });
+          const link = document.createElement('a');
+          link.download = `Vendor-Pass-${ticket.ticketCode || 'Ticket'}.png`;
+          link.href = dataUrl;
+          link.click();
+        } catch (err) {
+          console.error('Failed to download ticket image:', err);
+        } finally {
+          setDownloadingImage(false);
+        }
+      };
+
       return (
-        <div className="bg-bg-surface border border-green/30 rounded-xl p-6 sm:p-8 text-left shadow-2xl relative overflow-hidden animate-fade-in select-none">
-          {/* Decorative Glow */}
-          <div className="absolute -top-24 -right-24 w-48 h-48 bg-green/10 rounded-full blur-3xl pointer-events-none" />
-          <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-green/5 rounded-full blur-3xl pointer-events-none" />
+        <div className="space-y-4 max-w-[560px] mx-auto animate-fade-in select-none">
+          {/* Downloadable Ticket Card */}
+          <div
+            ref={ticketCardRef}
+            className="bg-bg-surface border border-green/30 rounded-xl p-6 sm:p-8 text-left shadow-2xl relative overflow-hidden"
+          >
+            {/* Decorative Glow */}
+            <div className="absolute -top-24 -right-24 w-48 h-48 bg-green/10 rounded-full blur-3xl pointer-events-none" />
+            <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-green/5 rounded-full blur-3xl pointer-events-none" />
 
-          {/* Ticket Header */}
-          <div className="flex items-center justify-between pb-4 border-b border-border-light relative z-10">
-            <div className="flex items-center gap-2.5">
-              <div className="w-10 h-10 rounded-lg bg-green/15 border border-green/30 flex items-center justify-center text-green">
-                <Ticket className="w-5 h-5" />
+            {/* Ticket Header */}
+            <div className="flex items-center justify-between pb-4 border-b border-border-light relative z-10">
+              <div className="flex items-center gap-2.5">
+                <div className="w-10 h-10 rounded-lg bg-green/15 border border-green/30 flex items-center justify-center text-green">
+                  <Ticket className="w-5 h-5" />
+                </div>
+                <div>
+                  <span className="text-[10px] font-bold text-green uppercase tracking-widest block">Official Vendor Pass</span>
+                  <h2 className="text-sm font-bold text-text-primary">{ticket.editionName}</h2>
+                </div>
               </div>
-              <div>
-                <span className="text-[10px] font-bold text-green uppercase tracking-widest block">Official Vendor Pass</span>
-                <h2 className="text-sm font-bold text-text-primary">{ticket.editionName}</h2>
+              <Badge variant="success" size="sm" className="font-mono text-xs uppercase font-extrabold tracking-wider">
+                {ticket.paymentStatus || 'Confirmed'}
+              </Badge>
+            </div>
+
+            {/* Ticket Number Hero Box */}
+            <div className="my-6 p-5 bg-[#0a0d12] border border-green/30 rounded-xl text-center relative z-10 shadow-inner">
+              <span className="text-[10px] text-text-tertiary uppercase tracking-widest font-semibold block mb-1">
+                Admission Ticket Number
+              </span>
+              <div className="text-3xl sm:text-4xl font-extrabold font-mono text-green tracking-wider my-1">
+                {ticket.ticketCode}
+              </div>
+              <p className="text-[11px] text-text-secondary">
+                Vendor #{ticket.ticketNumber} &middot; Registered for this edition
+              </p>
+            </div>
+
+            {/* Ticket Details Grid */}
+            <div className="space-y-2.5 bg-bg-input/60 border border-border/50 rounded-lg p-4 text-xs relative z-10">
+              <div className="flex justify-between items-center py-1 border-b border-border/30">
+                <span className="text-text-tertiary">Vendor Name</span>
+                <span className="font-semibold text-text-primary">{ticket.vendorName}</span>
+              </div>
+              {ticket.businessName && (
+                <div className="flex justify-between items-center py-1 border-b border-border/30">
+                  <span className="text-text-tertiary">Business</span>
+                  <span className="font-semibold text-text-primary">{ticket.businessName}</span>
+                </div>
+              )}
+              {ticket.category && (
+                <div className="flex justify-between items-center py-1 border-b border-border/30">
+                  <span className="text-text-tertiary">Category</span>
+                  <span className="font-semibold text-text-primary">{ticket.category}</span>
+                </div>
+              )}
+              {ticket.phone && (
+                <div className="flex justify-between items-center py-1 border-b border-border/30">
+                  <span className="text-text-tertiary">Phone Number</span>
+                  <span className="font-mono font-medium text-text-secondary">{ticket.phone}</span>
+                </div>
+              )}
+              <div className="flex justify-between items-center py-1">
+                <span className="text-text-tertiary">Issued At</span>
+                <span className="font-mono text-[11px] text-text-secondary">
+                  {new Date(ticket.registeredAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                </span>
               </div>
             </div>
-            <Badge variant="success" size="sm" className="font-mono text-xs uppercase font-extrabold tracking-wider">
-              {ticket.paymentStatus || 'Confirmed'}
-            </Badge>
-          </div>
 
-          {/* Ticket Number Hero Box */}
-          <div className="my-6 p-5 bg-[#0a0d12] border border-green/30 rounded-xl text-center relative z-10 shadow-inner">
-            <span className="text-[10px] text-text-tertiary uppercase tracking-widest font-semibold block mb-1">
-              Admission Ticket Number
-            </span>
-            <div className="text-3xl sm:text-4xl font-extrabold font-mono text-green tracking-wider my-1">
-              {ticket.ticketCode}
-            </div>
-            <p className="text-[11px] text-text-secondary">
-              Vendor #{ticket.ticketNumber} &middot; Registered for this edition
-            </p>
-          </div>
-
-          {/* Ticket Details Grid */}
-          <div className="space-y-2.5 bg-bg-input/60 border border-border/50 rounded-lg p-4 text-xs relative z-10">
-            <div className="flex justify-between items-center py-1 border-b border-border/30">
-              <span className="text-text-tertiary">Vendor Name</span>
-              <span className="font-semibold text-text-primary">{ticket.vendorName}</span>
-            </div>
-            {ticket.businessName && (
-              <div className="flex justify-between items-center py-1 border-b border-border/30">
-                <span className="text-text-tertiary">Business</span>
-                <span className="font-semibold text-text-primary">{ticket.businessName}</span>
+            {/* Barcode Graphic */}
+            <div className="pt-5 mt-4 border-t border-border/40 flex flex-col items-center justify-center opacity-80 select-none relative z-10">
+              <div className="h-8 flex items-end gap-1">
+                {[3, 1, 4, 1, 5, 9, 2, 6, 5, 3, 5, 8, 9, 7, 9, 3, 2, 3, 8, 4, 6, 2, 6, 4, 3, 3, 8, 3, 2, 7, 9, 5, 0, 2, 8, 8, 4, 1, 9, 7, 1, 6, 9, 3, 9, 9, 3, 7].map((h, i) => (
+                  <span
+                    key={i}
+                    className="w-0.5 bg-green/60 inline-block"
+                    style={{ height: `${12 + (h % 5) * 4}px` }}
+                  />
+                ))}
               </div>
-            )}
-            {ticket.category && (
-              <div className="flex justify-between items-center py-1 border-b border-border/30">
-                <span className="text-text-tertiary">Category</span>
-                <span className="font-semibold text-text-primary">{ticket.category}</span>
-              </div>
-            )}
-            {ticket.phone && (
-              <div className="flex justify-between items-center py-1 border-b border-border/30">
-                <span className="text-text-tertiary">Phone Number</span>
-                <span className="font-mono font-medium text-text-secondary">{ticket.phone}</span>
-              </div>
-            )}
-            <div className="flex justify-between items-center py-1">
-              <span className="text-text-tertiary">Issued At</span>
-              <span className="font-mono text-[11px] text-text-secondary">
-                {new Date(ticket.registeredAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+              <span className="font-mono text-[9px] tracking-widest text-text-tertiary mt-1">
+                {ticket.ticketCode} &bull; QUONNECT ADMISSION PASS
               </span>
             </div>
           </div>
 
-          {/* Single-Use Warning & Actions */}
-          <div className="mt-5 space-y-3 relative z-10">
+          {/* Single-Use Warning & Actions (outside downloaded card) */}
+          <div className="space-y-3">
             <div className="p-3 bg-amber/10 border border-amber/20 rounded-md text-[11px] text-amber flex items-start gap-2">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
               <span>
-                <strong>Single-Use Link Closed:</strong> This registration link has now expired and cannot be reused. Please screenshot or print this ticket for check-in on event day.
+                <strong>Single-Use Link Closed:</strong> This registration link has now expired and cannot be reused. Download or screenshot this pass for event day check-in.
               </span>
             </div>
 
-            <div className="flex gap-2 pt-1">
+            <div className="flex flex-wrap sm:flex-nowrap gap-2 pt-1">
               <Button
                 type="button"
                 variant="primary"
+                onClick={handleDownloadImage}
+                disabled={downloadingImage}
+                className="flex-1 py-3 flex items-center justify-center gap-2 text-xs font-bold cursor-pointer"
+              >
+                {downloadingImage ? (
+                  <Loader2 className="w-4 h-4 animate-spin text-white" />
+                ) : (
+                  <Download className="w-4 h-4" />
+                )}
+                <span>{downloadingImage ? 'Generating Image...' : 'Download Ticket (Image)'}</span>
+              </Button>
+              <Button
+                type="button"
+                variant="secondary"
                 onClick={() => window.print()}
-                className="flex-1 py-2.5 flex items-center justify-center gap-2 text-xs font-bold cursor-pointer"
+                className="py-3 px-4 flex items-center justify-center gap-1.5 text-xs font-semibold cursor-pointer"
               >
                 <Printer className="w-4 h-4" />
-                <span>Print / Save Ticket</span>
+                <span>Print</span>
               </Button>
               <Button
                 type="button"
@@ -648,7 +708,7 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
                   setCopiedTicket(true);
                   setTimeout(() => setCopiedTicket(false), 2000);
                 }}
-                className="px-4 py-2.5 flex items-center justify-center gap-1.5 text-xs font-semibold cursor-pointer"
+                className="py-3 px-4 flex items-center justify-center gap-1.5 text-xs font-semibold cursor-pointer"
               >
                 {copiedTicket ? <Check className="w-4 h-4 text-green" /> : <Copy className="w-4 h-4" />}
                 <span>{copiedTicket ? 'Copied!' : 'Copy Code'}</span>

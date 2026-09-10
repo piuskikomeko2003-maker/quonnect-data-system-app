@@ -32,6 +32,7 @@ import { VendorFeeEditModal } from '@/components/vendors/VendorFeeEditModal';
 import { PaidVendorCsvImportModal } from '@/components/vendors/PaidVendorCsvImportModal';
 import { PaidVendorImportHistoryModal } from '@/components/vendors/PaidVendorImportHistoryModal';
 import { IncompleteVendorsPanel } from '@/components/vendors/IncompleteVendorsPanel';
+import { DuplicateConfirmModal } from '@/components/ui/DuplicateConfirmModal';
 import { QuickEntryPanel } from '@/components/forms/QuickEntryPanel';
 import { FormBuilderShell } from '@/components/formbuilder/FormBuilderShell';
 import { FormBuilderPanel } from '@/components/formbuilder/FormBuilderPanel';
@@ -1439,6 +1440,15 @@ export default function Home() {
   // Incomplete Vendors Panel State
   const [showIncompleteVendors, setShowIncompleteVendors] = useState(false);
 
+  // Duplicate Survey Response Confirmation Modal State
+  const [duplicatePrompt, setDuplicatePrompt] = useState<{
+    isOpen: boolean;
+    vendorName: string;
+    editionName: string;
+    onConfirm: () => void;
+    onCancel: () => void;
+  } | null>(null);
+
   // Merge Proposal Queue Mock State
   const [mergeProposals, setMergeProposals] = useState<any[]>([]);
 
@@ -1841,49 +1851,110 @@ export default function Home() {
       }));
 
       let responseId: string;
-      try {
-        const snapshotPayload: Record<string, any> = {
-          form_id: formId,
-          context_type: 'market_day',
-          context_id: activeEdition.id,
-          vendor_id: vendorId,
-          source: 'manual',
+      const { data: existingResp } = await supabase
+        .from('survey_responses')
+        .select('id')
+        .eq('vendor_id', vendorId)
+        .eq('context_id', activeEdition.id)
+        .maybeSingle();
+
+      if (existingResp?.id) {
+        responseId = existingResp.id;
+
+        // Duplicate detected — prompt user to replace existing data or cancel
+        const shouldReplace = await new Promise<boolean>((resolve) => {
+          setDuplicatePrompt({
+            isOpen: true,
+            vendorName: contactName || answers.business_name || 'This Vendor',
+            editionName: activeEdition.name,
+            onConfirm: () => {
+              setDuplicatePrompt(null);
+              resolve(true);
+            },
+            onCancel: () => {
+              setDuplicatePrompt(null);
+              resolve(false);
+            },
+          });
+        });
+
+        if (!shouldReplace) {
+          addToast('Update cancelled. Existing survey data was kept.');
+          return;
+        }
+
+        // User confirmed replacement — update existing survey_responses row
+        const updatePayload: Record<string, any> = {
           submitted_at: new Date().toISOString(),
         };
         if (questionSnapshot.length > 0) {
-          snapshotPayload.form_schema_snapshot = questionSnapshot;
+          updatePayload.form_schema_snapshot = questionSnapshot;
         }
+        try {
+          await supabase.from('survey_responses').update(updatePayload).eq('id', responseId);
+        } catch {
+          await supabase.from('survey_responses').update({ submitted_at: new Date().toISOString() }).eq('id', responseId);
+        }
+      } else {
+        try {
+          const snapshotPayload: Record<string, any> = {
+            form_id: formId,
+            context_type: 'market_day',
+            context_id: activeEdition.id,
+            vendor_id: vendorId,
+            source: 'manual',
+            submitted_at: new Date().toISOString(),
+          };
+          if (questionSnapshot.length > 0) {
+            snapshotPayload.form_schema_snapshot = questionSnapshot;
+          }
 
-        const { data: resData, error: resError } = await supabase
-          .from('survey_responses')
-          .insert(snapshotPayload)
-          .select();
-
-        if (resError) throw resError;
-        if (!resData || resData.length === 0) throw new Error("Failed to insert survey response.");
-        responseId = resData[0].id;
-      } catch (snapshotErr: any) {
-        const isColumnMissing =
-          snapshotErr?.code === '42703' ||
-          (typeof snapshotErr?.message === 'string' &&
-            snapshotErr.message.includes('form_schema_snapshot'));
-        if (isColumnMissing) {
-          const { data: resData, error: fallbackErr } = await supabase
+          const { data: resData, error: resError } = await supabase
             .from('survey_responses')
-            .insert({
-              form_id: formId,
-              context_type: 'market_day',
-              context_id: activeEdition.id,
-              vendor_id: vendorId,
-              source: 'manual',
-              submitted_at: new Date().toISOString(),
-            })
+            .insert(snapshotPayload)
             .select();
-          if (fallbackErr) throw fallbackErr;
-          if (!resData || resData.length === 0) throw new Error("Failed to insert survey response.");
-          responseId = resData[0].id;
-        } else {
-          throw snapshotErr;
+
+          if (resError && (resError.code === '23505' || resError.message?.includes('unique'))) {
+            const { data: fallbackRow } = await supabase
+              .from('survey_responses')
+              .select('id')
+              .eq('vendor_id', vendorId)
+              .eq('context_id', activeEdition.id)
+              .maybeSingle();
+            if (fallbackRow?.id) {
+              responseId = fallbackRow.id;
+            } else {
+              throw resError;
+            }
+          } else if (resError) {
+            throw resError;
+          } else {
+            if (!resData || resData.length === 0) throw new Error("Failed to insert survey response.");
+            responseId = resData[0].id;
+          }
+        } catch (snapshotErr: any) {
+          const isColumnMissing =
+            snapshotErr?.code === '42703' ||
+            (typeof snapshotErr?.message === 'string' &&
+              snapshotErr.message.includes('form_schema_snapshot'));
+          if (isColumnMissing) {
+            const { data: resData, error: fallbackErr } = await supabase
+              .from('survey_responses')
+              .insert({
+                form_id: formId,
+                context_type: 'market_day',
+                context_id: activeEdition.id,
+                vendor_id: vendorId,
+                source: 'manual',
+                submitted_at: new Date().toISOString(),
+              })
+              .select();
+            if (fallbackErr) throw fallbackErr;
+            if (!resData || resData.length === 0) throw new Error("Failed to insert survey response.");
+            responseId = resData[0].id;
+          } else {
+            throw snapshotErr;
+          }
         }
       }
 
@@ -1902,8 +1973,11 @@ export default function Home() {
       }
 
       if (answersToInsert.length > 0) {
+        await supabase.from('survey_answers').delete().eq('response_id', responseId);
         const { error: ansError } = await supabase.from('survey_answers').insert(answersToInsert);
-        if (ansError) throw ansError;
+        if (ansError) {
+          console.warn('survey_answers insert warning:', ansError.message);
+        }
       }
 
       // Auto-create walk-in record — surveyed vendor counts as present
@@ -4294,6 +4368,18 @@ export default function Home() {
           questions={formQuestions[previewFormId] || []}
         />
       )}
+
+      {/* Duplicate Record Confirmation Modal */}
+      {duplicatePrompt && (
+        <DuplicateConfirmModal
+          isOpen={duplicatePrompt.isOpen}
+          vendorName={duplicatePrompt.vendorName}
+          editionName={duplicatePrompt.editionName}
+          onConfirm={duplicatePrompt.onConfirm}
+          onCancel={duplicatePrompt.onCancel}
+        />
+      )}
+
       {/* Toast container */}
       <div className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-2 max-w-sm pointer-events-none">
         {toasts.map((toast) => (

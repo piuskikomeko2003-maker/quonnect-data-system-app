@@ -105,13 +105,8 @@ export const PaidVendorDetailsModal: React.FC<PaidVendorDetailsModalProps> = ({
 
       const amountNum = parseInt(form.amount_paid.replace(/[^0-9]/g, ''), 10) || 0;
 
-      // 1. Update vendor_registrations row
+      // 1. Update vendor_registrations row (only registration columns)
       const regPayload: Record<string, any> = {
-        business_name: form.business_name.trim(),
-        contact_name: form.contact_name.trim(),
-        phone: form.phone.trim(),
-        email: form.email.trim(),
-        category: form.category,
         amount_paid: amountNum,
         payment_status: form.payment_status,
         updated_at: new Date().toISOString(),
@@ -124,8 +119,22 @@ export const PaidVendorDetailsModal: React.FC<PaidVendorDetailsModalProps> = ({
 
       if (regErr) throw regErr;
 
-      // 2. If there's a linked vendor record, sync profile fields
-      if (vendor.vendor_id) {
+      // 2. Identify the linked vendor_id
+      let targetVendorId = vendor.vendor_id;
+      if (!targetVendorId) {
+        const { data: regRow } = await supabase
+          .from('vendor_registrations')
+          .select('vendor_id')
+          .eq('id', vendor.id)
+          .maybeSingle();
+
+        if (regRow?.vendor_id) {
+          targetVendorId = regRow.vendor_id;
+        }
+      }
+
+      // 3. Update or link the vendor profile in `vendors` table
+      if (targetVendorId) {
         const { error: vendErr } = await supabase
           .from('vendors')
           .update({
@@ -136,9 +145,32 @@ export const PaidVendorDetailsModal: React.FC<PaidVendorDetailsModalProps> = ({
             category: form.category || undefined,
             updated_at: new Date().toISOString(),
           })
-          .eq('id', vendor.vendor_id);
+          .eq('id', targetVendorId);
 
-        if (vendErr) console.warn('Vendor profile sync failed (non-fatal):', vendErr.message);
+        if (vendErr) throw vendErr;
+      } else if (form.business_name.trim() || form.contact_name.trim() || form.phone.trim()) {
+        // If registration was missing a linked vendor, create one now and link it
+        const { data: newVendor, error: createVendErr } = await supabase
+          .from('vendors')
+          .insert({
+            business_name: form.business_name.trim() || form.contact_name.trim() || 'Vendor',
+            contact_name: form.contact_name.trim() || undefined,
+            phone: form.phone.trim() || undefined,
+            email: form.email.trim() || undefined,
+            category: form.category || undefined,
+            is_active: true,
+          })
+          .select('id')
+          .single();
+
+        if (createVendErr) {
+          console.warn('Vendor creation failed:', createVendErr.message);
+        } else if (newVendor?.id) {
+          await supabase
+            .from('vendor_registrations')
+            .update({ vendor_id: newVendor.id })
+            .eq('id', vendor.id);
+        }
       }
 
       setSuccess(true);

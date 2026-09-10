@@ -3,6 +3,7 @@
 import React, { useState, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { DynamicQuickEntryForm, FormDataCache } from '@/components/forms/DynamicQuickEntryForm';
+import { DuplicateConfirmModal } from '@/components/ui/DuplicateConfirmModal';
 import {
   X,
   Loader2,
@@ -84,6 +85,14 @@ export const PaidVendorCollectionModal: React.FC<PaidVendorCollectionModalProps>
   const [error, setError] = useState<string | null>(null);
   const [prefillAnswers, setPrefillAnswers] = useState<Record<string, string>>({});
   const [prefillSource, setPrefillSource] = useState<Record<string, 'registration' | 'last_visit' | 'both'>>({});
+  const [existingResponseId, setExistingResponseId] = useState<string | null>(null);
+  const [duplicatePrompt, setDuplicatePrompt] = useState<{
+    isOpen: boolean;
+    vendorName: string;
+    editionName: string;
+    onConfirm: () => void;
+    onCancel: () => void;
+  } | null>(null);
   const [formDataCache, setFormDataCache] = useState<FormDataCache | undefined>(undefined);
   const [ready, setReady] = useState(false);
 
@@ -93,6 +102,7 @@ export const PaidVendorCollectionModal: React.FC<PaidVendorCollectionModalProps>
     setLoading(true);
     setError(null);
     setReady(false);
+    setExistingResponseId(null);
 
     try {
       const supabase = createClient();
@@ -120,7 +130,8 @@ export const PaidVendorCollectionModal: React.FC<PaidVendorCollectionModalProps>
       const priorSources: Record<string, 'last_visit'> = {};
 
       if (vendor.vendor_id) {
-        const { data: priorResponses } = await supabase
+        // First, check if this vendor already has a survey response for the current edition
+        const { data: currentResponses } = await supabase
           .from('survey_responses')
           .select(`
             id,
@@ -131,18 +142,48 @@ export const PaidVendorCollectionModal: React.FC<PaidVendorCollectionModalProps>
             )
           `)
           .eq('vendor_id', vendor.vendor_id)
-          .neq('context_id', activeEdition.id)
-          .order('submitted_at', { ascending: false })
+          .eq('context_id', activeEdition.id)
           .limit(1);
 
-        const prior = priorResponses?.[0];
-        if (prior?.survey_answers) {
-          for (const a of prior.survey_answers) {
-            const q = (a as any).survey_questions;
-            const csvCol = q?.csv_column;
-            if (csvCol && a.answer && PREFILL_FIELDS.has(csvCol)) {
-              priorFields[csvCol] = a.answer;
-              priorSources[csvCol] = 'last_visit';
+        if (currentResponses && currentResponses.length > 0) {
+          const curr = currentResponses[0];
+          setExistingResponseId(curr.id);
+          if (curr.survey_answers) {
+            for (const a of curr.survey_answers) {
+              const q = (a as any).survey_questions;
+              const csvCol = q?.csv_column;
+              if (csvCol && a.answer) {
+                prefill[csvCol] = a.answer;
+                sources[csvCol] = 'registration';
+              }
+            }
+          }
+        } else {
+          // If not in current edition, check most recent response from past editions
+          const { data: priorResponses } = await supabase
+            .from('survey_responses')
+            .select(`
+              id,
+              submitted_at,
+              survey_answers (
+                answer,
+                survey_questions ( csv_column )
+              )
+            `)
+            .eq('vendor_id', vendor.vendor_id)
+            .neq('context_id', activeEdition.id)
+            .order('submitted_at', { ascending: false })
+            .limit(1);
+
+          const prior = priorResponses?.[0];
+          if (prior?.survey_answers) {
+            for (const a of prior.survey_answers) {
+              const q = (a as any).survey_questions;
+              const csvCol = q?.csv_column;
+              if (csvCol && a.answer && PREFILL_FIELDS.has(csvCol)) {
+                priorFields[csvCol] = a.answer;
+                priorSources[csvCol] = 'last_visit';
+              }
             }
           }
         }
@@ -307,8 +348,62 @@ export const PaidVendorCollectionModal: React.FC<PaidVendorCollectionModalProps>
       }
     }
 
-    let responseId: string;
-    try {
+    let responseId: string = existingResponseId || '';
+
+    if (!responseId) {
+      const { data: existingResp } = await supabase
+        .from('survey_responses')
+        .select('id')
+        .eq('vendor_id', vendorId)
+        .eq('context_id', activeEdition.id)
+        .maybeSingle();
+
+      if (existingResp?.id) {
+        responseId = existingResp.id;
+      }
+    }
+
+    if (responseId) {
+      // Vendor already has a response for this edition — ask user to confirm replacement or cancel
+      const shouldReplace = await new Promise<boolean>((resolve) => {
+        setDuplicatePrompt({
+          isOpen: true,
+          vendorName: vendor.business_name || vendor.contact_name || answers.business_name || 'This Vendor',
+          editionName: activeEdition.name,
+          onConfirm: () => {
+            setDuplicatePrompt(null);
+            resolve(true);
+          },
+          onCancel: () => {
+            setDuplicatePrompt(null);
+            resolve(false);
+          },
+        });
+      });
+
+      if (!shouldReplace) {
+        return {
+          synced: false,
+          message: 'Update cancelled. Existing survey data was kept unchanged.',
+          name: vendor.contact_name || vendor.business_name,
+        };
+      }
+
+      // User confirmed replacement — update existing record
+      const updatePayload: Record<string, any> = {
+        submitted_at: new Date().toISOString(),
+      };
+      if (questionSnapshot.length > 0) {
+        updatePayload.form_schema_snapshot = questionSnapshot;
+      }
+
+      try {
+        await supabase.from('survey_responses').update(updatePayload).eq('id', responseId);
+      } catch {
+        await supabase.from('survey_responses').update({ submitted_at: new Date().toISOString() }).eq('id', responseId);
+      }
+    } else {
+      // First response for this edition — insert
       const snapshotPayload: Record<string, any> = {
         form_id: formId,
         context_type: 'market_day',
@@ -327,34 +422,43 @@ export const PaidVendorCollectionModal: React.FC<PaidVendorCollectionModalProps>
         .select()
         .single();
 
-      if (resError) throw resError;
-      if (!resData) throw new Error('Failed to create survey response');
-      responseId = resData.id;
-    } catch (snapshotErr: any) {
-      const isColumnMissing =
-        snapshotErr?.code === '42703' ||
-        (typeof snapshotErr?.message === 'string' &&
-          snapshotErr.message.includes('form_schema_snapshot'));
-      if (isColumnMissing) {
-        const { data: resData, error: fallbackErr } = await supabase
+      if (resError && (resError.code === '23505' || resError.message?.includes('unique'))) {
+        // Handled race condition: row was created concurrently
+        const { data: existingRow } = await supabase
           .from('survey_responses')
-          .insert({
-            form_id: formId,
-            context_type: 'market_day',
-            context_id: activeEdition.id,
-            vendor_id: vendorId,
-            source: 'manual',
-            submitted_at: new Date().toISOString(),
-          })
-          .select()
-          .single();
-        if (fallbackErr) throw fallbackErr;
-        if (!resData) throw new Error('Failed to create survey response');
+          .select('id')
+          .eq('vendor_id', vendorId)
+          .eq('context_id', activeEdition.id)
+          .maybeSingle();
+        if (existingRow?.id) {
+          responseId = existingRow.id;
+        } else {
+          throw resError;
+        }
+      } else if (resError) {
+        const isColumnMissing =
+          resError?.code === '42703' ||
+          (typeof resError?.message === 'string' &&
+            resError.message.includes('form_schema_snapshot'));
+        if (isColumnMissing) {
+          delete snapshotPayload.form_schema_snapshot;
+          const { data: fbData, error: fallbackErr } = await supabase
+            .from('survey_responses')
+            .insert(snapshotPayload)
+            .select()
+            .single();
+          if (fallbackErr) throw fallbackErr;
+          if (!fbData) throw new Error('Failed to create survey response');
+          responseId = fbData.id;
+        } else {
+          throw resError;
+        }
+      } else if (resData?.id) {
         responseId = resData.id;
-      } else {
-        throw snapshotErr;
       }
     }
+
+    if (!responseId) throw new Error('Failed to resolve survey response ID');
 
     const answersToInsert = [];
     for (const [csvCol, val] of Object.entries(answers)) {
@@ -371,8 +475,12 @@ export const PaidVendorCollectionModal: React.FC<PaidVendorCollectionModalProps>
     }
 
     if (answersToInsert.length > 0) {
+      // Clean previous answers for this response to prevent duplicate key or stale values
+      await supabase.from('survey_answers').delete().eq('response_id', responseId);
       const { error: ansErr } = await supabase.from('survey_answers').insert(answersToInsert);
-      if (ansErr) throw ansErr;
+      if (ansErr) {
+        console.warn('survey_answers insert warning:', ansErr.message);
+      }
     }
 
     const contactName = answers.full_name || answers.contact_name || vendor.contact_name;
@@ -549,6 +657,16 @@ export const PaidVendorCollectionModal: React.FC<PaidVendorCollectionModalProps>
           )}
         </div>
       </div>
+
+      {duplicatePrompt && (
+        <DuplicateConfirmModal
+          isOpen={duplicatePrompt.isOpen}
+          vendorName={duplicatePrompt.vendorName}
+          editionName={duplicatePrompt.editionName}
+          onConfirm={duplicatePrompt.onConfirm}
+          onCancel={duplicatePrompt.onCancel}
+        />
+      )}
     </div>
   );
 };

@@ -485,6 +485,51 @@ export default function CollectPage() {
     async (answers: Record<string, string>, submissionId?: string): Promise<{ synced: boolean; message?: string; name?: string; ticketData?: any }> => {
       if (!edition) throw new Error('No edition');
 
+      // 1. Try atomic server-side endpoint with mutex / advisory locking (handles 300+ concurrent registrations safely)
+      try {
+        const res = await fetch('/api/collect/paid-register', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            token,
+            edition_id: edition.id,
+            edition_name: edition.name,
+            answers,
+            submission_id: submissionId,
+          }),
+        });
+
+        const data = await res.json();
+        if (res.ok && data.success && data.ticketData) {
+          try {
+            localStorage.setItem(`ticket_${token}`, JSON.stringify(data.ticketData));
+          } catch {}
+
+          setRunningCount(c => c + 1);
+          setSuccessState({
+            show: true,
+            name: data.ticketData.vendorName || data.ticketData.businessName,
+            ticketData: data.ticketData,
+            onAddAnother: () => {},
+          });
+
+          return {
+            synced: true,
+            name: data.ticketData.businessName || data.ticketData.vendorName,
+            ticketData: data.ticketData,
+          };
+        } else if (!res.ok) {
+          throw new Error(data.error || 'Registration failed');
+        }
+      } catch (apiErr: any) {
+        if (apiErr?.message?.includes('already been used') || apiErr?.message?.includes('Invalid registration link')) {
+          throw apiErr;
+        }
+        const isNetwork = apiErr instanceof TypeError || apiErr?.message?.includes('fetch') || apiErr?.message?.includes('network');
+        if (!isNetwork) throw apiErr;
+      }
+
+      // 2. Direct client-side fallback (used for offline or direct DB access)
       const supabase = createClient();
       if (!supabase) throw new Error('Client not initialized');
 
@@ -514,41 +559,27 @@ export default function CollectPage() {
       const amountPaid = answers.amount_paid ? parseFloat(answers.amount_paid) : 0;
       const paymentStatus = answers.payment_status || 'paid';
 
-      const { data: existing } = await supabase
+      // Upsert vendor record atomically
+      const { data: upserted, error: insErr } = await supabase
         .from('vendors')
-        .select('id')
-        .eq('phone', phone)
-        .limit(1);
-
-      let vendorId: string;
-      if (existing && existing.length > 0) {
-        vendorId = existing[0].id;
-        await supabase
-          .from('vendors')
-          .update({
-            business_name: businessName,
-            contact_name: contactName,
-            email: answers.email || '',
-            category,
-            is_active: true,
-          })
-          .eq('id', vendorId);
-      } else {
-        const { data: inserted, error: insErr } = await supabase
-          .from('vendors')
-          .insert({
+        .upsert(
+          {
             business_name: businessName || contactName || 'Unknown Vendor',
             contact_name: contactName,
             phone,
             email: answers.email || '',
             category,
             is_active: true,
-          })
-          .select();
-        if (insErr) throw new Error('Failed to create vendor: ' + insErr.message);
-        if (!inserted || inserted.length === 0) throw new Error('Failed to create vendor — no row returned');
-        vendorId = inserted[0].id;
+          },
+          { onConflict: 'phone' }
+        )
+        .select('id')
+        .single();
+
+      if (insErr || !upserted) {
+        throw new Error('Failed to create vendor: ' + (insErr?.message || 'no row returned'));
       }
+      const vendorId = upserted.id;
 
       const { data: existingReg } = await supabase
         .from('vendor_registrations')
