@@ -4,7 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { validateTicketFieldPositions, TicketTemplate } from '@/types/ticketTemplate';
 
-async function requireAdmin(): Promise<NextResponse | null> {
+async function requireSuperAdmin(): Promise<NextResponse | null> {
   const cookieStore = await cookies();
   const supabase = createClient(cookieStore);
   const { data: { user } } = await supabase.auth.getUser();
@@ -19,7 +19,7 @@ async function requireAdmin(): Promise<NextResponse | null> {
     .eq('user_id', user.id)
     .maybeSingle() as { data: { role: string } | null; error: unknown };
 
-  if (!profile || (profile.role !== 'admin' && profile.role !== 'super_admin')) {
+  if (!profile || profile.role !== 'super_admin') {
     return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
   }
 
@@ -87,7 +87,7 @@ export async function GET(request: NextRequest) {
 
 // POST /api/tickets/templates
 export async function POST(request: NextRequest) {
-  const authError = await requireAdmin();
+  const authError = await requireSuperAdmin();
   if (authError) return authError;
 
   try {
@@ -178,7 +178,7 @@ export async function POST(request: NextRequest) {
 
 // DELETE /api/tickets/templates?edition_id=...
 export async function DELETE(request: NextRequest) {
-  const authError = await requireAdmin();
+  const authError = await requireSuperAdmin();
   if (authError) return authError;
 
   try {

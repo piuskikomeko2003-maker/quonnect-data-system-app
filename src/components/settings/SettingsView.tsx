@@ -18,6 +18,8 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   currentUserId,
 }) => {
   const [activeTab, setActiveTab] = useState<'standard-fees' | 'ticket-templates' | 'walkin-estimates' | 'users'>('standard-fees');
+  const isSuperAdmin = currentUserRole === 'super_admin';
+  const visibleTab = !isSuperAdmin && activeTab === 'ticket-templates' ? 'standard-fees' : activeTab;
 
   return (
     <div className="space-y-6 text-left animate-fade-in max-w-6xl mx-auto">
@@ -40,7 +42,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         <button
           onClick={() => setActiveTab('standard-fees')}
           className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-lg transition-all border-b-2 -mb-px cursor-pointer whitespace-nowrap ${
-            activeTab === 'standard-fees'
+            visibleTab === 'standard-fees'
               ? 'text-accent border-accent bg-accent-soft/40'
               : 'text-text-muted border-transparent hover:text-text-primary hover:bg-slate-100'
           }`}
@@ -49,22 +51,24 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           Standard Vendor Fees
         </button>
 
-        <button
-          onClick={() => setActiveTab('ticket-templates')}
-          className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-lg transition-all border-b-2 -mb-px cursor-pointer whitespace-nowrap ${
-            activeTab === 'ticket-templates'
-              ? 'text-accent border-accent bg-accent-soft/40'
-              : 'text-text-muted border-transparent hover:text-text-primary hover:bg-slate-100'
-          }`}
-        >
-          <Ticket className="w-4 h-4" />
-          Ticket Templates
-        </button>
+        {isSuperAdmin && (
+          <button
+            onClick={() => setActiveTab('ticket-templates')}
+            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-lg transition-all border-b-2 -mb-px cursor-pointer whitespace-nowrap ${
+              visibleTab === 'ticket-templates'
+                ? 'text-accent border-accent bg-accent-soft/40'
+                : 'text-text-muted border-transparent hover:text-text-primary hover:bg-slate-100'
+            }`}
+          >
+            <Ticket className="w-4 h-4" />
+            Ticket Templates
+          </button>
+        )}
 
         <button
           onClick={() => setActiveTab('users')}
           className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-lg transition-all border-b-2 -mb-px cursor-pointer whitespace-nowrap ${
-            activeTab === 'users'
+            visibleTab === 'users'
               ? 'text-accent border-accent bg-accent-soft/40'
               : 'text-text-muted border-transparent hover:text-text-primary hover:bg-slate-100'
           }`}
@@ -76,7 +80,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
         <button
           onClick={() => setActiveTab('walkin-estimates')}
           className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-lg transition-all border-b-2 -mb-px cursor-pointer whitespace-nowrap ${
-            activeTab === 'walkin-estimates'
+            visibleTab === 'walkin-estimates'
               ? 'text-accent border-accent bg-accent-soft/40'
               : 'text-text-muted border-transparent hover:text-text-primary hover:bg-slate-100'
           }`}
@@ -88,10 +92,10 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
 
       {/* Tab Panels */}
       <div className="pt-2">
-        {activeTab === 'standard-fees' && <StandardFeeSettings />}
-        {activeTab === 'ticket-templates' && <TicketTemplateSettings />}
-        {activeTab === 'walkin-estimates' && <WalkinEstimateSettings />}
-        {activeTab === 'users' && (
+        {visibleTab === 'standard-fees' && <StandardFeeSettings />}
+        {visibleTab === 'ticket-templates' && isSuperAdmin && <TicketTemplateSettings />}
+        {visibleTab === 'walkin-estimates' && <WalkinEstimateSettings />}
+        {visibleTab === 'users' && (
           <UserManagementSettings
             currentUserRole={currentUserRole}
             currentUserId={currentUserId}
