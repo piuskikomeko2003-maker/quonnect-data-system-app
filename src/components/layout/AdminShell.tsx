@@ -21,7 +21,6 @@ import {
   AlertCircle,
   CreditCard,
   Briefcase,
-  UserCheck,
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
@@ -107,7 +106,6 @@ export const AdminShell: React.FC<AdminShellProps> = ({
       items: [
         { id: 'formbuilder', name: 'Form Builder', icon: <ClipboardList className="w-5 h-5" /> },
         { id: 'markets', name: 'Create Market', icon: <Store className="w-5 h-5" /> },
-        { id: 'users', name: 'Users & Roles', icon: <UserCheck className="w-5 h-5" /> },
         { id: 'settings', name: 'Settings', icon: <Settings className="w-5 h-5" /> },
       ]
     }
@@ -124,7 +122,6 @@ export const AdminShell: React.FC<AdminShellProps> = ({
       case 'formbuilder': return <ClipboardList className="w-5 h-5" />;
       case 'markets': return <Store className="w-5 h-5" />;
       case 'jobs': return <Briefcase className="w-5 h-5" />;
-      case 'users': return <UserCheck className="w-5 h-5" />;
       case 'settings': return <Settings className="w-5 h-5" />;
       default: return <Building2 className="w-5 h-5" />;
     }

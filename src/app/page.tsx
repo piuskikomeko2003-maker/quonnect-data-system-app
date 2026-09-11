@@ -7,7 +7,6 @@ import { useAuth } from '@/hooks/useAuth';
 import { useRegion } from '@/context/RegionContext';
 import { AdminShell } from '@/components/layout/AdminShell';
 import { SettingsView } from '@/components/settings/SettingsView';
-import { UserManagementSettings } from '@/components/settings/UserManagementSettings';
 import { PendingApprovalView } from '@/components/auth/PendingApprovalView';
 import { importCSV } from '@/utils/csvImport';
 import { resolveGender, isGenderColumn, isGenderValue } from '@/utils/gender';
@@ -4128,18 +4127,8 @@ export default function Home() {
           />
         )}
 
-        {/* USERS MANAGEMENT */}
-        {activeNav === 'users' && (
-          <div className="p-8 max-w-7xl mx-auto space-y-6">
-            <UserManagementSettings
-              currentUserRole={role}
-              currentUserId={profile?.user_id || ''}
-            />
-          </div>
-        )}
-
         {/* 7. OTHER SYSTEM PLACES (PLACEHOLDERS) */}
-        {!['overview', 'vendors', 'walkins', 'quick-entry', 'formbuilder', 'import-export', 'markets', 'jobs', 'paid-vendors', 'settings', 'users'].includes(activeNav) && (
+        {!['overview', 'vendors', 'walkins', 'quick-entry', 'formbuilder', 'import-export', 'markets', 'jobs', 'paid-vendors', 'settings'].includes(activeNav) && (
           <div className="py-24 text-center border border-dashed border-border rounded-lg select-none text-left animate-fade-in">
             <ClipboardList className="w-12 h-12 text-green mx-auto mb-3 opacity-80" />
             <h3 className="text-sm font-bold text-text-primary">Module Under Implementation</h3>

@@ -14,11 +14,22 @@ export async function GET() {
     }
 
     const serviceClient = createServiceClient();
-    const { data: profile } = await serviceClient
+    let { data: profile } = await serviceClient
       .from('user_profiles')
       .select('*')
       .eq('user_id', user.id)
       .maybeSingle();
+
+    // Self-heal: if the signup trigger ever failed to create a profile,
+    // create one in Pending Approval so the account is visible to admins.
+    if (!profile) {
+      const { data: created } = await (serviceClient
+        .from('user_profiles') as any)
+        .insert({ user_id: user.id, email: user.email ?? '', role: 'unassigned' })
+        .select()
+        .single();
+      profile = created ?? null;
+    }
 
     return NextResponse.json({
       id: user.id,

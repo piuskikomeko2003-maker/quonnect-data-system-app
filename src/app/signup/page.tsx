@@ -18,35 +18,49 @@ export default function SignupPage() {
   const [currentUser, setCurrentUser] = useState<{ id: string; email?: string } | null>(null);
 
   useEffect(() => {
-    // Read email query param if prefilled via invitation link
-    if (typeof window !== 'undefined') {
+    let active = true;
+
+    const init = async () => {
+      if (typeof window === 'undefined') return;
+      const supabase = createClient();
+
       const params = new URLSearchParams(window.location.search);
       const prefillEmail = params.get('email');
       if (prefillEmail) {
         setEmail(decodeURIComponent(prefillEmail));
       }
-      if (params.get('signout') === 'true' || params.get('logout') === 'true') {
-        const supabase = createClient();
-        supabase.auth.signOut().finally(() => {
-          setCurrentUser(null);
-          setChecking(false);
-        });
+
+      const forcedSignOut =
+        params.get('signout') === 'true' || params.get('logout') === 'true';
+
+      // Invitation links must never inherit an existing session, otherwise a
+      // recipient could open the link on a device where an admin (or any other
+      // user) is signed in and end up inside that account.
+      if (forcedSignOut || prefillEmail) {
+        await supabase.auth.signOut().catch(() => {});
+        if (!active) return;
+        setCurrentUser(null);
+        setChecking(false);
         return;
       }
-    }
 
-    const supabase = createClient();
-    supabase.auth
-      .getUser()
-      .then(({ data }: { data: { user: any } }) => {
-        if (data?.user) {
+      try {
+        const { data } = await supabase.auth.getUser();
+        if (active && data?.user) {
           setCurrentUser(data.user);
         }
-        setChecking(false);
-      })
-      .catch(() => {
-        setChecking(false);
-      });
+      } catch {
+        // ignore — fall through to the signup form
+      } finally {
+        if (active) setChecking(false);
+      }
+    };
+
+    init();
+
+    return () => {
+      active = false;
+    };
   }, []);
 
   const handleSignOut = async () => {
@@ -146,21 +160,14 @@ export default function SignupPage() {
             <p className="text-[11px] text-text-muted mt-1 truncate">
               {currentUser.email}
             </p>
-            <div className="mt-3 flex gap-2">
-              <Link
-                href="/"
-                className="flex-1 py-1.5 px-2.5 rounded-lg bg-accent text-white text-xs font-bold text-center hover:bg-accent-hover transition-colors inline-flex items-center justify-center gap-1 shadow-2xs"
-              >
-                <span>Dashboard</span>
-                <ArrowRight className="w-3.5 h-3.5" />
-              </Link>
+            <div className="mt-3">
               <button
                 type="button"
                 onClick={handleSignOut}
-                className="py-1.5 px-2.5 rounded-lg border border-border bg-white text-text-secondary text-xs font-medium hover:text-text-primary hover:bg-slate-100 transition-colors inline-flex items-center justify-center gap-1 cursor-pointer"
+                className="w-full py-1.5 px-2.5 rounded-lg border border-border bg-white text-text-secondary text-xs font-medium hover:text-text-primary hover:bg-slate-100 transition-colors inline-flex items-center justify-center gap-1 cursor-pointer"
               >
                 <LogOut className="w-3.5 h-3.5" />
-                <span>Sign Out</span>
+                <span>Sign out &amp; create a new account</span>
               </button>
             </div>
           </div>
@@ -187,6 +194,10 @@ export default function SignupPage() {
               </Link>
             </div>
           </div>
+        ) : currentUser ? (
+          <p className="text-xs text-text-secondary text-center py-4">
+            You&apos;re currently signed in. Sign out above to create a new account.
+          </p>
         ) : (
           <form onSubmit={handleSignup} className="space-y-4">
             {error && (
