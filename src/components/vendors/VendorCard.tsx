@@ -17,10 +17,10 @@ export interface VendorCardProps {
 }
 
 const REGISTRATION_BADGES: Record<string, { label: string; color: string }> = {
-  survey: { label: 'Field Data', color: 'bg-blue-500' },
-  paid: { label: 'Registered', color: 'bg-green-500' },
-  both: { label: 'Registered + Surveyed', color: 'bg-purple-500' },
-  unknown: { label: 'Unverified', color: 'bg-gray-400' },
+  survey: { label: 'Field Data', color: 'bg-accent' },
+  paid: { label: 'Registered', color: 'bg-emerald-600' },
+  both: { label: 'Registered + Surveyed', color: 'bg-purple-600' },
+  unknown: { label: 'Unverified', color: 'bg-slate-400' },
 };
 
 export const VendorCard: React.FC<VendorCardProps> = ({

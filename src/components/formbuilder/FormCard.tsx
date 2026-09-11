@@ -42,7 +42,7 @@ export const FormCard: React.FC<FormCardProps> = ({
       <div className="space-y-4 flex-1">
         <div className="flex justify-between items-start">
           <div className="flex items-center gap-3">
-            <div className={`p-2 rounded-md shrink-0 ${form.comingSoon ? 'bg-bg-input text-text-tertiary' : 'bg-green-muted text-green'}`}>
+            <div className={`p-2 rounded-md shrink-0 ${form.comingSoon ? 'bg-bg-input text-text-tertiary' : 'bg-accent-soft text-accent'}`}>
               <FileText className="w-5 h-5" />
             </div>
             <div>
@@ -110,7 +110,7 @@ export const FormCard: React.FC<FormCardProps> = ({
 
       {/* Coming Soon Dark Overlay */}
       {form.comingSoon && (
-        <div className="absolute inset-0 bg-black/30 backdrop-blur-[0.5px] pointer-events-none" />
+        <div className="absolute inset-0 bg-white/60 backdrop-blur-[0.5px] pointer-events-none" />
       )}
     </Card>
   );

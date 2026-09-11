@@ -40,13 +40,13 @@ export const Modal: React.FC<ModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/70 animate-fade-in backdrop-blur-sm">
+    <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-slate-900/40 animate-fade-in backdrop-blur-xs">
       <div 
         className="fixed inset-0" 
         onClick={onClose} 
         aria-hidden="true"
       />
-      <div className={`relative w-full ${maxWidthClasses[maxWidth]} bg-bg-surface border border-border-light rounded-xl md:rounded-xl shadow-modal max-h-[85vh] overflow-y-auto p-6 md:p-7 z-10 text-left transition-all duration-200`}>
+      <div className={`relative w-full ${maxWidthClasses[maxWidth]} bg-bg-surface border border-border rounded-xl md:rounded-xl shadow-modal max-h-[85vh] overflow-y-auto p-6 md:p-7 z-10 text-left transition-all duration-200`}>
         {title && (
           <div className="flex items-center gap-3 border-b border-border pb-4 mb-5">
             {typeof title === 'string' ? (

@@ -80,21 +80,21 @@ export const IncompleteVendorsPanel: React.FC<IncompleteVendorsPanelProps> = ({
           {onBack && (
             <button
               onClick={onBack}
-              className="flex items-center gap-1 text-xs text-gray-400 hover:text-white transition-colors mr-1 font-medium"
+              className="flex items-center gap-1 text-xs text-text-secondary hover:text-text-primary transition-colors mr-1 font-medium cursor-pointer"
             >
               <ChevronLeft className="w-4 h-4" /> Back
             </button>
           )}
           <div className="w-1.5 h-5 bg-amber-500 rounded-full" />
           <div>
-            <h2 className="text-lg font-bold tracking-tight text-white">Incomplete Vendors</h2>
-            <p className="text-xs text-gray-400 mt-0.5">
+            <h2 className="text-lg font-bold tracking-tight text-text-primary">Incomplete Vendors</h2>
+            <p className="text-xs text-text-secondary mt-0.5">
               Vendors imported via CSV with name only — fill in missing details to complete their profiles.
             </p>
           </div>
         </div>
         {!loading && (
-          <span className="text-[10px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded-full uppercase tracking-wider">
+          <span className="text-[10px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-3 py-1 rounded-full uppercase tracking-wider">
             {vendors.length} Pending
           </span>
         )}
@@ -102,15 +102,15 @@ export const IncompleteVendorsPanel: React.FC<IncompleteVendorsPanelProps> = ({
 
       {/* Loading */}
       {loading && (
-        <div className="flex items-center justify-center gap-2 py-16 text-gray-400">
-          <Loader2 className="w-5 h-5 animate-spin" />
+        <div className="flex items-center justify-center gap-2 py-16 text-text-tertiary">
+          <Loader2 className="w-5 h-5 animate-spin text-accent" />
           <span className="text-sm font-medium">Loading incomplete vendors...</span>
         </div>
       )}
 
       {/* Error */}
       {error && !loading && (
-        <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3 text-red-400 text-sm">
+        <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-red-700 text-sm">
           <AlertCircle className="w-5 h-5 shrink-0" />
           {error}
         </div>
@@ -119,11 +119,11 @@ export const IncompleteVendorsPanel: React.FC<IncompleteVendorsPanelProps> = ({
       {/* Empty state */}
       {!loading && !error && vendors.length === 0 && (
         <div className="flex flex-col items-center justify-center gap-3 py-20 select-none">
-          <div className="w-16 h-16 rounded-2xl bg-green-500/10 flex items-center justify-center">
-            <CheckCircle2 className="w-8 h-8 text-green-400" />
+          <div className="w-16 h-16 rounded-2xl bg-emerald-50 border border-emerald-200 flex items-center justify-center">
+            <CheckCircle2 className="w-8 h-8 text-emerald-600" />
           </div>
-          <p className="text-sm font-bold text-white">All vendor profiles are complete</p>
-          <p className="text-xs text-gray-400 text-center max-w-xs">
+          <p className="text-sm font-bold text-text-primary">All vendor profiles are complete</p>
+          <p className="text-xs text-text-secondary text-center max-w-xs">
             No incomplete records found. CSV-imported vendors with missing details will appear here.
           </p>
         </div>
@@ -137,13 +137,13 @@ export const IncompleteVendorsPanel: React.FC<IncompleteVendorsPanelProps> = ({
               <button
                 key={vendor.id}
                 onClick={() => onFillDetails?.(vendor)}
-                className="w-full text-left bg-[#0f1117] border border-white/5 hover:border-white/15 rounded-xl p-4 flex items-center gap-3 transition-all cursor-pointer group"
+                className="w-full text-left bg-white border border-border hover:border-accent/40 hover:bg-slate-50 rounded-xl p-4 flex items-center gap-3 transition-all cursor-pointer group shadow-xs"
               >
-                <div className="w-9 h-9 rounded-lg bg-amber-500/10 flex items-center justify-center shrink-0">
-                  <Users className="w-4 h-4 text-amber-400" />
+                <div className="w-9 h-9 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center shrink-0">
+                  <Users className="w-4 h-4 text-amber-600" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <p className="text-sm font-bold text-white truncate">
+                  <p className="text-sm font-bold text-text-primary truncate">
                     {vendor.contact_name || vendor.business_name || 'Unnamed Vendor'}
                   </p>
                   <div className="flex items-center gap-2 mt-0.5 flex-wrap">
@@ -152,7 +152,7 @@ export const IncompleteVendorsPanel: React.FC<IncompleteVendorsPanelProps> = ({
                     <MissingBadge show={!vendor.category} label="No category" />
                   </div>
                 </div>
-                <div className="flex items-center gap-1.5 text-[10px] font-bold text-amber-400 group-hover:text-amber-300 transition-colors shrink-0">
+                <div className="flex items-center gap-1.5 text-[10px] font-bold text-amber-700 group-hover:text-amber-800 transition-colors shrink-0">
                   <ClipboardList className="w-3.5 h-3.5" />
                   Fill In Details
                   <ChevronRight className="w-3.5 h-3.5" />
@@ -171,7 +171,7 @@ export const IncompleteVendorsPanel: React.FC<IncompleteVendorsPanelProps> = ({
 const MissingBadge: React.FC<{ show: boolean; label: string }> = ({ show, label }) => {
   if (!show) return null;
   return (
-    <span className="text-[9px] font-bold text-red-400 bg-red-500/10 border border-red-500/20 px-1.5 py-0.5 rounded">
+    <span className="text-[9px] font-bold text-red-700 bg-red-50 border border-red-200 px-1.5 py-0.5 rounded">
       {label}
     </span>
   );

@@ -97,7 +97,7 @@ export const SkipLogicBuilder: React.FC<SkipLogicBuilderProps> = ({
 
   if (previousQuestions.length === 0) {
     return (
-      <div className="bg-bg-elevated/20 border border-border/40 rounded-md p-3.5 text-left text-[11px] text-text-tertiary select-none">
+      <div className="bg-slate-50 border border-border rounded-lg p-3.5 text-left text-[11px] text-text-tertiary select-none">
         <div className="flex items-center gap-2 font-medium">
           <HelpCircle className="w-4.5 h-4.5 shrink-0" />
           <span>Skip logic unavailable. Add previous questions first to set branching rules.</span>
@@ -107,11 +107,11 @@ export const SkipLogicBuilder: React.FC<SkipLogicBuilderProps> = ({
   }
 
   return (
-    <div className="bg-bg-elevated/20 border border-border/50 rounded-lg p-4 text-left select-none space-y-4">
+    <div className="bg-slate-50 border border-border rounded-xl p-4 text-left select-none space-y-4">
       {/* Enable Toggle Switch */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
-          <GitFork className="w-4 h-4 text-green" />
+          <GitFork className="w-4 h-4 text-accent" />
           <span className="text-xs font-bold text-text-primary">Conditional Branching (Skip Logic)</span>
         </div>
         <label className="relative inline-flex items-center cursor-pointer">
@@ -121,12 +121,12 @@ export const SkipLogicBuilder: React.FC<SkipLogicBuilderProps> = ({
             onChange={handleToggleEnable}
             className="sr-only peer"
           />
-          <div className="w-8 h-4.5 bg-bg-input rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-text-secondary after:border-border after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-green peer-checked:after:bg-black" />
+          <div className="w-8 h-4.5 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-border after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-accent peer-checked:after:bg-white" />
         </label>
       </div>
 
       {skipLogic.enabled && skipLogic.conditions.length > 0 && (
-        <div className="space-y-3 pt-2 border-t border-border/30 animate-fade-in">
+        <div className="space-y-3 pt-2 border-t border-border/60 animate-fade-in">
           {/* AND/OR Operator Toggle for multiple conditions */}
           {skipLogic.conditions.length > 1 && (
             <div className="flex items-center gap-2 text-[10px] font-bold text-text-tertiary uppercase select-none">
@@ -134,7 +134,7 @@ export const SkipLogicBuilder: React.FC<SkipLogicBuilderProps> = ({
               <button
                 type="button"
                 onClick={handleOperatorToggle}
-                className="px-2 py-0.5 rounded bg-bg-hover hover:bg-border text-green font-extrabold text-[10px]"
+                className="px-2 py-0.5 rounded bg-slate-100 hover:bg-slate-200 text-accent font-extrabold text-[10px] cursor-pointer"
               >
                 {skipLogic.logicalOperator}
               </button>
@@ -145,9 +145,9 @@ export const SkipLogicBuilder: React.FC<SkipLogicBuilderProps> = ({
           {/* Condition list */}
           <div className="space-y-3">
             {skipLogic.conditions.map((condition, index) => (
-              <div key={condition.id} className="flex flex-col sm:flex-row items-center gap-2.5 bg-bg-input/40 border border-border/30 rounded p-2.5 relative">
+              <div key={condition.id} className="flex flex-col sm:flex-row items-center gap-2.5 bg-white border border-border rounded-lg p-2.5 relative">
                 {/* Condition row number/connector label */}
-                <span className="absolute -left-2 top-3 w-4.5 h-4.5 bg-border-light text-text-secondary font-bold text-[9px] rounded-full flex items-center justify-center select-none shadow-card">
+                <span className="absolute -left-2 top-3 w-4.5 h-4.5 bg-slate-100 text-text-secondary font-bold text-[9px] rounded-full flex items-center justify-center select-none shadow-xs border border-border">
                   {index + 1}
                 </span>
 
@@ -178,7 +178,7 @@ export const SkipLogicBuilder: React.FC<SkipLogicBuilderProps> = ({
                     placeholder="value"
                     value={condition.value}
                     onChange={(e) => handleConditionChange(condition.id, { value: e.target.value })}
-                    className="w-full bg-bg-input border border-border-light focus:border-green rounded-md px-2.5 py-1 text-text-primary text-[11px] font-sans placeholder-text-muted outline-none transition-colors"
+                    className="w-full bg-slate-50 border border-border focus:border-accent focus:bg-white rounded-md px-2.5 py-1 text-text-primary text-[11px] font-sans placeholder-text-muted outline-none transition-colors"
                   />
                 </div>
 
@@ -186,7 +186,7 @@ export const SkipLogicBuilder: React.FC<SkipLogicBuilderProps> = ({
                 <button
                   type="button"
                   onClick={() => handleRemoveCondition(condition.id)}
-                  className="p-1 rounded text-text-tertiary hover:text-red hover:bg-bg-hover shrink-0 cursor-pointer"
+                  className="p-1 rounded text-text-tertiary hover:text-red-600 hover:bg-red-50 shrink-0 cursor-pointer"
                   title="Remove Condition"
                 >
                   <Trash2 className="w-3.5 h-3.5" />
@@ -199,7 +199,7 @@ export const SkipLogicBuilder: React.FC<SkipLogicBuilderProps> = ({
           <button
             type="button"
             onClick={handleAddCondition}
-            className="inline-flex items-center gap-1 text-[11px] font-bold text-green hover:text-[#00ff7a] cursor-pointer"
+            className="inline-flex items-center gap-1 text-[11px] font-bold text-accent hover:text-accent-hover cursor-pointer"
           >
             <Plus className="w-3.5 h-3.5" />
             <span>Add display condition</span>

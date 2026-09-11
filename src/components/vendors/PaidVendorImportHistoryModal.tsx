@@ -114,22 +114,22 @@ export const PaidVendorImportHistoryModal: React.FC<PaidVendorImportHistoryModal
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70 backdrop-blur-sm">
-      <div className="relative bg-[#0d1117] border border-white/10 rounded-2xl shadow-2xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs">
+      <div className="relative bg-white border border-border rounded-2xl shadow-xl w-full max-w-2xl max-h-[85vh] flex flex-col overflow-hidden">
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 border-b border-white/5 shrink-0">
+        <div className="flex items-center justify-between px-6 py-4 border-b border-border shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-8 h-8 bg-green-500/10 rounded-lg flex items-center justify-center">
-              <History className="w-4 h-4 text-green-400" />
+            <div className="w-8 h-8 bg-accent-soft rounded-lg flex items-center justify-center">
+              <History className="w-4 h-4 text-accent" />
             </div>
             <div>
-              <h2 className="text-sm font-bold text-white">CSV Import History</h2>
-              <p className="text-[11px] text-gray-400">Paid vendor list imports — delete an import to remove its vendors.</p>
+              <h2 className="text-sm font-bold text-text-primary">CSV Import History</h2>
+              <p className="text-[11px] text-text-secondary">Paid vendor list imports — delete an import to remove its vendors.</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="w-7 h-7 flex items-center justify-center rounded-lg text-gray-400 hover:text-white hover:bg-white/5 transition-colors"
+            className="w-7 h-7 flex items-center justify-center rounded-lg text-text-secondary hover:text-text-primary hover:bg-slate-100 transition-colors cursor-pointer"
           >
             <X className="w-4 h-4" />
           </button>
@@ -138,14 +138,14 @@ export const PaidVendorImportHistoryModal: React.FC<PaidVendorImportHistoryModal
         {/* Body */}
         <div className="flex-1 overflow-y-auto px-6 py-4">
           {notice && (
-            <div className="flex items-center gap-2 bg-green-500/10 border border-green-500/20 rounded-lg px-4 py-3 text-green-400 text-xs mb-3">
+            <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3 text-emerald-700 text-xs mb-3">
               <CheckCircle2 className="w-4 h-4 shrink-0" />
               {notice}
             </div>
           )}
 
           {error && (
-            <div className="flex items-center gap-2 bg-red-500/10 border border-red-500/20 rounded-lg px-4 py-3 text-red-400 text-xs mb-3">
+            <div className="flex items-center gap-2 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-red-700 text-xs mb-3">
               <AlertTriangle className="w-4 h-4 shrink-0" />
               {error}
             </div>
@@ -153,36 +153,36 @@ export const PaidVendorImportHistoryModal: React.FC<PaidVendorImportHistoryModal
 
           {loading ? (
             <div className="p-12 text-center">
-              <Loader2 className="w-6 h-6 animate-spin text-green-400 mx-auto mb-3" />
-              <p className="text-xs text-gray-400 font-medium">Loading import history...</p>
+              <Loader2 className="w-6 h-6 animate-spin text-accent mx-auto mb-3" />
+              <p className="text-xs text-text-secondary font-medium">Loading import history...</p>
             </div>
           ) : logs.length === 0 ? (
             <div className="p-12 text-center select-none">
-              <History className="w-10 h-10 text-gray-600 mx-auto mb-3" />
-              <p className="text-sm text-gray-300 font-semibold">No CSV imports yet.</p>
-              <p className="text-xs text-gray-500 mt-1">Imports will appear here once you upload a paid vendor list.</p>
+              <History className="w-10 h-10 text-text-tertiary mx-auto mb-3" />
+              <p className="text-sm text-text-primary font-semibold">No CSV imports yet.</p>
+              <p className="text-xs text-text-secondary mt-1">Imports will appear here once you upload a paid vendor list.</p>
             </div>
           ) : (
             <div className="space-y-3">
               {logs.map(log => (
                 <div
                   key={log.id}
-                  className="border border-white/5 bg-white/[0.02] rounded-xl p-4 flex items-center justify-between gap-3"
+                  className="border border-border bg-white rounded-xl p-4 flex items-center justify-between gap-3 shadow-xs"
                 >
                   <div className="flex items-start gap-3 min-w-0">
-                    <div className="w-9 h-9 rounded-lg bg-white/5 flex items-center justify-center shrink-0">
-                      <FileText className="w-4 h-4 text-gray-300" />
+                    <div className="w-9 h-9 rounded-lg bg-slate-100 flex items-center justify-center shrink-0">
+                      <FileText className="w-4 h-4 text-text-secondary" />
                     </div>
                     <div className="min-w-0">
-                      <p className="text-sm font-semibold text-white truncate">{log.filename || 'Unnamed file'}</p>
-                      <p className="text-[11px] text-gray-400 mt-0.5">
+                      <p className="text-sm font-semibold text-text-primary truncate">{log.filename || 'Unnamed file'}</p>
+                      <p className="text-[11px] text-text-tertiary mt-0.5">
                         {new Date(log.imported_at).toLocaleString()}
                         {log.imported_by ? ` • by ${log.imported_by}` : ''}
                       </p>
-                      <p className="text-[11px] text-gray-500 mt-0.5">
-                        <span className="text-green-400 font-semibold">{log.rows_inserted}</span> inserted
+                      <p className="text-[11px] text-text-secondary mt-0.5">
+                        <span className="text-emerald-600 font-semibold">{log.rows_inserted}</span> inserted
                         {log.rows_skipped > 0 && (
-                          <> · <span className="text-amber-400 font-semibold">{log.rows_skipped}</span> skipped</>
+                          <> · <span className="text-amber-600 font-semibold">{log.rows_skipped}</span> skipped</>
                         )}
                       </p>
                     </div>
@@ -190,11 +190,11 @@ export const PaidVendorImportHistoryModal: React.FC<PaidVendorImportHistoryModal
 
                   {confirmId === log.id ? (
                     <div className="flex items-center gap-2 shrink-0">
-                      <span className="text-[10px] text-red-400 font-semibold">Delete?</span>
+                      <span className="text-[10px] text-red-700 font-semibold">Delete?</span>
                       <button
                         onClick={() => handleDelete(log)}
                         disabled={deletingId === log.id}
-                        className="flex items-center gap-1.5 text-[11px] font-bold text-white bg-red-500 hover:bg-red-400 disabled:opacity-40 px-3 py-1.5 rounded-lg transition-colors"
+                        className="flex items-center gap-1.5 text-[11px] font-bold text-white bg-red-600 hover:bg-red-700 disabled:opacity-40 px-3 py-1.5 rounded-lg transition-colors cursor-pointer"
                       >
                         {deletingId === log.id ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <Trash2 className="w-3.5 h-3.5" />}
                         Confirm
@@ -202,7 +202,7 @@ export const PaidVendorImportHistoryModal: React.FC<PaidVendorImportHistoryModal
                       <button
                         onClick={() => setConfirmId(null)}
                         disabled={deletingId === log.id}
-                        className="text-[11px] font-bold text-gray-400 hover:text-white px-2 py-1.5 rounded-lg transition-colors"
+                        className="text-[11px] font-bold text-text-secondary hover:text-text-primary px-2 py-1.5 rounded-lg transition-colors cursor-pointer"
                       >
                         Cancel
                       </button>
@@ -210,7 +210,7 @@ export const PaidVendorImportHistoryModal: React.FC<PaidVendorImportHistoryModal
                   ) : (
                     <button
                       onClick={() => setConfirmId(log.id)}
-                      className="flex items-center gap-1.5 text-[11px] font-bold text-red-400 hover:text-red-300 bg-red-500/10 hover:bg-red-500/20 border border-red-500/20 px-3 py-1.5 rounded-lg transition-colors shrink-0"
+                      className="flex items-center gap-1.5 text-[11px] font-bold text-red-700 hover:text-red-800 bg-red-50 hover:bg-red-100 border border-red-200 px-3 py-1.5 rounded-lg transition-colors shrink-0 cursor-pointer"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                       Delete
@@ -223,10 +223,10 @@ export const PaidVendorImportHistoryModal: React.FC<PaidVendorImportHistoryModal
         </div>
 
         {/* Footer */}
-        <div className="px-6 py-4 border-t border-white/5 shrink-0">
+        <div className="px-6 py-4 border-t border-border shrink-0">
           <button
             onClick={onClose}
-            className="w-full bg-white/5 hover:bg-white/10 border border-white/10 text-white text-sm font-bold px-4 py-2.5 rounded-xl transition-colors"
+            className="w-full bg-slate-100 hover:bg-slate-200 border border-border text-text-primary text-sm font-bold px-4 py-2.5 rounded-xl transition-colors cursor-pointer"
           >
             Close
           </button>

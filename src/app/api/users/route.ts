@@ -33,7 +33,20 @@ export async function GET() {
     return NextResponse.json({ error: error.message }, { status: 500 });
   }
 
-  return NextResponse.json({ users });
+  // Fetch auth users to get exact last_sign_in_at timestamps
+  const { data: authData } = await serviceClient.auth.admin.listUsers();
+  const authMap = new Map((authData?.users || []).map(u => [u.id, u]));
+
+  const enrichedUsers = (users || []).map((u: any) => {
+    const authRecord = authMap.get(u.user_id);
+    return {
+      ...u,
+      last_sign_in_at: authRecord?.last_sign_in_at || null,
+      auth_created_at: authRecord?.created_at || u.created_at,
+    };
+  });
+
+  return NextResponse.json({ users: enrichedUsers });
 }
 
 export async function PATCH(request: NextRequest) {
@@ -64,7 +77,7 @@ export async function PATCH(request: NextRequest) {
     return NextResponse.json({ error: 'profileId and role are required' }, { status: 400 });
   }
 
-  if (!['super_admin', 'admin', 'user'].includes(role)) {
+  if (!['super_admin', 'admin', 'user', 'unassigned'].includes(role)) {
     return NextResponse.json({ error: 'Invalid role' }, { status: 400 });
   }
 

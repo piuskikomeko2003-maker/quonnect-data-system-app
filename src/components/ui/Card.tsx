@@ -16,14 +16,14 @@ export const Card: React.FC<CardProps> = ({
   className = '',
   ...props
 }) => {
-  const baseStyle = 'bg-bg-surface border border-border rounded-lg p-5 transition-all duration-150 ease-in-out relative overflow-hidden';
+  const baseStyle = 'bg-white border border-border rounded-xl p-5 transition-all duration-200 ease-out relative overflow-hidden';
   
   const hoverStyle = (hoverEffect || onClick) 
-    ? 'hover:border-border-light hover:shadow-elevated hover:-translate-y-[1px] cursor-pointer' 
+    ? 'hover:border-accent/40 hover:shadow-elevated hover:-translate-y-0.5 cursor-pointer' 
     : '';
 
   const activeStyle = isActive 
-    ? 'border-green bg-green-soft shadow-[0_0_0_1px_#00e676]' 
+    ? 'border-accent bg-accent-soft/40 shadow-[0_0_0_1px_#1d4ed8]' 
     : '';
 
   const leftBorderStyles = {
@@ -31,7 +31,7 @@ export const Card: React.FC<CardProps> = ({
     purple: 'border-l-3 border-l-purple',
     green: 'border-l-3 border-l-green',
     amber: 'border-l-3 border-l-amber',
-    blue: 'border-l-3 border-l-blue',
+    blue: 'border-l-3 border-l-accent',
   };
 
   return (

@@ -252,8 +252,8 @@ export const DataAuditPanel: React.FC<DataAuditPanelProps> = ({ onRefresh }) => 
 
   if (loading) {
     return (
-      <div className="bg-bg-surface border border-border rounded-lg p-12 text-center select-none">
-        <Loader2 className="w-6 h-6 text-green animate-spin mx-auto mb-3" />
+      <div className="bg-white border border-border rounded-xl shadow-xs p-12 text-center select-none">
+        <Loader2 className="w-6 h-6 text-accent animate-spin mx-auto mb-3" />
         <p className="text-xs text-text-secondary">Scanning database for duplicates...</p>
       </div>
     );
@@ -285,8 +285,8 @@ export const DataAuditPanel: React.FC<DataAuditPanelProps> = ({ onRefresh }) => 
       </div>
 
       {totalIssues === 0 && (
-        <div className="bg-bg-surface border border-border rounded-lg p-8 text-center select-none">
-          <Check className="w-8 h-8 text-green mx-auto mb-2" />
+        <div className="bg-white border border-border rounded-xl shadow-xs p-8 text-center select-none">
+          <Check className="w-8 h-8 text-emerald-600 mx-auto mb-2" />
           <p className="text-xs font-semibold text-text-primary">All data looks clean</p>
           <p className="text-[10px] text-text-tertiary mt-1">
             No duplicate responses or orphaned vendors found.
@@ -351,7 +351,7 @@ export const DataAuditPanel: React.FC<DataAuditPanelProps> = ({ onRefresh }) => 
                         {findDifferingAnswers(group.responses).map((diff, di) => (
                           <div
                             key={di}
-                            className="bg-bg-elevated border border-border-light rounded p-3"
+                            className="bg-slate-50 border border-border rounded-lg p-3"
                           >
                             <p className="text-[10px] font-mono text-text-tertiary mb-1.5 truncate">
                               question_id: {diff.key}
@@ -360,7 +360,7 @@ export const DataAuditPanel: React.FC<DataAuditPanelProps> = ({ onRefresh }) => 
                               {diff.values.map((val, vi) => (
                                 <span
                                   key={vi}
-                                  className="text-[10px] bg-bg-surface border border-border-light rounded px-2 py-1 font-mono text-text-primary truncate max-w-[200px]"
+                                  className="text-[10px] bg-white border border-border rounded px-2 py-1 font-mono text-text-primary truncate max-w-[200px]"
                                   title={val}
                                 >
                                   R{vi + 1}: {val}
@@ -382,10 +382,10 @@ export const DataAuditPanel: React.FC<DataAuditPanelProps> = ({ onRefresh }) => 
                       {group.responses.map((resp, ri) => (
                         <div
                           key={resp.id}
-                          className={`flex items-center justify-between bg-bg-elevated border rounded p-3 transition-opacity ${
+                          className={`flex items-center justify-between bg-slate-50 border rounded-lg p-3 transition-opacity ${
                             isDeleted(resp.id)
                               ? 'opacity-30 border-border'
-                              : 'border-border-light'
+                              : 'border-border'
                           }`}
                         >
                           <div className="flex items-center gap-3 flex-1 min-w-0">
@@ -449,11 +449,11 @@ export const DataAuditPanel: React.FC<DataAuditPanelProps> = ({ onRefresh }) => 
             </span>
           </div>
 
-          <div className="bg-bg-surface border border-border rounded-lg overflow-hidden select-none">
+          <div className="bg-white border border-border rounded-xl shadow-xs overflow-hidden select-none">
             <div className="overflow-x-auto">
             <table className="w-full text-left text-xs min-w-[500px]">
               <thead>
-                <tr className="border-b border-border bg-bg-elevated/40">
+                <tr className="border-b border-border bg-slate-50">
                   <th className="p-3 text-[10px] font-bold text-text-tertiary uppercase">Name</th>
                   <th className="p-3 text-[10px] font-bold text-text-tertiary uppercase">Business</th>
                   <th className="p-3 text-[10px] font-bold text-text-tertiary uppercase">Phone</th>
@@ -464,7 +464,7 @@ export const DataAuditPanel: React.FC<DataAuditPanelProps> = ({ onRefresh }) => 
               </thead>
               <tbody className="divide-y divide-border/40">
                 {orphaned.map((v) => (
-                  <tr key={v.id} className="hover:bg-bg-elevated/30">
+                  <tr key={v.id} className="hover:bg-slate-50/80">
                     <td className="p-3 font-medium text-text-primary">{v.contact_name || '—'}</td>
                     <td className="p-3 text-text-secondary">{v.business_name || '—'}</td>
                     <td className="p-3 text-text-secondary font-mono">{v.phone || '—'}</td>

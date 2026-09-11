@@ -594,9 +594,9 @@ export const MarketConfigurationPanel: React.FC = () => {
 
   // Stepper UI helper
   const getStepClass = (step: number) => {
-    if (currentStep === step) return 'border-green text-green bg-green-soft/20 font-bold';
-    if (currentStep > step) return 'border-green bg-green text-black font-bold';
-    return 'border-border text-text-tertiary bg-bg';
+    if (currentStep === step) return 'border-accent text-accent bg-accent-soft font-bold';
+    if (currentStep > step) return 'border-accent bg-accent text-white font-bold';
+    return 'border-border text-text-tertiary bg-white';
   };
 
   return (
@@ -606,16 +606,16 @@ export const MarketConfigurationPanel: React.FC = () => {
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className={`flex items-center gap-3 p-3.5 rounded-lg shadow-lg text-xs font-semibold text-white animate-slide-up pointer-events-auto border ${
+            className={`flex items-center gap-3 p-3.5 rounded-lg shadow-lg text-xs font-semibold animate-slide-up pointer-events-auto border ${
               toast.type === 'success' 
-                ? 'bg-green-soft/90 border-green text-green' 
-                : 'bg-red-soft/90 border-red text-red'
+                ? 'bg-emerald-50 border-emerald-300 text-emerald-700' 
+                : 'bg-red-50 border-red-300 text-red-700'
             }`}
           >
             {toast.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 text-green shrink-0" />
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
             ) : (
-              <AlertCircle className="w-4 h-4 text-red shrink-0" />
+              <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
             )}
             <span className="flex-1">{toast.message}</span>
             <button 
@@ -630,29 +630,29 @@ export const MarketConfigurationPanel: React.FC = () => {
 
       {/* Header */}
       <div className="flex items-center gap-2">
-        <div className="w-1.5 h-5 bg-green-500 rounded-full" />
+        <div className="w-1.5 h-5 bg-accent rounded-full" />
         <div>
-          <h1 className="text-xl font-bold tracking-tight text-white">Market Day & Event Configurations</h1>
-          <p className="text-xs text-gray-400 mt-0.5">Configure geographical regions, market day locations, and monthly events.</p>
+          <h1 className="text-xl font-bold tracking-tight text-text-primary">Market Day & Event Configurations</h1>
+          <p className="text-xs text-text-secondary mt-0.5">Configure geographical regions, market day locations, and monthly events.</p>
         </div>
       </div>
 
       {/* STEPPER HEADER */}
-      <div className="bg-[#0f1117] border border-white/5 rounded-xl p-4.5">
+      <div className="bg-white border border-border rounded-xl p-4.5 shadow-sm">
         <div className="max-w-xl mx-auto flex items-start justify-between relative select-none">
           {/* Connector Line */}
-          <div className="absolute top-[16px] left-0 right-0 h-0.5 bg-white/10 z-0" />
+          <div className="absolute top-[16px] left-0 right-0 h-0.5 bg-border z-0" />
           <div 
-            className="absolute top-[16px] left-0 h-0.5 bg-green-500 transition-all duration-300 z-0" 
+            className="absolute top-[16px] left-0 h-0.5 bg-accent transition-all duration-300 z-0" 
             style={{ width: currentStep === 1 ? '0%' : currentStep === 2 ? '50%' : '100%' }}
           />
 
           {/* Step 1 */}
           <div className="relative z-10 flex flex-col items-center gap-1.5 cursor-not-allowed opacity-80" title="Region is selected in the top header">
-            <div className={`w-8 h-8 rounded-full border flex items-center justify-center text-xs transition-all bg-green-500/10 border-green-500 text-green-400`}>
-              <Check className="w-4 h-4 text-green-400 font-black" />
+            <div className={`w-8 h-8 rounded-full border flex items-center justify-center text-xs transition-all bg-accent-soft border-accent text-accent`}>
+              <Check className="w-4 h-4 text-accent font-black" />
             </div>
-            <span className="text-[10px] uppercase tracking-wider font-bold text-green-400 flex items-center gap-1">
+            <span className="text-[10px] uppercase tracking-wider font-bold text-accent flex items-center gap-1">
               Region ({activeRegion?.name || 'Active'})
             </span>
           </div>
@@ -660,9 +660,9 @@ export const MarketConfigurationPanel: React.FC = () => {
           {/* Step 2 */}
           <div className="relative z-10 flex flex-col items-center gap-1.5 cursor-pointer" onClick={() => selectedRegion ? setCurrentStep(2) : null}>
             <div className={`w-8 h-8 rounded-full border flex items-center justify-center text-xs transition-all ${getStepClass(2)}`}>
-              {currentStep > 2 ? <Check className="w-4 h-4 text-black font-black" /> : 2}
+              {currentStep > 2 ? <Check className="w-4 h-4 text-white font-black" /> : 2}
             </div>
-            <span className={`text-[10px] uppercase tracking-wider font-semibold ${currentStep >= 2 ? 'text-green-400' : 'text-gray-500'}`}>Market Day</span>
+            <span className={`text-[10px] uppercase tracking-wider font-semibold ${currentStep >= 2 ? 'text-accent' : 'text-text-tertiary'}`}>Market Day</span>
           </div>
 
           {/* Step 3 */}
@@ -670,61 +670,61 @@ export const MarketConfigurationPanel: React.FC = () => {
             <div className={`w-8 h-8 rounded-full border flex items-center justify-center text-xs transition-all ${getStepClass(3)}`}>
               3
             </div>
-            <span className={`text-[10px] uppercase tracking-wider font-semibold ${currentStep >= 3 ? 'text-green-400' : 'text-gray-500'}`}>Edition</span>
+            <span className={`text-[10px] uppercase tracking-wider font-semibold ${currentStep >= 3 ? 'text-accent' : 'text-text-tertiary'}`}>Edition</span>
           </div>
         </div>
       </div>
 
       {/* STEP PANEL CONTENT */}
-      <div className="bg-[#0f1117] border border-white/5 rounded-xl overflow-hidden min-h-[280px] flex flex-col">
+      <div className="bg-white border border-border rounded-xl overflow-hidden min-h-[280px] flex flex-col shadow-sm">
         
         {/* Step 1: Regions */}
         {currentStep === 1 && (
           <div className="p-5 flex-1 flex flex-col md:flex-row gap-6 animate-fade-in">
             {/* Create Region Form */}
-            <form onSubmit={handleCreateRegion} className="w-full md:w-[320px] space-y-4 shrink-0 border-b md:border-b-0 md:border-r border-white/5 pb-5 md:pb-0 md:pr-6 flex flex-col justify-between">
+            <form onSubmit={handleCreateRegion} className="w-full md:w-[320px] space-y-4 shrink-0 border-b md:border-b-0 md:border-r border-border pb-5 md:pb-0 md:pr-6 flex flex-col justify-between">
               <div className="space-y-3.5">
-                <h3 className="text-xs font-semibold text-gray-300 uppercase tracking-widest flex items-center gap-2">
-                  <Map className="w-4 h-4 text-green-400" />
+                <h3 className="text-xs font-semibold text-text-primary uppercase tracking-widest flex items-center gap-2">
+                  <Map className="w-4 h-4 text-accent" />
                   <span>Create Region</span>
                 </h3>
                 <div className="space-y-1">
-                  <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest block">Region Name</label>
+                  <label className="text-[10px] font-semibold text-text-tertiary uppercase tracking-widest block">Region Name</label>
                   <input 
                     type="text" 
                     placeholder="e.g. Kampala" 
                     value={newRegionName}
                     onChange={handleRegionNameChange}
-                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-green-500"
+                    className="w-full bg-bg-input border border-border-light rounded-lg px-3 py-2 text-xs text-text-primary outline-none focus:border-accent"
                     required
                   />
                 </div>
                 <div className="space-y-1">
-                  <label className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest block">Region Slug</label>
+                  <label className="text-[10px] font-semibold text-text-tertiary uppercase tracking-widest block">Region Slug</label>
                   <input 
                     type="text" 
                     value={newRegionSlug}
                     onChange={(e) => setNewRegionSlug(slugify(e.target.value))}
-                    className="w-full bg-white/5 border border-white/10 rounded-lg px-3 py-2 text-xs text-white outline-none focus:border-green-500 font-mono"
+                    className="w-full bg-bg-input border border-border-light rounded-lg px-3 py-2 text-xs text-text-primary outline-none focus:border-accent font-mono"
                     required
                   />
                 </div>
               </div>
-              <Button type="submit" variant="primary" fullWidth disabled={isSavingRegion} className="mt-4 bg-green-500 hover:bg-green-600 text-black font-semibold">
+              <Button type="submit" variant="primary" fullWidth disabled={isSavingRegion} className="mt-4 font-semibold">
                 <span>{isSavingRegion ? 'Creating...' : 'Create Region'}</span>
               </Button>
             </form>
 
             {/* Selectable Regions Grid */}
             <div className="flex-1 space-y-3">
-              <h4 className="text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Select Existing Region</h4>
+              <h4 className="text-[10px] font-semibold text-text-tertiary uppercase tracking-widest">Select Existing Region</h4>
               {loading ? (
-                <div className="flex items-center gap-2 text-gray-400 py-10 justify-center">
-                  <Loader2 className="w-5 h-5 animate-spin text-green-400" />
+                <div className="flex items-center gap-2 text-text-tertiary py-10 justify-center">
+                  <Loader2 className="w-5 h-5 animate-spin text-accent" />
                   <span className="text-xs">Loading regions...</span>
                 </div>
               ) : regions.length === 0 ? (
-                <p className="text-xs text-gray-500 py-10 text-center">No regions found. Create the first region to begin.</p>
+                <p className="text-xs text-text-tertiary py-10 text-center">No regions found. Create the first region to begin.</p>
               ) : (
                 <div className="grid grid-cols-2 sm:grid-cols-3 gap-3.5">
                   {regions.map((reg) => {
@@ -739,17 +739,17 @@ export const MarketConfigurationPanel: React.FC = () => {
                         }}
                         className={`p-3.5 rounded-xl border transition-all cursor-pointer flex flex-col justify-between gap-2.5 ${
                           isSelected
-                            ? 'bg-green-500/10 border-green-500/50'
-                            : 'bg-white/[0.02] border-white/5 hover:border-white/10 hover:bg-white/[0.04]'
+                            ? 'bg-accent-soft border-accent'
+                            : 'bg-white border-border hover:border-accent/40 hover:bg-slate-50'
                         }`}
                       >
                         <div className="min-w-0">
-                          <span className={`block font-bold text-xs truncate ${isSelected ? 'text-green-400' : 'text-white'}`}>{reg.name}</span>
-                          <span className="block text-[10px] text-gray-400 font-mono truncate mt-0.5">/{reg.slug}</span>
+                          <span className={`block font-bold text-xs truncate ${isSelected ? 'text-accent' : 'text-text-primary'}`}>{reg.name}</span>
+                          <span className="block text-[10px] text-text-tertiary font-mono truncate mt-0.5">/{reg.slug}</span>
                         </div>
-                        <div className="flex items-center justify-between border-t border-white/5 pt-2 text-[10px] text-gray-400 select-none">
+                        <div className="flex items-center justify-between border-t border-border pt-2 text-[10px] text-text-tertiary select-none">
                           <span>{reg.marketDays.length} Markets</span>
-                          <ChevronRight className="w-3.5 h-3.5 text-gray-500" />
+                          <ChevronRight className="w-3.5 h-3.5 text-text-tertiary" />
                         </div>
                       </div>
                     );
@@ -781,7 +781,7 @@ export const MarketConfigurationPanel: React.FC = () => {
                     placeholder="e.g. Kampala Main Market" 
                     value={newMarketName}
                     onChange={(e) => setNewMarketName(e.target.value)}
-                    className="w-full bg-bg-input border border-border-light rounded-md px-3 py-2 text-xs text-text-primary outline-none focus:border-green"
+                    className="w-full bg-white border border-border rounded-md px-3 py-2 text-xs text-text-primary outline-none focus:border-accent"
                     required
                   />
                 </div>
@@ -819,12 +819,12 @@ export const MarketConfigurationPanel: React.FC = () => {
                         }}
                         className={`p-3.5 rounded-lg border transition-all cursor-pointer flex flex-col justify-between gap-3 ${
                           isSelected
-                            ? 'bg-green-soft border-green'
-                            : 'bg-bg-elevated/45 border-border/80 hover:border-green-soft hover:bg-green-soft/10'
+                            ? 'bg-accent-soft border-accent'
+                            : 'bg-white border-border hover:border-accent/40 hover:bg-slate-50'
                         }`}
                       >
                         <div className="min-w-0">
-                          <span className={`block font-bold text-xs truncate ${isSelected ? 'text-green' : 'text-text-primary'}`}>{m.name}</span>
+                          <span className={`block font-bold text-xs truncate ${isSelected ? 'text-accent' : 'text-text-primary'}`}>{m.name}</span>
                           <span className="block text-[9px] text-text-tertiary font-mono truncate mt-0.5">{m.editions.length} Editions</span>
                         </div>
                         <div className="flex justify-end text-text-tertiary hover:text-text-primary pt-1">
@@ -845,12 +845,12 @@ export const MarketConfigurationPanel: React.FC = () => {
             {/* Create Edition Form */}
             <form onSubmit={handleCreateEdition} className="w-full md:w-[320px] space-y-3.5 shrink-0 border-b md:border-b-0 md:border-r border-border/60 pb-5 md:pb-0 md:pr-6 flex flex-col justify-between">
               <div className="space-y-3">
-                <div className="space-y-0.5 select-none text-[9px] text-green font-bold uppercase tracking-wider">
-                  <div className="flex items-center gap-1"><Map className="w-3 h-3 text-green" /> Region: {selectedRegion.name}</div>
-                  <div className="flex items-center gap-1 mt-0.5"><Store className="w-3 h-3 text-green" /> Market: {selectedMarketName}</div>
+                <div className="space-y-0.5 select-none text-[9px] text-accent font-bold uppercase tracking-wider">
+                  <div className="flex items-center gap-1"><Map className="w-3 h-3 text-accent" /> Region: {selectedRegion.name}</div>
+                  <div className="flex items-center gap-1 mt-0.5"><Store className="w-3 h-3 text-accent" /> Market: {selectedMarketName}</div>
                 </div>
                 <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider flex items-center gap-2">
-                  <Calendar className="w-4.5 h-4.5 text-green" />
+                  <Calendar className="w-4.5 h-4.5 text-accent" />
                   <span>Add Event Edition</span>
                 </h3>
                 <div className="space-y-1">
@@ -860,7 +860,7 @@ export const MarketConfigurationPanel: React.FC = () => {
                     placeholder="e.g. May 2026" 
                     value={newEditionName}
                     onChange={(e) => setNewEditionName(e.target.value)}
-                    className="w-full bg-bg-input border border-border-light rounded-md px-3 py-2 text-xs text-text-primary outline-none focus:border-green"
+                    className="w-full bg-white border border-border rounded-md px-3 py-2 text-xs text-text-primary outline-none focus:border-accent"
                     required
                   />
                 </div>
@@ -870,7 +870,7 @@ export const MarketConfigurationPanel: React.FC = () => {
                     type="date" 
                     value={newEditionDate}
                     onChange={(e) => setNewEditionDate(e.target.value)}
-                    className="w-full bg-bg-input border border-border-light rounded-md px-3 py-2 text-xs text-text-primary outline-none focus:border-green cursor-pointer"
+                    className="w-full bg-white border border-border rounded-md px-3 py-2 text-xs text-text-primary outline-none focus:border-accent cursor-pointer"
                     required
                   />
                 </div>
@@ -881,7 +881,7 @@ export const MarketConfigurationPanel: React.FC = () => {
                     placeholder="e.g. Motiv Bugolobi" 
                     value={newEditionVenue}
                     onChange={(e) => setNewEditionVenue(e.target.value)}
-                    className="w-full bg-bg-input border border-border-light rounded-md px-3 py-2 text-xs text-text-primary outline-none focus:border-green"
+                    className="w-full bg-white border border-border rounded-md px-3 py-2 text-xs text-text-primary outline-none focus:border-accent"
                     required
                   />
                 </div>
@@ -891,7 +891,7 @@ export const MarketConfigurationPanel: React.FC = () => {
                     id="newEditionIsActive"
                     checked={newEditionIsActive}
                     onChange={(e) => setNewEditionIsActive(e.target.checked)}
-                    className="w-4 h-4 text-green border-border rounded focus:ring-0 cursor-pointer"
+                    className="w-4 h-4 text-accent border-border rounded focus:ring-0 cursor-pointer"
                   />
                   <label htmlFor="newEditionIsActive" className="text-[10px] font-bold text-text-secondary uppercase tracking-wider cursor-pointer select-none">Active Event</label>
                 </div>
@@ -914,7 +914,7 @@ export const MarketConfigurationPanel: React.FC = () => {
             {/* List of existing editions for selected Market Day */}
             <div className="flex-1 space-y-3">
               <h4 className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">Editions for {selectedMarketName}</h4>
-              <div className="divide-y divide-border/40 border border-border/60 rounded-xl bg-bg-surface/50 max-h-[320px] overflow-y-auto pr-1 shadow-inner">
+              <div className="divide-y divide-border/40 border border-border/60 rounded-xl bg-white max-h-[320px] overflow-y-auto pr-1">
                 {(() => {
                   const activeMarket = selectedRegion.marketDays.find(m => m.name === selectedMarketName);
                   const editionsList = activeMarket?.editions || [];
@@ -933,20 +933,20 @@ export const MarketConfigurationPanel: React.FC = () => {
                               type="text"
                               value={editEditionName}
                               onChange={(e) => setEditEditionName(e.target.value)}
-                              className="bg-bg-input border border-border-light rounded px-2.5 py-1 text-xs text-text-primary outline-none focus:border-green"
+                              className="bg-white border border-border rounded px-2.5 py-1 text-xs text-text-primary outline-none focus:border-accent"
                               placeholder="Name"
                             />
                             <input 
                               type="date"
                               value={editEditionDate}
                               onChange={(e) => setEditEditionDate(e.target.value)}
-                              className="bg-bg-input border border-border-light rounded px-2.5 py-1 text-xs text-text-primary outline-none focus:border-green"
+                              className="bg-white border border-border rounded px-2.5 py-1 text-xs text-text-primary outline-none focus:border-accent"
                             />
                             <input 
                               type="text"
                               value={editEditionVenue}
                               onChange={(e) => setEditEditionVenue(e.target.value)}
-                              className="bg-bg-input border border-border-light rounded px-2.5 py-1 text-xs text-text-primary outline-none focus:border-green animate-none"
+                              className="bg-white border border-border rounded px-2.5 py-1 text-xs text-text-primary outline-none focus:border-accent animate-none"
                               placeholder="Venue"
                             />
                           </div>
@@ -959,9 +959,9 @@ export const MarketConfigurationPanel: React.FC = () => {
                               </Badge>
                             </div>
                             <div className="flex items-center gap-3 text-[10px] text-text-tertiary mt-1 select-none">
-                              <span className="flex items-center gap-1"><Clock className="w-3 h-3 text-green" /> {new Date(ed.date).toLocaleDateString(undefined, { dateStyle: 'medium' })}</span>
+                              <span className="flex items-center gap-1"><Clock className="w-3 h-3 text-accent" /> {new Date(ed.date).toLocaleDateString(undefined, { dateStyle: 'medium' })}</span>
                               <span>•</span>
-                              <span className="truncate flex items-center gap-1"><MapPin className="w-3 h-3 text-green" /> {ed.venue}</span>
+                              <span className="truncate flex items-center gap-1"><MapPin className="w-3 h-3 text-accent" /> {ed.venue}</span>
                             </div>
                           </div>
                         )}
@@ -972,7 +972,7 @@ export const MarketConfigurationPanel: React.FC = () => {
                               <button
                                 onClick={() => handleUpdateEdition(ed.id)}
                                 disabled={isUpdatingEdition}
-                                className="p-1 rounded bg-green/10 border border-green/30 text-green hover:bg-green/20 cursor-pointer"
+                                className="p-1 rounded bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 cursor-pointer"
                                 title="Save Edition"
                               >
                                 <Check className="w-3.5 h-3.5" />
@@ -991,7 +991,7 @@ export const MarketConfigurationPanel: React.FC = () => {
                                 onClick={() => handleToggleEditionStatus(ed.id, ed.is_active)}
                                 className={`p-1 rounded border cursor-pointer select-none text-[9px] font-bold uppercase transition-all px-2 ${
                                   ed.is_active 
-                                    ? 'bg-green/10 border-green/30 text-green hover:bg-green/20' 
+                                    ? 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100' 
                                     : 'bg-bg-elevated border-border-light text-text-secondary hover:text-text-primary'
                                 }`}
                                 title="Toggle Status"
@@ -1028,17 +1028,17 @@ export const MarketConfigurationPanel: React.FC = () => {
       {/* FULL ACCORDION OVERVIEW SECTION */}
       <div className="space-y-4 select-none">
         <h2 className="text-sm font-bold text-text-tertiary uppercase tracking-wider flex items-center gap-2">
-          <Layers className="w-4.5 h-4.5 text-green" />
+          <Layers className="w-4.5 h-4.5 text-accent" />
           <span>Active Operations Directory</span>
         </h2>
 
         {loading && regions.length === 0 ? (
-          <div className="text-center py-20 bg-bg-surface border border-border rounded-xl">
-            <Loader2 className="w-8 h-8 animate-spin text-green mx-auto mb-2" />
+          <div className="text-center py-20 bg-white border border-border rounded-xl shadow-xs">
+            <Loader2 className="w-8 h-8 animate-spin text-accent mx-auto mb-2" />
             <span className="text-xs text-text-tertiary">Loading operations tree...</span>
           </div>
         ) : regions.length === 0 ? (
-          <div className="text-center py-20 bg-bg-surface border border-border rounded-xl">
+          <div className="text-center py-20 bg-white border border-border rounded-xl shadow-xs">
             <Map className="w-12 h-12 text-text-tertiary mx-auto mb-2 opacity-50" />
             <p className="text-xs font-bold text-text-secondary">No regions configured yet</p>
             <p className="text-[10px] text-text-tertiary mt-1">Configure your first region in the stepper above.</p>
@@ -1050,16 +1050,16 @@ export const MarketConfigurationPanel: React.FC = () => {
               const isEditingReg = editingRegionId === reg.id;
               
               return (
-                <div key={reg.id} className="bg-bg-surface border border-border rounded-xl shadow-sm overflow-hidden transition-all duration-200">
+                <div key={reg.id} className="bg-white border border-border rounded-xl shadow-xs overflow-hidden transition-all duration-200">
                   
                   {/* Region Summary Card Row */}
                   <div 
                     onClick={() => toggleRegionAccordion(reg.id)}
-                    className="p-4 flex items-center justify-between gap-4 cursor-pointer hover:bg-bg-elevated/20 transition-all select-none"
+                    className="p-4 flex items-center justify-between gap-4 cursor-pointer hover:bg-slate-50 transition-all select-none"
                   >
                     <div className="flex-1 min-w-0 flex items-center gap-3" onClick={e => isEditingReg ? e.stopPropagation() : null}>
-                      <div className="w-9 h-9 rounded-full bg-green-muted text-green flex items-center justify-center shrink-0">
-                        <Map className="w-4.5 h-4.5 text-green" />
+                      <div className="w-9 h-9 rounded-full bg-sky-50 text-accent flex items-center justify-center shrink-0">
+                        <Map className="w-4.5 h-4.5 text-accent" />
                       </div>
                       {isEditingReg ? (
                         <div className="flex-1 flex gap-2 max-w-md">
@@ -1070,7 +1070,7 @@ export const MarketConfigurationPanel: React.FC = () => {
                               setEditRegionName(e.target.value);
                               setEditRegionSlug(slugify(e.target.value));
                             }}
-                            className="bg-bg-input border border-border-light rounded px-2.5 py-1 text-xs font-bold text-text-primary outline-none focus:border-green"
+                            className="bg-white border border-border rounded px-2.5 py-1 text-xs font-bold text-text-primary outline-none focus:border-accent"
                             placeholder="Region Name"
                             required
                           />
@@ -1078,7 +1078,7 @@ export const MarketConfigurationPanel: React.FC = () => {
                             type="text"
                             value={editRegionSlug}
                             onChange={(e) => setEditRegionSlug(slugify(e.target.value))}
-                            className="bg-bg-input border border-border-light rounded px-2.5 py-1 text-xs text-text-primary outline-none focus:border-green font-mono"
+                            className="bg-white border border-border rounded px-2.5 py-1 text-xs text-text-primary outline-none focus:border-accent font-mono"
                             placeholder="Slug"
                             required
                           />
@@ -1105,7 +1105,7 @@ export const MarketConfigurationPanel: React.FC = () => {
                           <button
                             onClick={() => handleUpdateRegion(reg.id)}
                             disabled={isUpdatingRegion}
-                            className="p-1 rounded bg-green/10 border border-green/30 text-green hover:bg-green/20 cursor-pointer"
+                            className="p-1 rounded bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 cursor-pointer"
                             title="Save Region"
                           >
                             <Check className="w-4.5 h-4.5" />
@@ -1147,7 +1147,7 @@ export const MarketConfigurationPanel: React.FC = () => {
 
                   {/* Collapsible content (list of markets and their editions) */}
                   {isExpanded && (
-                    <div className="border-t border-border/60 bg-bg-elevated/10 p-4 space-y-4 animate-fade-in text-xs">
+                    <div className="border-t border-border bg-slate-50/50 p-4 space-y-4 animate-fade-in text-xs">
                       {reg.marketDays.length === 0 ? (
                         <div className="text-center py-6 text-[10px] text-text-tertiary">
                           No markets registered in this region. Add a market day above.
@@ -1159,18 +1159,18 @@ export const MarketConfigurationPanel: React.FC = () => {
                             const isEditingMarket = editingMarketKey === marketKey;
                             
                             return (
-                              <div key={market.name} className="bg-bg-surface border border-border rounded-xl p-4.5 space-y-4 flex flex-col justify-between">
+                              <div key={market.name} className="bg-white border border-border rounded-xl shadow-xs p-4.5 space-y-4 flex flex-col justify-between">
                                 <div className="space-y-3.5">
                                   {/* Market name edit bar */}
                                   <div className="flex items-center justify-between gap-3">
                                     <div className="flex-1 flex items-center gap-2 min-w-0">
-                                      <Store className="w-4.5 h-4.5 text-green shrink-0" />
+                                      <Store className="w-4.5 h-4.5 text-accent shrink-0" />
                                       {isEditingMarket ? (
                                         <input
                                           type="text"
                                           value={editMarketNameVal}
                                           onChange={(e) => setEditMarketNameVal(e.target.value)}
-                                          className="flex-1 bg-bg-input border border-border-light rounded px-2.5 py-0.5 text-xs font-bold text-text-primary outline-none focus:border-green"
+                                          className="flex-1 bg-white border border-border rounded px-2.5 py-0.5 text-xs font-bold text-text-primary outline-none focus:border-accent"
                                           required
                                         />
                                       ) : (
@@ -1183,7 +1183,7 @@ export const MarketConfigurationPanel: React.FC = () => {
                                           <button
                                             onClick={() => handleUpdateMarketName(reg.id, market.name)}
                                             disabled={isUpdatingMarketName}
-                                            className="p-1 rounded bg-green/10 border border-green/30 text-green hover:bg-green/20 cursor-pointer"
+                                            className="p-1 rounded bg-emerald-50 border border-emerald-200 text-emerald-700 hover:bg-emerald-100 cursor-pointer"
                                             title="Save Name"
                                           >
                                             <Check className="w-3 h-3" />
@@ -1220,12 +1220,12 @@ export const MarketConfigurationPanel: React.FC = () => {
                                   {/* Editions table list inside market card */}
                                   <div className="space-y-2">
                                     <span className="text-[9px] font-bold text-text-tertiary uppercase tracking-wider block">Editions / Events ({market.editions.length})</span>
-                                    <div className="divide-y divide-border/30 border border-border/40 rounded-lg overflow-hidden bg-bg-elevated/20 max-h-[140px] overflow-y-auto shadow-inner pr-0.5">
+                                    <div className="divide-y divide-border/40 border border-border rounded-lg overflow-hidden bg-slate-50/40 max-h-[140px] overflow-y-auto pr-0.5">
                                       {market.editions.length === 0 ? (
                                         <p className="text-[10px] text-text-tertiary text-center py-5">No editions registered yet.</p>
                                       ) : (
                                         market.editions.map((ed) => (
-                                          <div key={ed.id} className="p-2.5 flex items-center justify-between gap-3 bg-bg-surface/30 hover:bg-bg-surface/50 transition-all select-none">
+                                          <div key={ed.id} className="p-2.5 flex items-center justify-between gap-3 bg-white hover:bg-slate-50 transition-all select-none">
                                             <div className="min-w-0 flex-1">
                                               <div className="flex items-center gap-1.5">
                                                 <span className="font-bold text-[11px] text-text-primary">{ed.name}</span>
@@ -1242,8 +1242,8 @@ export const MarketConfigurationPanel: React.FC = () => {
                                                 onClick={() => handleToggleEditionStatus(ed.id, ed.is_active)}
                                                 className={`px-1.5 py-0.5 text-[8px] font-bold uppercase rounded border cursor-pointer ${
                                                   ed.is_active 
-                                                    ? 'bg-green-soft border-green/30 text-green hover:bg-green/10' 
-                                                    : 'bg-bg border-border text-text-tertiary hover:text-text-primary'
+                                                    ? 'bg-emerald-50 border-emerald-200 text-emerald-700 hover:bg-emerald-100' 
+                                                    : 'bg-slate-100 border-border text-text-secondary hover:text-text-primary'
                                                 }`}
                                               >
                                                 Toggle

@@ -321,16 +321,16 @@ export const StandardFeeSettings: React.FC = () => {
               key={t.id}
               className={`p-4 rounded-xl border shadow-xl flex items-start gap-3 backdrop-blur-md text-xs font-medium animate-slide-up ${
                 t.type === 'success'
-                  ? 'bg-emerald-950/90 border-emerald-500/30 text-emerald-200'
+                  ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
                   : t.type === 'error'
-                  ? 'bg-red-950/90 border-red-500/30 text-red-200'
-                  : 'bg-blue-950/90 border-blue-500/30 text-blue-200'
+                  ? 'bg-red-50 border-red-200 text-red-800'
+                  : 'bg-accent-soft border-accent/20 text-accent'
               }`}
             >
               {t.type === 'success' ? (
-                <CheckCircle2 className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
+                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
               ) : (
-                <AlertCircle className="w-5 h-5 text-red-400 shrink-0 mt-0.5" />
+                <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
               )}
               <span className="flex-1 leading-relaxed">{t.message}</span>
             </div>
@@ -339,13 +339,13 @@ export const StandardFeeSettings: React.FC = () => {
       )}
 
       {/* Header Info */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-white/5 pb-5">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border pb-5">
         <div>
-          <h2 className="text-lg font-bold text-white flex items-center gap-2">
-            <DollarSign className="w-5 h-5 text-emerald-400" />
+          <h2 className="text-lg font-bold text-text-primary flex items-center gap-2">
+            <DollarSign className="w-5 h-5 text-accent" />
             Standard Vendor Fees
           </h2>
-          <p className="text-xs text-gray-400 mt-1">
+          <p className="text-xs text-text-muted mt-1">
             Configure default vendor booth & registration fees per market edition.
           </p>
         </div>
@@ -354,7 +354,7 @@ export const StandardFeeSettings: React.FC = () => {
           size="sm"
           onClick={fetchEditionsData}
           disabled={loading}
-          className="self-start sm:self-auto gap-2 border-white/10 hover:bg-white/5 text-gray-300"
+          className="self-start sm:self-auto gap-2 border-border hover:bg-slate-100 text-text-secondary"
         >
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
           Refresh
@@ -362,27 +362,27 @@ export const StandardFeeSettings: React.FC = () => {
       </div>
 
       {/* Safety Info Alert Banner */}
-      <div className="bg-emerald-500/10 border border-emerald-500/20 rounded-xl p-4 flex items-start gap-3.5">
-        <ShieldCheck className="w-5 h-5 text-emerald-400 shrink-0 mt-0.5" />
-        <div className="text-xs text-emerald-300 leading-relaxed">
-          <strong className="text-emerald-200 font-semibold block mb-0.5">
+      <div className="bg-accent-soft/40 border border-accent/20 rounded-xl p-4 flex items-start gap-3.5">
+        <ShieldCheck className="w-5 h-5 text-accent shrink-0 mt-0.5" />
+        <div className="text-xs text-text-secondary leading-relaxed">
+          <strong className="text-text-primary font-semibold block mb-0.5">
             Safe Sync with Protected Overrides
           </strong>
           When you update an edition's Standard Fee, the system automatically updates all vendors on the default rate.
-          Any vendor with a <span className="underline decoration-emerald-500/50 font-medium">custom rate or discount override</span> is strictly preserved and will never be overwritten.
+          Any vendor with a <span className="underline decoration-accent/50 text-accent font-medium">custom rate or discount override</span> is strictly preserved and will never be overwritten.
         </div>
       </div>
 
       {/* Search and Filters */}
       <div className="flex items-center gap-3">
         <div className="relative flex-1 max-w-md">
-          <Search className="w-4 h-4 text-gray-400 absolute left-3 top-1/2 -translate-y-1/2" />
+          <Search className="w-4 h-4 text-text-muted absolute left-3 top-1/2 -translate-y-1/2" />
           <input
             type="text"
             placeholder="Search by edition name, market, or region..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-2 bg-white/[0.03] border border-white/10 rounded-lg text-xs text-white placeholder-gray-500 focus:outline-none focus:border-emerald-500/50 transition-colors"
+            className="w-full pl-9 pr-4 py-2 bg-white border border-border rounded-lg text-xs text-text-primary placeholder-text-muted focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-colors"
           />
         </div>
       </div>
@@ -390,21 +390,21 @@ export const StandardFeeSettings: React.FC = () => {
       {/* Editions List Table */}
       {loading ? (
         <div className="py-20 text-center">
-          <Loader2 className="w-8 h-8 text-emerald-400 animate-spin mx-auto mb-3" />
-          <p className="text-xs text-gray-400">Loading edition standard fees...</p>
+          <Loader2 className="w-8 h-8 text-accent animate-spin mx-auto mb-3" />
+          <p className="text-xs text-text-muted">Loading edition standard fees...</p>
         </div>
       ) : filteredEditions.length === 0 ? (
-        <div className="py-16 text-center border border-dashed border-white/10 rounded-xl">
-          <DollarSign className="w-10 h-10 text-gray-600 mx-auto mb-3" />
-          <p className="text-sm font-semibold text-gray-300">No market editions found</p>
-          <p className="text-xs text-gray-500 mt-1">Create an edition in Markets & Editions to configure its standard fee.</p>
+        <div className="py-16 text-center border border-dashed border-border rounded-xl bg-slate-50/50">
+          <DollarSign className="w-10 h-10 text-text-muted mx-auto mb-3" />
+          <p className="text-sm font-semibold text-text-primary">No market editions found</p>
+          <p className="text-xs text-text-muted mt-1">Create an edition in Markets & Editions to configure its standard fee.</p>
         </div>
       ) : (
-        <div className="border border-white/10 rounded-xl overflow-hidden bg-white/[0.01]">
+        <div className="border border-border rounded-xl overflow-hidden bg-white shadow-xs">
           <div className="overflow-x-auto">
             <table className="w-full border-collapse text-left text-xs">
               <thead>
-                <tr className="bg-white/[0.03] border-b border-white/5 text-gray-400">
+                <tr className="bg-slate-50 border-b border-border text-text-muted">
                   <th className="p-4 text-[10px] font-semibold uppercase tracking-wider">Market & Edition</th>
                   <th className="p-4 text-[10px] font-semibold uppercase tracking-wider">Region & Date</th>
                   <th className="p-4 text-[10px] font-semibold uppercase tracking-wider text-center">Registered Vendors</th>
@@ -412,36 +412,36 @@ export const StandardFeeSettings: React.FC = () => {
                   <th className="p-4 text-[10px] font-semibold uppercase tracking-wider text-right w-[140px]">Action</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-white/5">
+              <tbody className="divide-y divide-border">
                 {filteredEditions.map((item) => {
                   const isSaving = savingId === item.id;
                   const currentInput = feeInputs[item.id] ?? '0';
 
                   return (
-                    <tr key={item.id} className="hover:bg-white/[0.02] transition-colors">
+                    <tr key={item.id} className="hover:bg-slate-50/60 transition-colors">
                       <td className="p-4">
-                        <div className="font-semibold text-white text-sm">{item.editionName}</div>
-                        <div className="text-[11px] text-gray-400 mt-0.5">{item.name}</div>
+                        <div className="font-semibold text-text-primary text-sm">{item.editionName}</div>
+                        <div className="text-[11px] text-text-muted mt-0.5">{item.name}</div>
                       </td>
                       <td className="p-4">
-                        <div className="flex items-center gap-1.5 text-gray-300 font-medium">
-                          <MapPin className="w-3.5 h-3.5 text-emerald-400 shrink-0" />
+                        <div className="flex items-center gap-1.5 text-text-secondary font-medium">
+                          <MapPin className="w-3.5 h-3.5 text-accent shrink-0" />
                           {item.regionName}
                         </div>
-                        <div className="flex items-center gap-1.5 text-gray-500 text-[11px] mt-1">
+                        <div className="flex items-center gap-1.5 text-text-muted text-[11px] mt-1">
                           <Calendar className="w-3.5 h-3.5 shrink-0" />
                           {item.eventDate ? new Date(item.eventDate).toLocaleDateString() : 'No date set'}
                         </div>
                       </td>
                       <td className="p-4 text-center">
-                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-white/[0.04] border border-white/5 rounded-lg text-gray-300 font-mono text-[11px]">
-                          <Users className="w-3 h-3 text-gray-400" />
-                          <span className="font-bold text-white">{item.totalVendors}</span>
-                          <span className="text-gray-500">total</span>
+                        <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-slate-100 border border-border rounded-lg text-text-secondary font-mono text-[11px]">
+                          <Users className="w-3 h-3 text-text-muted" />
+                          <span className="font-bold text-text-primary">{item.totalVendors}</span>
+                          <span className="text-text-muted">total</span>
                         </div>
                         {item.overrideVendorsCount > 0 && (
                           <div className="mt-1">
-                            <span className="inline-flex items-center gap-1 text-[10px] text-amber-400/90 font-medium bg-amber-500/10 border border-amber-500/20 px-2 py-0.5 rounded-md">
+                            <span className="inline-flex items-center gap-1 text-[10px] text-amber-700 font-medium bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-md">
                               ⚡ {item.overrideVendorsCount} override{item.overrideVendorsCount > 1 ? 's' : ''}
                             </span>
                           </div>
@@ -449,7 +449,7 @@ export const StandardFeeSettings: React.FC = () => {
                       </td>
                       <td className="p-4">
                         <div className="relative flex items-center">
-                          <span className="absolute left-3 text-[11px] font-bold text-emerald-400/90 select-none">
+                          <span className="absolute left-3 text-[11px] font-bold text-accent select-none">
                             UGX
                           </span>
                           <input
@@ -457,7 +457,7 @@ export const StandardFeeSettings: React.FC = () => {
                             value={currentInput}
                             onChange={(e) => handleInputChange(item.id, e.target.value)}
                             placeholder="0"
-                            className="w-full pl-12 pr-3 py-2 bg-black/40 border border-white/10 rounded-lg text-sm font-mono text-white font-bold focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
+                            className="w-full pl-12 pr-3 py-2 bg-slate-50 border border-border rounded-lg text-sm font-mono text-text-primary font-bold focus:bg-white focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all"
                           />
                         </div>
                       </td>
@@ -466,7 +466,7 @@ export const StandardFeeSettings: React.FC = () => {
                           size="sm"
                           onClick={() => handleSaveAndSync(item)}
                           disabled={isSaving}
-                          className="w-full justify-center gap-1.5 bg-emerald-600 hover:bg-emerald-500 text-white font-medium border-0 shadow-lg shadow-emerald-950/40"
+                          className="w-full justify-center gap-1.5 bg-accent hover:bg-accent-hover text-white font-medium border-0 shadow-sm"
                         >
                           {isSaving ? (
                             <>

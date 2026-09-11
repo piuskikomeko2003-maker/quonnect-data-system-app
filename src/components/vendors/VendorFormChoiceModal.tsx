@@ -100,7 +100,7 @@ const StatusBadge: React.FC<{ status: CompletionStatus; loading?: boolean }> = (
 }) => {
   if (loading) {
     return (
-      <span className="inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full bg-white/5 text-gray-500 border border-white/10">
+      <span className="inline-flex items-center gap-1 text-[9px] font-bold px-2 py-0.5 rounded-full bg-slate-100 text-text-muted border border-border">
         <Loader2 className="w-2.5 h-2.5 animate-spin" />
         Checking…
       </span>
@@ -111,17 +111,17 @@ const StatusBadge: React.FC<{ status: CompletionStatus; loading?: boolean }> = (
     not_started: {
       icon: <CircleDashed className="w-2.5 h-2.5" />,
       label: 'Not started',
-      className: 'bg-white/5 text-gray-500 border-white/10',
+      className: 'bg-slate-100 text-text-muted border-border',
     },
     in_progress: {
       icon: <Clock className="w-2.5 h-2.5" />,
       label: 'In progress',
-      className: 'bg-amber-500/10 text-amber-400 border-amber-500/20',
+      className: 'bg-amber-50 text-amber-700 border-amber-200',
     },
     complete: {
       icon: <CheckCircle2 className="w-2.5 h-2.5" />,
       label: 'Complete',
-      className: 'bg-green-500/10 text-green-400 border-green-500/20',
+      className: 'bg-emerald-50 text-emerald-700 border-emerald-200',
     },
   };
 
@@ -190,17 +190,17 @@ export const VendorFormChoiceModal: React.FC<VendorFormChoiceModalProps> = ({
     >
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/65 backdrop-blur-sm animate-fade-in"
+        className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs animate-fade-in"
         onClick={onClose}
       />
 
       {/* Dialog */}
-      <div className="relative bg-bg-surface border border-border rounded-xl shadow-modal z-10 w-full max-w-[480px] animate-scale-up sm:mt-[6vh]">
+      <div className="relative bg-white border border-border rounded-2xl shadow-xl z-10 w-full max-w-[480px] animate-scale-up sm:mt-[6vh]">
 
         {/* Header */}
         <div className="flex items-start justify-between p-5 pb-4 border-b border-border">
           <div className="flex items-start gap-3 min-w-0">
-            <div className="w-9 h-9 rounded-lg bg-bg-elevated border border-border flex items-center justify-center shrink-0 mt-0.5">
+            <div className="w-9 h-9 rounded-lg bg-slate-100 border border-border flex items-center justify-center shrink-0 mt-0.5">
               <Building2 className="w-4 h-4 text-text-secondary" />
             </div>
             <div className="min-w-0">
@@ -223,7 +223,7 @@ export const VendorFormChoiceModal: React.FC<VendorFormChoiceModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-bg-elevated border border-border text-text-secondary hover:text-red hover:border-red flex items-center justify-center transition-colors cursor-pointer shrink-0 ml-3"
+            className="w-8 h-8 rounded-full bg-slate-100 border border-border text-text-muted hover:text-text-primary hover:bg-slate-200 flex items-center justify-center transition-colors cursor-pointer shrink-0 ml-3"
             aria-label="Close"
           >
             <X className="w-3.5 h-3.5" />
@@ -239,10 +239,10 @@ export const VendorFormChoiceModal: React.FC<VendorFormChoiceModalProps> = ({
           {/* Card 1 — Paid Vendor Details */}
           <button
             onClick={() => onChoosePaidDetails(vendor)}
-            className="w-full bg-bg-elevated border border-border hover:border-blue/50 hover:bg-blue/5 rounded-xl p-4 text-left transition-all duration-150 cursor-pointer group focus:outline-none focus:border-blue/60"
+            className="w-full bg-white border border-border hover:border-accent hover:bg-accent-soft/30 rounded-xl p-4 text-left transition-all duration-150 cursor-pointer group focus:outline-none focus:border-accent"
           >
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-blue-muted/60 text-blue flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+              <div className="w-10 h-10 rounded-lg bg-accent-soft text-accent flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
                 <CreditCard className="w-5 h-5" />
               </div>
               <div className="flex-1 min-w-0">
@@ -254,17 +254,17 @@ export const VendorFormChoiceModal: React.FC<VendorFormChoiceModalProps> = ({
                   Update payment status, amount paid, contact info, and business details.
                 </p>
               </div>
-              <ChevronRight className="w-4 h-4 text-text-tertiary group-hover:text-blue transition-colors shrink-0 ml-1" />
+              <ChevronRight className="w-4 h-4 text-text-tertiary group-hover:text-accent transition-colors shrink-0 ml-1" />
             </div>
           </button>
 
           {/* Card 2 — Field Data Collection */}
           <button
             onClick={() => onChooseFieldData(vendor)}
-            className="w-full bg-bg-elevated border border-border hover:border-green/50 hover:bg-green/5 rounded-xl p-4 text-left transition-all duration-150 cursor-pointer group focus:outline-none focus:border-green/60"
+            className="w-full bg-white border border-border hover:border-accent hover:bg-accent-soft/30 rounded-xl p-4 text-left transition-all duration-150 cursor-pointer group focus:outline-none focus:border-accent"
           >
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-green-muted text-green flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+              <div className="w-10 h-10 rounded-lg bg-accent-soft text-accent flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
                 <ClipboardList className="w-5 h-5" />
               </div>
               <div className="flex-1 min-w-0">
@@ -276,7 +276,7 @@ export const VendorFormChoiceModal: React.FC<VendorFormChoiceModalProps> = ({
                   Enter or edit the vendor&apos;s survey responses for this edition.
                 </p>
               </div>
-              <ChevronRight className="w-4 h-4 text-text-tertiary group-hover:text-green transition-colors shrink-0 ml-1" />
+              <ChevronRight className="w-4 h-4 text-text-tertiary group-hover:text-accent transition-colors shrink-0 ml-1" />
             </div>
           </button>
         </div>

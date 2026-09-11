@@ -19,6 +19,26 @@ import {
   Printer,
   Download,
 } from 'lucide-react';
+import {
+  TicketTemplate,
+  RequiredTicketField,
+  REQUIRED_TICKET_FIELDS,
+} from '@/types/ticketTemplate';
+
+function computeAdaptiveFontSize(
+  text: string,
+  baseSize: number,
+  maxWidth?: number
+): number {
+  if (!maxWidth || !text || text.length === 0) return baseSize;
+  const approxWidth = text.length * (baseSize * 0.58);
+  if (approxWidth > maxWidth) {
+    const ratio = maxWidth / approxWidth;
+    const scaled = Math.floor(baseSize * ratio);
+    return Math.max(11, Math.min(baseSize, scaled));
+  }
+  return baseSize;
+}
 
 interface FormQuestion {
   id: string;
@@ -121,6 +141,44 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
   const [copiedTicket, setCopiedTicket] = useState(false);
   const [downloadingImage, setDownloadingImage] = useState(false);
   const ticketCardRef = useRef<HTMLDivElement>(null);
+  const customTicketCardRef = useRef<HTMLDivElement>(null);
+  const [ticketTemplate, setTicketTemplate] = useState<TicketTemplate | null>(null);
+  const [templateScale, setTemplateScale] = useState<number>(1);
+
+  // Fetch ticket template for current edition
+  useEffect(() => {
+    const editionId = activeEdition?.id;
+    if (!editionId) return;
+
+    fetch(`/api/tickets/templates?edition_id=${editionId}`)
+      .then((res) => res.json())
+      .then((data) => {
+        if (data?.template && data.template.background_image_url) {
+          setTicketTemplate(data.template);
+        } else {
+          setTicketTemplate(null);
+        }
+      })
+      .catch((err) => {
+        console.warn('Could not load custom ticket template, using default:', err);
+        setTicketTemplate(null);
+      });
+  }, [activeEdition?.id]);
+
+  // Update scaling ratio when container resizes
+  useEffect(() => {
+    const updateScale = () => {
+      if (customTicketCardRef.current && ticketTemplate?.canvas_width) {
+        const containerWidth = customTicketCardRef.current.clientWidth;
+        if (containerWidth > 0) {
+          setTemplateScale(containerWidth / ticketTemplate.canvas_width);
+        }
+      }
+    };
+    updateScale();
+    window.addEventListener('resize', updateScale);
+    return () => window.removeEventListener('resize', updateScale);
+  }, [ticketTemplate]);
   const [lookupStatus, setLookupStatus] = useState<'idle' | 'searching' | 'returning' | 'new'>('idle');
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [touchedFields, setTouchedFields] = useState<Set<string>>(new Set());
@@ -558,11 +616,55 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
         registeredAt: new Date().toISOString(),
       };
 
+      const fieldValues: Record<RequiredTicketField, string> = {
+        vendor_name: ticket.vendorName || '',
+        business_name: ticket.businessName || '',
+        category: ticket.category || '',
+        phone_number: ticket.phone || '',
+        ticket_number: ticket.ticketCode || '',
+        issued_at: new Date(ticket.registeredAt).toLocaleString([], {
+          dateStyle: 'medium',
+          timeStyle: 'short',
+        }),
+      };
+
       const handleDownloadImage = async () => {
-        if (!ticketCardRef.current) return;
         setDownloadingImage(true);
         try {
-          const dataUrl = await toPng(ticketCardRef.current, {
+          // If custom template is active, try downloading pristine server-rendered PNG
+          if (ticketTemplate && (activeEdition?.id || ticket.editionName)) {
+            try {
+              const params = new URLSearchParams({
+                edition_id: activeEdition?.id || '',
+                ticket_number: ticket.ticketCode || '',
+                vendor_name: ticket.vendorName || '',
+                business_name: ticket.businessName || '',
+                category: ticket.category || '',
+                phone: ticket.phone || '',
+                edition_name: ticket.editionName || '',
+                issued_at: ticket.registeredAt || '',
+              });
+              const res = await fetch(`/api/tickets/render?${params.toString()}`);
+              if (res.ok) {
+                const blob = await res.blob();
+                const blobUrl = window.URL.createObjectURL(blob);
+                const link = document.createElement('a');
+                link.download = `Vendor-Pass-${ticket.ticketCode || 'Ticket'}.png`;
+                link.href = blobUrl;
+                link.click();
+                window.URL.revokeObjectURL(blobUrl);
+                return;
+              }
+            } catch (serverErr) {
+              console.warn('Server render failed, falling back to client canvas:', serverErr);
+            }
+          }
+
+          // Fallback to client-side toPng
+          const target = ticketTemplate ? customTicketCardRef.current : ticketCardRef.current;
+          if (!target) return;
+
+          const dataUrl = await toPng(target, {
             quality: 1,
             pixelRatio: 2,
             backgroundColor: '#161b22',
@@ -580,92 +682,149 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
 
       return (
         <div className="space-y-4 max-w-[560px] mx-auto animate-fade-in select-none">
-          {/* Downloadable Ticket Card */}
-          <div
-            ref={ticketCardRef}
-            className="bg-bg-surface border border-green/30 rounded-xl p-6 sm:p-8 text-left shadow-2xl relative overflow-hidden"
-          >
-            {/* Decorative Glow */}
-            <div className="absolute -top-24 -right-24 w-48 h-48 bg-green/10 rounded-full blur-3xl pointer-events-none" />
-            <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-green/5 rounded-full blur-3xl pointer-events-none" />
+          {/* Downloadable Ticket Card (Custom Template or Fallback Default) */}
+          {ticketTemplate && ticketTemplate.background_image_url ? (
+            <div
+              ref={customTicketCardRef}
+              className="relative rounded-xl overflow-hidden shadow-2xl border border-border/80 w-full select-none"
+              style={{
+                height: `${(ticketTemplate.canvas_height || 1080) * templateScale}px`,
+              }}
+            >
+              {/* Background Art */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img
+                src={ticketTemplate.background_image_url}
+                alt="Official Vendor Admission Pass"
+                className="absolute inset-0 w-full h-full object-cover pointer-events-none"
+              />
 
-            {/* Ticket Header */}
-            <div className="flex items-center justify-between pb-4 border-b border-border-light relative z-10">
-              <div className="flex items-center gap-2.5">
-                <div className="w-10 h-10 rounded-lg bg-green/15 border border-green/30 flex items-center justify-center text-green">
-                  <Ticket className="w-5 h-5" />
-                </div>
-                <div>
-                  <span className="text-[10px] font-bold text-green uppercase tracking-widest block">Official Vendor Pass</span>
-                  <h2 className="text-sm font-bold text-text-primary">{ticket.editionName}</h2>
-                </div>
-              </div>
-              <Badge variant="success" size="sm" className="font-mono text-xs uppercase font-extrabold tracking-wider">
-                {ticket.paymentStatus || 'Confirmed'}
-              </Badge>
+              {/* Dynamic Vendor Fields */}
+              {REQUIRED_TICKET_FIELDS.map((field) => {
+                const pos = ticketTemplate.field_positions?.[field];
+                if (!pos) return null;
+                const text = fieldValues[field];
+                if (!text) return null;
+
+                const scaledX = pos.x * templateScale;
+                const scaledY = pos.y * templateScale;
+                const adaptiveSize = computeAdaptiveFontSize(text, pos.fontSize || 18, pos.maxWidth);
+                const scaledFontSize = Math.max(8, adaptiveSize * templateScale);
+                const scaledMaxWidth = pos.maxWidth ? pos.maxWidth * templateScale : undefined;
+
+                return (
+                  <div
+                    key={field}
+                    style={{
+                      position: 'absolute',
+                      left: `${scaledX}px`,
+                      top: `${scaledY}px`,
+                      fontSize: `${scaledFontSize}px`,
+                      color: pos.color || '#000000',
+                      fontWeight: (pos.fontWeight === 'bold' || pos.fontWeight === '700'
+                        ? 700
+                        : pos.fontWeight === 'semibold' || pos.fontWeight === '600'
+                        ? 600
+                        : 400) as any,
+                      maxWidth: scaledMaxWidth ? `${scaledMaxWidth}px` : undefined,
+                      lineHeight: 1.25,
+                      wordBreak: 'break-word',
+                      display: 'flex',
+                      flexWrap: 'wrap',
+                    }}
+                  >
+                    {text}
+                  </div>
+                );
+              })}
             </div>
+          ) : (
+            <div
+              ref={ticketCardRef}
+              className="bg-bg-surface border border-green/30 rounded-xl p-6 sm:p-8 text-left shadow-2xl relative overflow-hidden"
+            >
+              {/* Decorative Glow */}
+              <div className="absolute -top-24 -right-24 w-48 h-48 bg-green/10 rounded-full blur-3xl pointer-events-none" />
+              <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-green/5 rounded-full blur-3xl pointer-events-none" />
 
-            {/* Ticket Number Hero Box */}
-            <div className="my-6 p-5 bg-[#0a0d12] border border-green/30 rounded-xl text-center relative z-10 shadow-inner">
-              <span className="text-[10px] text-text-tertiary uppercase tracking-widest font-semibold block mb-1">
-                Admission Ticket Number
-              </span>
-              <div className="text-3xl sm:text-4xl font-extrabold font-mono text-green tracking-wider my-1">
-                {ticket.ticketCode}
+              {/* Ticket Header */}
+              <div className="flex items-center justify-between pb-4 border-b border-border-light relative z-10">
+                <div className="flex items-center gap-2.5">
+                  <div className="w-10 h-10 rounded-lg bg-green/15 border border-green/30 flex items-center justify-center text-green">
+                    <Ticket className="w-5 h-5" />
+                  </div>
+                  <div>
+                    <span className="text-[10px] font-bold text-green uppercase tracking-widest block">Official Vendor Pass</span>
+                    <h2 className="text-sm font-bold text-text-primary">{ticket.editionName}</h2>
+                  </div>
+                </div>
+                <Badge variant="success" size="sm" className="font-mono text-xs uppercase font-extrabold tracking-wider">
+                  {ticket.paymentStatus || 'Confirmed'}
+                </Badge>
               </div>
-              <p className="text-[11px] text-text-secondary">
-                Vendor #{ticket.ticketNumber} &middot; Registered for this edition
-              </p>
-            </div>
 
-            {/* Ticket Details Grid */}
-            <div className="space-y-2.5 bg-bg-input/60 border border-border/50 rounded-lg p-4 text-xs relative z-10">
-              <div className="flex justify-between items-center py-1 border-b border-border/30">
-                <span className="text-text-tertiary">Vendor Name</span>
-                <span className="font-semibold text-text-primary">{ticket.vendorName}</span>
+              {/* Ticket Number Hero Box */}
+              <div className="my-6 p-5 bg-slate-50 border border-border rounded-xl text-center relative z-10 shadow-sm">
+                <span className="text-[10px] text-text-tertiary uppercase tracking-widest font-semibold block mb-1">
+                  Admission Ticket Number
+                </span>
+                <div className="text-3xl sm:text-4xl font-extrabold font-mono text-accent tracking-wider my-1">
+                  {ticket.ticketCode}
+                </div>
+                <p className="text-[11px] text-text-secondary">
+                  Vendor #{ticket.ticketNumber} &middot; Registered for this edition
+                </p>
               </div>
-              {ticket.businessName && (
+
+              {/* Ticket Details Grid */}
+              <div className="space-y-2.5 bg-bg-input/60 border border-border/50 rounded-lg p-4 text-xs relative z-10">
                 <div className="flex justify-between items-center py-1 border-b border-border/30">
-                  <span className="text-text-tertiary">Business</span>
-                  <span className="font-semibold text-text-primary">{ticket.businessName}</span>
+                  <span className="text-text-tertiary">Vendor Name</span>
+                  <span className="font-semibold text-text-primary">{ticket.vendorName}</span>
                 </div>
-              )}
-              {ticket.category && (
-                <div className="flex justify-between items-center py-1 border-b border-border/30">
-                  <span className="text-text-tertiary">Category</span>
-                  <span className="font-semibold text-text-primary">{ticket.category}</span>
+                {ticket.businessName && (
+                  <div className="flex justify-between items-center py-1 border-b border-border/30">
+                    <span className="text-text-tertiary">Business</span>
+                    <span className="font-semibold text-text-primary">{ticket.businessName}</span>
+                  </div>
+                )}
+                {ticket.category && (
+                  <div className="flex justify-between items-center py-1 border-b border-border/30">
+                    <span className="text-text-tertiary">Category</span>
+                    <span className="font-semibold text-text-primary">{ticket.category}</span>
+                  </div>
+                )}
+                {ticket.phone && (
+                  <div className="flex justify-between items-center py-1 border-b border-border/30">
+                    <span className="text-text-tertiary">Phone Number</span>
+                    <span className="font-mono font-medium text-text-secondary">{ticket.phone}</span>
+                  </div>
+                )}
+                <div className="flex justify-between items-center py-1">
+                  <span className="text-text-tertiary">Issued At</span>
+                  <span className="font-mono text-[11px] text-text-secondary">
+                    {new Date(ticket.registeredAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                  </span>
                 </div>
-              )}
-              {ticket.phone && (
-                <div className="flex justify-between items-center py-1 border-b border-border/30">
-                  <span className="text-text-tertiary">Phone Number</span>
-                  <span className="font-mono font-medium text-text-secondary">{ticket.phone}</span>
+              </div>
+
+              {/* Barcode Graphic */}
+              <div className="pt-5 mt-4 border-t border-border/40 flex flex-col items-center justify-center opacity-80 select-none relative z-10">
+                <div className="h-8 flex items-end gap-1">
+                  {[3, 1, 4, 1, 5, 9, 2, 6, 5, 3, 5, 8, 9, 7, 9, 3, 2, 3, 8, 4, 6, 2, 6, 4, 3, 3, 8, 3, 2, 7, 9, 5, 0, 2, 8, 8, 4, 1, 9, 7, 1, 6, 9, 3, 9, 9, 3, 7].map((h, i) => (
+                    <span
+                      key={i}
+                      className="w-0.5 bg-green/60 inline-block"
+                      style={{ height: `${12 + (h % 5) * 4}px` }}
+                    />
+                  ))}
                 </div>
-              )}
-              <div className="flex justify-between items-center py-1">
-                <span className="text-text-tertiary">Issued At</span>
-                <span className="font-mono text-[11px] text-text-secondary">
-                  {new Date(ticket.registeredAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
+                <span className="font-mono text-[9px] tracking-widest text-text-tertiary mt-1">
+                  {ticket.ticketCode} &bull; QUONNECT ADMISSION PASS
                 </span>
               </div>
             </div>
-
-            {/* Barcode Graphic */}
-            <div className="pt-5 mt-4 border-t border-border/40 flex flex-col items-center justify-center opacity-80 select-none relative z-10">
-              <div className="h-8 flex items-end gap-1">
-                {[3, 1, 4, 1, 5, 9, 2, 6, 5, 3, 5, 8, 9, 7, 9, 3, 2, 3, 8, 4, 6, 2, 6, 4, 3, 3, 8, 3, 2, 7, 9, 5, 0, 2, 8, 8, 4, 1, 9, 7, 1, 6, 9, 3, 9, 9, 3, 7].map((h, i) => (
-                  <span
-                    key={i}
-                    className="w-0.5 bg-green/60 inline-block"
-                    style={{ height: `${12 + (h % 5) * 4}px` }}
-                  />
-                ))}
-              </div>
-              <span className="font-mono text-[9px] tracking-widest text-text-tertiary mt-1">
-                {ticket.ticketCode} &bull; QUONNECT ADMISSION PASS
-              </span>
-            </div>
-          </div>
+          )}
 
           {/* Single-Use Warning & Actions (outside downloaded card) */}
           <div className="space-y-3">
@@ -772,8 +931,8 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
                 onClick={() => handleAnswerChange(q.csv_column, opt)}
                 className={`flex-1 py-2 rounded-md font-semibold text-xs border transition-all cursor-pointer ${
                   value === opt
-                    ? 'bg-green text-black border-green font-bold'
-                    : 'bg-bg-input text-text-secondary border-border-light hover:text-text-primary'
+                    ? 'bg-accent text-white border-accent font-bold shadow-xs'
+                    : 'bg-white text-text-secondary border-border hover:text-text-primary hover:bg-slate-50'
                 }`}
               >
                 {opt}
@@ -788,7 +947,7 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
           <select
             value={value}
             onChange={(e) => handleAnswerChange(q.csv_column, e.target.value)}
-            className="w-full bg-bg-input border border-border-light focus:border-green focus:ring-1 focus:ring-green rounded-md px-3.5 py-2.5 text-text-primary text-sm font-sans transition-colors outline-none"
+            className="w-full bg-white border border-border focus:border-accent focus:ring-1 focus:ring-accent rounded-md px-3.5 py-2.5 text-text-primary text-sm font-sans transition-colors outline-none"
             required={q.is_required}
           >
             <option value="">Select an option...</option>
@@ -810,7 +969,7 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
                   type="checkbox"
                   checked={selected.includes(opt)}
                   onChange={(e) => handleMultiSelectChange(q.csv_column, opt, e.target.checked)}
-                  className="w-3.5 h-3.5 rounded border-border-light accent-green cursor-pointer"
+                  className="w-3.5 h-3.5 rounded border-border accent-accent cursor-pointer"
                 />
                 <span>{opt}</span>
               </label>
@@ -826,7 +985,7 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
             placeholder={`Enter ${q.question_text.toLowerCase()}`}
             value={value}
             onChange={(e) => handleAnswerChange(q.csv_column, e.target.value)}
-            className="w-full bg-bg-input border border-border-light focus:border-green focus:ring-1 focus:ring-green rounded-md px-3.5 py-2.5 text-text-primary text-sm font-sans placeholder-text-muted transition-colors outline-none"
+            className="w-full bg-white border border-border focus:border-accent focus:ring-1 focus:ring-accent rounded-md px-3.5 py-2.5 text-text-primary text-sm font-sans placeholder-text-muted transition-colors outline-none"
             required={q.is_required}
           />
         );
@@ -837,7 +996,7 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
             type="date"
             value={value}
             onChange={(e) => handleAnswerChange(q.csv_column, e.target.value)}
-            className="w-full bg-bg-input border border-border-light focus:border-green focus:ring-1 focus:ring-green rounded-md px-3.5 py-2.5 text-text-primary text-sm font-sans placeholder-text-muted transition-colors outline-none"
+            className="w-full bg-white border border-border focus:border-accent focus:ring-1 focus:ring-accent rounded-md px-3.5 py-2.5 text-text-primary text-sm font-sans placeholder-text-muted transition-colors outline-none"
             required={q.is_required}
           />
         );
@@ -882,7 +1041,7 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
             placeholder={`Enter ${q.question_text.toLowerCase()}`}
             value={value}
             onChange={(e) => handleAnswerChange(q.csv_column, e.target.value)}
-            className={`w-full bg-bg-input border border-border-light focus:border-green focus:ring-1 focus:ring-green rounded-md px-3.5 py-2.5 text-text-primary text-sm font-sans placeholder-text-muted transition-colors outline-none ${(q.csv_column === 'phone' || q.csv_column === 'phone_number') ? 'font-bold tracking-wider' : ''}`}
+            className={`w-full bg-white border border-border focus:border-accent focus:ring-1 focus:ring-accent rounded-md px-3.5 py-2.5 text-text-primary text-sm font-sans placeholder-text-muted transition-colors outline-none ${(q.csv_column === 'phone' || q.csv_column === 'phone_number') ? 'font-bold tracking-wider' : ''}`}
             required={q.is_required}
           />
         );
@@ -890,7 +1049,7 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
   };
 
   return (
-    <div className="bg-bg-surface border border-border rounded-lg p-5 max-w-[560px] mx-auto text-left relative select-none">
+    <div className="bg-white border border-border rounded-xl shadow-xs p-5 max-w-[560px] mx-auto text-left relative select-none">
       <div className="flex justify-between items-center border-b border-border pb-4 mb-5">
         <div className="flex flex-col">
           <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider flex items-center gap-1.5">
@@ -915,8 +1074,8 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
         )}
 
         {lookupStatus === 'returning' && (
-          <div className="bg-green-soft border border-green/20 text-green rounded-md p-3.5 flex items-start gap-2.5 animate-fade-in select-none">
-            <Sparkles className="w-4.5 h-4.5 text-green shrink-0 mt-0.5" />
+          <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-md p-3.5 flex items-start gap-2.5 animate-fade-in select-none">
+            <Sparkles className="w-4.5 h-4.5 text-emerald-600 shrink-0 mt-0.5" />
             <div className="text-[11px] leading-tight text-left">
               <strong className="block font-bold">Returning Record Found</strong>
               <span className="text-text-secondary font-medium">Existing details loaded. Review and edit below.</span>
@@ -925,8 +1084,8 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
         )}
 
         {lookupStatus === 'new' && (
-          <div className="bg-blue-muted border border-blue/20 text-blue rounded-md p-3.5 flex items-start gap-2.5 animate-fade-in select-none">
-            <AlertCircle className="w-4.5 h-4.5 text-blue shrink-0 mt-0.5" />
+          <div className="bg-sky-50 border border-sky-200 text-sky-700 rounded-md p-3.5 flex items-start gap-2.5 animate-fade-in select-none">
+            <AlertCircle className="w-4.5 h-4.5 text-accent shrink-0 mt-0.5" />
             <div className="text-[11px] leading-tight text-left">
               <strong className="block font-bold">New Entry</strong>
               <span className="text-text-secondary font-medium">No record found with this phone number. Complete all details.</span>

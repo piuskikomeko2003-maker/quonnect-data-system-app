@@ -90,10 +90,10 @@ const SortableItem: React.FC<SortableItemProps> = ({
       ref={setNodeRef}
       style={style}
       onClick={onSelect}
-      className={`group flex items-center gap-2.5 p-3 rounded-md border text-left cursor-pointer transition-all ${
+      className={`group flex items-center gap-2.5 p-3 rounded-lg border text-left cursor-pointer transition-all ${
         isActive 
-          ? 'bg-green-soft border-green text-green' 
-          : 'bg-bg-input/80 border-border-light text-text-primary hover:bg-bg-hover hover:border-border'
+          ? 'bg-accent-soft border-accent text-accent' 
+          : 'bg-white border-border text-text-primary hover:bg-slate-50 hover:border-border'
       }`}
     >
       {/* Drag handle */}
@@ -107,7 +107,7 @@ const SortableItem: React.FC<SortableItemProps> = ({
       </div>
 
       {/* Question type icon */}
-      <div className={`p-1.5 rounded shrink-0 ${isActive ? 'bg-green/15 text-green' : 'bg-bg-surface text-text-secondary'}`}>
+      <div className={`p-1.5 rounded-md shrink-0 ${isActive ? 'bg-accent/15 text-accent' : 'bg-slate-100 text-text-secondary'}`}>
         {getQuestionTypeIcon(question.type)}
       </div>
 
@@ -121,12 +121,12 @@ const SortableItem: React.FC<SortableItemProps> = ({
             {question.type.replace(/([A-Z])/g, ' $1')}
           </span>
           {question.required && (
-            <span className="text-[8px] bg-red-muted text-red px-1 rounded-sm uppercase font-bold shrink-0">
+            <span className="text-[8px] bg-red-50 text-red-700 border border-red-200 px-1 rounded-sm uppercase font-bold shrink-0">
               required
             </span>
           )}
           {hasSkipLogic && (
-            <span className="text-[8px] bg-blue-muted text-blue px-1 rounded-sm uppercase font-bold shrink-0 flex items-center gap-0.5" title="Branch active">
+            <span className="text-[8px] bg-accent-soft text-accent border border-accent/20 px-1 rounded-sm uppercase font-bold shrink-0 flex items-center gap-0.5" title="Branch active">
               <GitFork className="w-2.5 h-2.5" />
               <span>Logic</span>
             </span>
@@ -141,7 +141,7 @@ const SortableItem: React.FC<SortableItemProps> = ({
           e.stopPropagation(); // Prevent select trigger
           onDelete();
         }}
-        className="p-1 rounded hover:bg-red-500/10 hover:text-red transition-all cursor-pointer shrink-0 text-gray-500"
+        className="p-1 rounded-md hover:bg-red-50 hover:text-red-600 transition-all cursor-pointer shrink-0 text-text-muted"
         title="Delete Question"
       >
         <Trash2 className="w-3.5 h-3.5" />

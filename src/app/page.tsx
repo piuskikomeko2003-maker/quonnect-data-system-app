@@ -8,6 +8,7 @@ import { useRegion } from '@/context/RegionContext';
 import { AdminShell } from '@/components/layout/AdminShell';
 import { SettingsView } from '@/components/settings/SettingsView';
 import { UserManagementSettings } from '@/components/settings/UserManagementSettings';
+import { PendingApprovalView } from '@/components/auth/PendingApprovalView';
 import { importCSV } from '@/utils/csvImport';
 import { resolveGender, isGenderColumn, isGenderValue } from '@/utils/gender';
 import { isFirstTimer, isReturning, getAttendanceCount, attendedLastEdition, attendedRegion, isFirstTimerColumn, isAttendedLastColumn } from '@/utils/retention';
@@ -44,6 +45,7 @@ import { JobsSupportedPanel } from '@/components/dashboard/JobsSupportedPanel';
 import { Question, FormTemplate } from '@/components/formbuilder/types';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+import { AnimatedNumber } from '@/components/ui/AnimatedNumber';
 import {
   Users,
   Footprints,
@@ -82,16 +84,16 @@ import {
 const CustomGrowthTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
   return (
-    <div className="bg-[#1a1d24] border border-white/10 rounded-lg p-3 shadow-xl min-w-32 text-xs space-y-1.5 select-none">
-      <p className="text-xs text-gray-400 mb-2 border-b border-white/10 pb-1">{label}</p>
+    <div className="bg-white border border-border rounded-lg p-3 shadow-xl min-w-32 text-xs space-y-1.5 select-none">
+      <p className="text-xs text-text-tertiary mb-2 border-b border-border pb-1">{label}</p>
       <div className="space-y-1">
         {payload.map((entry: any, i: number) => (
           <div key={i} className="flex items-center justify-between gap-3">
-            <span className="flex items-center gap-1.5 text-gray-300 font-medium">
+            <span className="flex items-center gap-1.5 text-text-secondary font-medium">
               <span className="w-2 h-2 rounded-full inline-block shrink-0" style={{ background: entry.color || entry.fill }} />
               {entry.name}
             </span>
-            <span className="text-xs font-semibold text-white">
+            <span className="text-xs font-semibold text-text-primary">
               {Number(entry.value).toLocaleString()}
             </span>
           </div>
@@ -157,7 +159,7 @@ export default function Home() {
   const [mounted, setMounted] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const { activeRegion, activeEdition, regions: ctxRegions, switchRegion, loadingRegions, editions: ctxEditions, setActiveEdition } = useRegion();
-  const { email, role, profile, loading: authLoading, signOut } = useAuth();
+  const { email, role, profile, loading: authLoading, isPending, signOut, refreshProfile } = useAuth();
 
   const [toasts, setToasts] = useState<Array<{ id: string; message: string; type: 'success' | 'error' }>>([]);
 
@@ -1267,7 +1269,7 @@ export default function Home() {
     let responsesChannel: any;
     let vendorRegistrationsChannel: any;
 
-    if (mounted) {
+    if (mounted && !authLoading && role && role !== 'unassigned') {
       fetchVendors();
       fetchWalkins();
       fetchSurveyResponses();
@@ -1350,7 +1352,7 @@ export default function Home() {
         if (vendorRegistrationsChannel) supabase.removeChannel(vendorRegistrationsChannel);
       }
     };
-  }, [mounted, activeRegion?.id, activeEdition?.id]);
+  }, [mounted, activeRegion?.id, activeEdition?.id, authLoading, role]);
 
   // Walk-ins filtering states
   const [walkinRegionFilter, setWalkinRegionFilter] = useState('All');
@@ -1396,10 +1398,10 @@ export default function Home() {
   const [selectedVendorIds, setSelectedVendorIds] = useState<string[]>([]);
 
   useEffect(() => {
-    if (activeNav === 'overview' && mounted) {
+    if (activeNav === 'overview' && mounted && !authLoading && role && role !== 'unassigned') {
       fetchOverviewMetrics();
     }
-  }, [activeNav, mounted, fetchOverviewMetrics]);
+  }, [activeNav, mounted, authLoading, role, fetchOverviewMetrics]);
 
   // Drawer Panel & Modal States
   const [selectedVendorId, setSelectedVendorId] = useState<string | null>(null);
@@ -1559,14 +1561,14 @@ export default function Home() {
 
   if (!mounted || loadingVendors) {
     return (
-      <div className="min-h-screen bg-[#0d1117] flex flex-col items-center justify-center space-y-4 select-none">
+      <div className="min-h-screen bg-bg-base flex flex-col items-center justify-center space-y-4 select-none">
         <div className="relative w-12 h-12">
-          <div className="absolute inset-0 rounded-full border-4 border-[#21262d]"></div>
-          <div className="absolute inset-0 rounded-full border-4 border-t-[#2ea043] border-r-transparent border-b-transparent border-l-transparent animate-spin"></div>
+          <div className="absolute inset-0 rounded-full border-4 border-sky-100"></div>
+          <div className="absolute inset-0 rounded-full border-4 border-t-accent border-r-transparent border-b-transparent border-l-transparent animate-spin"></div>
         </div>
         <div className="text-center">
-          <h2 className="text-xs font-bold text-[#c9d1d9] uppercase tracking-wider">Synchronizing System Data</h2>
-          <p className="text-[10px] text-[#8b949e] mt-1">Connecting to secure operations environment...</p>
+          <h2 className="text-xs font-bold text-text-primary uppercase tracking-wider">Synchronizing System Data</h2>
+          <p className="text-[10px] text-text-secondary mt-1">Connecting to secure operations environment...</p>
         </div>
       </div>
     );
@@ -2404,10 +2406,10 @@ export default function Home() {
 
   if (!activeRegion) {
     return (
-      <div className="flex min-h-screen bg-bg items-center justify-center p-6 text-left select-none">
-        <div className="max-w-md w-full bg-bg-surface border border-border rounded-xl p-6 shadow-modal space-y-6">
+      <div className="flex min-h-screen bg-bg-base items-center justify-center p-6 text-left select-none">
+        <div className="max-w-md w-full bg-white border border-border rounded-xl p-6 shadow-xl space-y-6">
           <div className="text-center space-y-2">
-            <div className="w-12 h-12 rounded-full bg-green-muted text-green flex items-center justify-center mx-auto">
+            <div className="w-12 h-12 rounded-full bg-sky-50 text-accent flex items-center justify-center mx-auto">
               <Map className="w-6 h-6" />
             </div>
             <h2 className="text-lg font-bold text-text-primary uppercase tracking-wider">Select Workspace Region</h2>
@@ -2419,7 +2421,7 @@ export default function Home() {
               <div className="text-center py-6">
                 {loadingRegions ? (
                   <div className="flex items-center gap-2 justify-center text-text-tertiary">
-                    <Loader2 className="w-5 h-5 animate-spin text-green" />
+                    <Loader2 className="w-5 h-5 animate-spin text-accent" />
                     <span>Loading operational regions...</span>
                   </div>
                 ) : (
@@ -2432,7 +2434,7 @@ export default function Home() {
                   <button
                     key={reg.id}
                     onClick={() => switchRegion(reg)}
-                    className="flex items-center justify-between p-3.5 bg-bg-elevated border border-border hover:border-green hover:bg-green-soft/10 text-xs font-bold text-text-primary rounded-lg transition-all text-left cursor-pointer"
+                    className="flex items-center justify-between p-3.5 bg-white border border-border hover:border-accent hover:bg-sky-50/50 text-xs font-bold text-text-primary rounded-lg transition-all text-left cursor-pointer"
                   >
                     <span>{reg.name} Region</span>
                     <ChevronRight className="w-4 h-4 text-text-tertiary" />
@@ -2854,6 +2856,24 @@ export default function Home() {
     }
   };
 
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-bg">
+        <div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+  }
+
+  if (isPending || role === 'unassigned' || !role) {
+    return (
+      <PendingApprovalView
+        email={email}
+        onRefresh={refreshProfile}
+        onSignOut={signOut}
+      />
+    );
+  }
+
   return (
     <AdminShell
       activeNav={activeNav}
@@ -2903,158 +2923,174 @@ export default function Home() {
             {overviewLoading ? (
               <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-7 gap-3">
                 {Array.from({ length: 7 }).map((_, idx) => (
-                  <div key={idx} className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-4 animate-pulse h-[130px] flex flex-col justify-between" />
+                  <div key={idx} className="bg-white border border-border rounded-xl p-3 sm:p-4 animate-pulse h-[130px] flex flex-col justify-between shadow-xs" />
                 ))}
               </div>
             ) : overviewMetrics ? (
               <>
                 <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 xl:grid-cols-7 gap-3">
-                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-4 flex flex-col justify-between">
+                  <div className="bg-white border border-border rounded-xl p-3 sm:p-4 flex flex-col justify-between shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:shadow-elevated animate-card-entrance" style={{ animationDelay: '0ms' }}>
                     <div className="flex items-start justify-between mb-2">
-                      <div className="bg-green-500/10 text-green-400 p-2 rounded-lg">
+                      <div className="bg-emerald-50 text-emerald-600 p-2 rounded-lg border border-emerald-200">
                         <CreditCard className="w-4 h-4" />
                       </div>
                     </div>
-                    <div className="text-2xl sm:text-3xl font-bold text-white tracking-tight">{overviewMetrics.paidVendorCount}</div>
-                    <div className="text-[11px] text-gray-500 uppercase tracking-wider mt-1">Paid Vendors</div>
+                    <div className="text-2xl sm:text-3xl font-bold text-text-primary tracking-tight">
+                      <AnimatedNumber value={overviewMetrics.paidVendorCount} />
+                    </div>
+                    <div className="text-[11px] text-text-secondary uppercase tracking-wider mt-1">Paid Vendors</div>
                     {/* Registered vs pending split indicator */}
                     {overviewMetrics.paidVendorCount > 0 && (
                       <div className="flex items-center gap-1.5 mt-2 flex-wrap">
-                        <span className="text-[9px] font-bold text-green-400 bg-green-500/10 border border-green-500/20 px-1.5 py-0.5 rounded">
-                          {overviewMetrics.paidRegisteredCount} reg
+                        <span className="text-[9px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded">
+                          <AnimatedNumber value={overviewMetrics.paidRegisteredCount} /> reg
                         </span>
                         {overviewMetrics.paidPendingCount > 0 && (
-                          <span className="text-[9px] font-bold text-amber-400 bg-amber-500/10 border border-amber-500/20 px-1.5 py-0.5 rounded">
-                            {overviewMetrics.paidPendingCount} pend
+                          <span className="text-[9px] font-bold text-amber-700 bg-amber-50 border border-amber-200 px-1.5 py-0.5 rounded">
+                            <AnimatedNumber value={overviewMetrics.paidPendingCount} /> pend
                           </span>
                         )}
                       </div>
                     )}
                   </div>
 
-                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-4 flex flex-col justify-between">
+                  <div className="bg-white border border-border rounded-xl p-3 sm:p-4 flex flex-col justify-between shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:shadow-elevated animate-card-entrance" style={{ animationDelay: '50ms' }}>
                     <div className="flex items-start justify-between mb-2">
-                      <div className="bg-amber-500/10 text-amber-400 p-2 rounded-lg">
+                      <div className="bg-amber-500/10 text-amber-600 p-2 rounded-lg">
                         <Footprints className="w-4 h-4" />
                       </div>
                     </div>
-                    <div className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
-                      {overviewMetrics.walkinEstimateTotal !== null
-                        ? `${overviewMetrics.walkinEstimateTotal.toLocaleString()}+`
-                        : overviewMetrics.walkinCount.toLocaleString()}
+                    <div className="text-2xl sm:text-3xl font-bold text-text-primary tracking-tight">
+                      {overviewMetrics.walkinEstimateTotal !== null ? (
+                        <span><AnimatedNumber value={overviewMetrics.walkinEstimateTotal} />+</span>
+                      ) : (
+                        <AnimatedNumber value={overviewMetrics.walkinCount} />
+                      )}
                     </div>
-                    <div className="text-[11px] text-gray-500 uppercase tracking-wider mt-1">
+                    <div className="text-[11px] text-text-secondary uppercase tracking-wider mt-1">
                       {overviewMetrics.walkinEstimateTotal !== null ? 'Walk-ins (Est.)' : 'Walk-ins (Logged)'}
                     </div>
-                    <div className="text-[9px] text-gray-600 mt-1.5 leading-snug">
+                    <div className="text-[9px] text-text-tertiary mt-1.5 leading-snug">
                       {overviewMetrics.walkinEstimateTotal !== null
                         ? `Profiles logged: ${overviewMetrics.walkinCount} of ${overviewMetrics.walkinEstimateTotal.toLocaleString()}+`
                         : 'No estimate set for this edition'}
                     </div>
                   </div>
 
-                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-4 flex flex-col justify-between">
+                  <div className="bg-white border border-border rounded-xl p-3 sm:p-4 flex flex-col justify-between shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:shadow-elevated animate-card-entrance" style={{ animationDelay: '100ms' }}>
                     <div className="flex items-start justify-between mb-2">
-                      <div className="bg-blue-500/10 text-blue-400 p-2 rounded-lg">
+                      <div className="bg-accent-soft text-accent p-2 rounded-lg">
                         <ClipboardList className="w-4 h-4" />
                       </div>
                     </div>
-                    <div className="text-2xl sm:text-3xl font-bold text-white tracking-tight">{overviewMetrics.surveyCount}</div>
-                    <div className="text-[11px] text-gray-500 uppercase tracking-wider mt-1">Surveys</div>
+                    <div className="text-2xl sm:text-3xl font-bold text-text-primary tracking-tight">
+                      <AnimatedNumber value={overviewMetrics.surveyCount} />
+                    </div>
+                    <div className="text-[11px] text-text-secondary uppercase tracking-wider mt-1">Surveys</div>
                   </div>
 
-                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-4 flex flex-col justify-between">
+                  <div className="bg-white border border-border rounded-xl p-3 sm:p-4 flex flex-col justify-between shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:shadow-elevated animate-card-entrance" style={{ animationDelay: '150ms' }}>
                     <div className="flex items-start justify-between mb-2">
-                      <div className="bg-purple-500/10 text-purple-400 p-2 rounded-lg">
+                      <div className="bg-purple-500/10 text-purple-600 p-2 rounded-lg">
                         <Users className="w-4 h-4" />
                       </div>
                     </div>
-                    <div className="text-[11px] text-gray-500 uppercase tracking-wider mt-1 mb-1">Gender Split</div>
+                    <div className="text-[11px] text-text-secondary uppercase tracking-wider mt-1 mb-1">Gender Split</div>
                     {overviewMetrics.genderSplit.femalePct !== null ? (
                       <div className="mt-2">
-                        <div className="flex rounded-full overflow-hidden h-1.5 bg-white/5">
+                        <div className="flex rounded-full overflow-hidden h-1.5 bg-slate-100">
                           <div
                             style={{ width: `${overviewMetrics.genderSplit.femalePct}%` }}
                             className="bg-purple-500 transition-all duration-700"
                           />
                           <div
                             style={{ width: `${overviewMetrics.genderSplit.malePct}%` }}
-                            className="bg-cyan-500 transition-all duration-700"
+                            className="bg-accent transition-all duration-700"
                           />
                         </div>
                         <div className="flex justify-between mt-1.5">
-                          <span className="text-[11px] text-purple-400 font-semibold">{overviewMetrics.genderSplit.femalePct}% F</span>
-                          <span className="text-[11px] text-cyan-400 font-semibold">{overviewMetrics.genderSplit.malePct}% M</span>
+                          <span className="text-[11px] text-purple-600 font-semibold">{overviewMetrics.genderSplit.femalePct}% F</span>
+                          <span className="text-[11px] text-accent font-semibold">{overviewMetrics.genderSplit.malePct}% M</span>
                         </div>
                       </div>
                     ) : (
-                      <div className="text-xs text-gray-500">No data</div>
+                      <div className="text-xs text-text-tertiary">No data</div>
                     )}
                   </div>
 
-                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-4 flex flex-col justify-between">
+                  <div className="bg-white border border-border rounded-xl p-3 sm:p-4 flex flex-col justify-between shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:shadow-elevated animate-card-entrance" style={{ animationDelay: '200ms' }}>
                     <div className="flex items-start justify-between mb-2">
-                      <div className="bg-emerald-500/10 text-emerald-400 p-2 rounded-lg">
+                      <div className="bg-emerald-500/10 text-emerald-600 p-2 rounded-lg">
                         <BarChart3 className="w-4 h-4" />
                       </div>
                     </div>
-                    <div className="text-2xl sm:text-3xl font-bold text-white tracking-tight">{overviewMetrics.avgVendorAge || 'N/A'}</div>
-                    <div className="text-[11px] text-gray-500 uppercase tracking-wider mt-1">Avg Age</div>
+                    <div className="text-2xl sm:text-3xl font-bold text-text-primary tracking-tight">
+                      {typeof overviewMetrics.avgVendorAge === 'number' ? (
+                        <AnimatedNumber value={overviewMetrics.avgVendorAge} />
+                      ) : (
+                        overviewMetrics.avgVendorAge || 'N/A'
+                      )}
+                    </div>
+                    <div className="text-[11px] text-text-secondary uppercase tracking-wider mt-1">Avg Age</div>
                   </div>
 
-                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-4 flex flex-col justify-between">
+                  <div className="bg-white border border-border rounded-xl p-3 sm:p-4 flex flex-col justify-between shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:shadow-elevated animate-card-entrance" style={{ animationDelay: '250ms' }}>
                     <div className="flex items-start justify-between mb-2">
-                      <div className="bg-green-500/10 text-green-400 p-2 rounded-lg">
+                      <div className="bg-accent-soft text-accent p-2 rounded-lg">
                         <ArrowUpRight className="w-4 h-4" />
                       </div>
                     </div>
-                    <div className="text-2xl sm:text-3xl font-bold text-white tracking-tight">
-                      {overviewMetrics.firstTimerPct !== null ? `${overviewMetrics.firstTimerPct}%` : 'N/A'}
+                    <div className="text-2xl sm:text-3xl font-bold text-text-primary tracking-tight">
+                      {overviewMetrics.firstTimerPct !== null ? (
+                        <AnimatedNumber value={overviewMetrics.firstTimerPct} suffix="%" />
+                      ) : 'N/A'}
                     </div>
-                    <div className="text-[11px] text-gray-500 uppercase tracking-wider mt-1">First Timers</div>
+                    <div className="text-[11px] text-text-secondary uppercase tracking-wider mt-1">First Timers</div>
                   </div>
 
-                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-4 flex flex-col justify-between">
+                  <div className="bg-white border border-border rounded-xl p-3 sm:p-4 flex flex-col justify-between shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:shadow-elevated animate-card-entrance" style={{ animationDelay: '300ms' }}>
                     <div className="flex items-start justify-between mb-1">
-                      <div className="bg-green-500/10 text-green-400 p-2 rounded-lg">
+                      <div className="bg-accent-soft text-accent p-2 rounded-lg">
                         <RotateCcw className="w-4 h-4" />
                       </div>
                     </div>
-                    <div className="text-[11px] text-gray-500 uppercase tracking-wider">
+                    <div className="text-[11px] text-text-secondary uppercase tracking-wider">
                       Retention
                     </div>
                     {overviewMetrics.retentionPct !== null ? (
                       <div className="relative flex items-center justify-center my-1">
                         <svg viewBox="0 0 36 36" className="w-14 h-14 sm:w-16 sm:h-16 -rotate-90">
                           <circle cx="18" cy="18" r="15.9" fill="none"
-                            stroke="rgba(255,255,255,0.05)" strokeWidth="2.5" />
+                            stroke="#f1f5f9" strokeWidth="2.5" />
                           <circle cx="18" cy="18" r="15.9" fill="none"
-                            stroke="#22c55e" strokeWidth="2.5"
+                            stroke="#1d4ed8" strokeWidth="2.5"
                             strokeDasharray={`${overviewMetrics.retentionPct} ${100 - overviewMetrics.retentionPct}`}
                             strokeLinecap="round" />
                         </svg>
                         <div className="absolute text-center">
-                          <div className="text-base sm:text-lg font-bold text-white">{overviewMetrics.retentionPct}%</div>
+                          <div className="text-base sm:text-lg font-bold text-text-primary">
+                            <AnimatedNumber value={overviewMetrics.retentionPct} suffix="%" />
+                          </div>
                         </div>
                       </div>
                     ) : (
-                      <div className="text-xs text-gray-500">No data</div>
+                      <div className="text-xs text-text-tertiary">No data</div>
                     )}
                   </div>
                 </div>
 
                 {/* SECTION 2 — Growth Across Editions */}
                 {overviewMetrics.editionGrowth.length > 0 && (
-                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-4 sm:p-6">
+                  <div className="bg-white border border-border rounded-xl p-4 sm:p-6 shadow-xs">
                     <div className="flex items-center gap-2 mb-4 sm:mb-6">
-                      <div className="w-1 h-4 bg-green-500 rounded-full" />
-                      <span className="text-xs font-semibold tracking-widest uppercase text-gray-400">
+                      <div className="w-1 h-4 bg-accent rounded-full" />
+                      <span className="text-xs font-semibold tracking-widest uppercase text-text-secondary">
                         Growth Across Editions
                       </span>
                     </div>
                     <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
                       <div>
-                        <h5 className="text-[10px] font-semibold text-gray-400 mb-3 uppercase tracking-wider">Vendors per Edition</h5>
+                        <h5 className="text-[10px] font-semibold text-text-secondary mb-3 uppercase tracking-wider">Vendors per Edition</h5>
                         <ResponsiveContainer width="100%" height={220}>
                           <BarChart data={overviewMetrics.editionGrowth} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
                             <defs>
@@ -3063,14 +3099,14 @@ export default function Home() {
                                 <stop offset="100%" stopColor="#15803d" stopOpacity={0.85} />
                               </linearGradient>
                               <linearGradient id="paidVendorsGrad" x1="0" y1="0" x2="0" y2="1">
-                                <stop offset="0%" stopColor="#3b82f6" stopOpacity={1} />
-                                <stop offset="100%" stopColor="#1d4ed8" stopOpacity={0.85} />
+                                <stop offset="0%" stopColor="#1d4ed8" stopOpacity={1} />
+                                <stop offset="100%" stopColor="#1e40af" stopOpacity={0.85} />
                               </linearGradient>
                             </defs>
-                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+                            <CartesianGrid strokeDasharray="3 3" stroke="#e5e9ee" vertical={false} />
                             <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#6b7280' }} axisLine={false} tickLine={false} dy={5} />
                             <YAxis tick={{ fontSize: 10, fill: '#6b7280' }} axisLine={false} tickLine={false} dx={-2} />
-                            <Tooltip content={<CustomGrowthTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.03)' }} />
+                            <Tooltip content={<CustomGrowthTooltip />} cursor={{ fill: 'rgba(29, 78, 216, 0.04)' }} />
                             <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '11px', color: '#6b7280', paddingTop: '16px' }} />
                             <Bar dataKey="surveyCount" name="Survey Vendors" fill="url(#surveyVendorsGrad)" radius={[4, 4, 0, 0]} />
                             <Bar dataKey="paidCount" name="Paid Vendors" fill="url(#paidVendorsGrad)" radius={[4, 4, 0, 0]} />
@@ -3078,7 +3114,7 @@ export default function Home() {
                         </ResponsiveContainer>
                       </div>
                       <div>
-                        <h5 className="text-[10px] font-semibold text-gray-400 mb-3 uppercase tracking-wider">Walk-ins per Edition</h5>
+                        <h5 className="text-[10px] font-semibold text-text-secondary mb-3 uppercase tracking-wider">Walk-ins per Edition</h5>
                         <ResponsiveContainer width="100%" height={220}>
                           <BarChart data={overviewMetrics.editionGrowth} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
                             <defs>
@@ -3087,10 +3123,10 @@ export default function Home() {
                                 <stop offset="100%" stopColor="#b45309" stopOpacity={0.85} />
                               </linearGradient>
                             </defs>
-                            <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+                            <CartesianGrid strokeDasharray="3 3" stroke="#e5e9ee" vertical={false} />
                             <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#6b7280' }} axisLine={false} tickLine={false} dy={5} />
                             <YAxis tick={{ fontSize: 10, fill: '#6b7280' }} axisLine={false} tickLine={false} dx={-2} />
-                            <Tooltip content={<CustomGrowthTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.03)' }} />
+                            <Tooltip content={<CustomGrowthTooltip />} cursor={{ fill: 'rgba(29, 78, 216, 0.04)' }} />
                             <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '11px', color: '#6b7280', paddingTop: '16px' }} />
                             <Bar dataKey="walkinDisplay" name="Walk-ins" fill="url(#walkinsGrad)" radius={[4, 4, 0, 0]} />
                           </BarChart>
@@ -3098,7 +3134,7 @@ export default function Home() {
                       </div>
                     </div>
                     <div className="mt-6">
-                      <h5 className="text-[10px] font-semibold text-gray-400 mb-3 uppercase tracking-wider">New vs Returning Vendors per Edition</h5>
+                      <h5 className="text-[10px] font-semibold text-text-secondary mb-3 uppercase tracking-wider">New vs Returning Vendors per Edition</h5>
                       <ResponsiveContainer width="100%" height={220}>
                         <BarChart data={overviewMetrics.editionGrowth} margin={{ top: 5, right: 10, left: -20, bottom: 0 }}>
                           <defs>
@@ -3107,15 +3143,15 @@ export default function Home() {
                               <stop offset="100%" stopColor="#15803d" stopOpacity={0.85} />
                             </linearGradient>
                             <linearGradient id="returningGrad" x1="0" y1="0" x2="0" y2="1">
-                              <stop offset="0%" stopColor="#c084fc" stopOpacity={1} />
-                              <stop offset="100%" stopColor="#7e22ce" stopOpacity={0.85} />
+                              <stop offset="0%" stopColor="#38bdf8" stopOpacity={1} />
+                              <stop offset="100%" stopColor="#1d4ed8" stopOpacity={0.85} />
                             </linearGradient>
                           </defs>
-                          <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+                          <CartesianGrid strokeDasharray="3 3" stroke="#e5e9ee" vertical={false} />
                           <XAxis dataKey="name" tick={{ fontSize: 10, fill: '#6b7280' }} axisLine={false} tickLine={false} dy={5} />
                           <YAxis tick={{ fontSize: 10, fill: '#6b7280' }} axisLine={false} tickLine={false} dx={-2} />
-                          <Tooltip content={<CustomGrowthTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.03)' }} />
-                          <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '11px', color: '#6b7280', paddingTop: '16px' }} />
+                          <Tooltip content={<CustomGrowthTooltip />} cursor={{ fill: 'rgba(29, 78, 216, 0.04)' }} />
+                          <Legend iconType="circle" iconSize={8} wrapperStyle={{ fontSize: '11px', color: '#64748b', paddingTop: '16px' }} />
                           <Bar dataKey="firstTimers" name="First Timers" stackId="a" fill="url(#firstTimerGrad)" />
                           <Bar dataKey="returning" name="Returning" stackId="a" fill="url(#returningGrad)" radius={[4, 4, 0, 0]} />
                         </BarChart>
@@ -3126,29 +3162,29 @@ export default function Home() {
 
                 {/* SECTION 3 — Business Sectors */}
                 {overviewMetrics.sectors.length > 0 && (
-                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-4 sm:p-6">
+                  <div className="bg-white border border-border rounded-xl p-4 sm:p-6 shadow-xs">
                     <div className="flex items-center gap-2 mb-4 sm:mb-6">
-                      <div className="w-1 h-4 bg-green-500 rounded-full" />
-                      <span className="text-xs font-semibold tracking-widest uppercase text-gray-400">
+                      <div className="w-1 h-4 bg-accent rounded-full" />
+                      <span className="text-xs font-semibold tracking-widest uppercase text-text-secondary">
                         Business Sectors
                       </span>
                     </div>
                     <div className="space-y-3 pt-1">
                       {overviewMetrics.sectors.map((sector) => (
                         <div key={sector.name} className="flex items-center gap-3 mb-3">
-                          <span className="text-xs text-gray-400 w-24 shrink-0 truncate">
+                          <span className="text-xs text-text-secondary w-24 shrink-0 truncate">
                             {sector.name}
                           </span>
-                          <div className="flex-1 bg-white/5 rounded-full h-1.5 overflow-hidden">
+                          <div className="flex-1 bg-slate-100 rounded-full h-1.5 overflow-hidden">
                             <div
                               className="h-full rounded-full transition-all duration-700"
                               style={{
                                 width: `${sector.pct}%`,
-                                background: `linear-gradient(90deg, #22c55e, #16a34a)`
+                                background: `linear-gradient(90deg, #1d4ed8, #38bdf8)`
                               }}
                             />
                           </div>
-                          <span className="text-xs font-semibold text-white w-8 text-right shrink-0">
+                          <span className="text-xs font-semibold text-text-primary w-8 text-right shrink-0">
                             {sector.pct}%
                           </span>
                         </div>
@@ -3159,47 +3195,53 @@ export default function Home() {
 
                 {/* SECTION 4 — Impact Story */}
                 <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 sm:gap-4">
-                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
-                    <div className="text-[11px] text-gray-500 uppercase tracking-wider mb-2">Business Growth</div>
-                    <div className="text-2xl sm:text-3xl font-bold text-green-400">
-                      {overviewMetrics.businessGrowthPct !== null ? `${overviewMetrics.businessGrowthPct}%` : 'N/A'}
+                  <div className="bg-white border border-border rounded-xl p-3 sm:p-5 flex flex-col justify-between shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:shadow-elevated animate-card-entrance" style={{ animationDelay: '0ms' }}>
+                    <div className="text-[11px] text-text-secondary uppercase tracking-wider mb-2">Business Growth</div>
+                    <div className="text-2xl sm:text-3xl font-bold text-emerald-600">
+                      {overviewMetrics.businessGrowthPct !== null ? (
+                        <AnimatedNumber value={overviewMetrics.businessGrowthPct} suffix="%" />
+                      ) : 'N/A'}
                     </div>
-                    <div className="text-[11px] text-gray-600 mt-1">Reported improvement</div>
+                    <div className="text-[11px] text-text-tertiary mt-1">Reported improvement</div>
                   </div>
-                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
-                    <div className="text-[11px] text-gray-500 uppercase tracking-wider mb-2">Total Employees</div>
-                    <div className="text-2xl sm:text-3xl font-bold text-white">
-                      {overviewMetrics.totalEmployees.toLocaleString()}
+                  <div className="bg-white border border-border rounded-xl p-3 sm:p-5 flex flex-col justify-between shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:shadow-elevated animate-card-entrance" style={{ animationDelay: '50ms' }}>
+                    <div className="text-[11px] text-text-secondary uppercase tracking-wider mb-2">Total Employees</div>
+                    <div className="text-2xl sm:text-3xl font-bold text-text-primary">
+                      <AnimatedNumber value={overviewMetrics.totalEmployees} />
                     </div>
-                    <div className="text-[11px] text-gray-600 mt-1">Across all vendors</div>
+                    <div className="text-[11px] text-text-tertiary mt-1">Across all vendors</div>
                   </div>
-                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
-                    <div className="text-[11px] text-gray-500 uppercase tracking-wider mb-2">Top Benefit</div>
-                    <div className="text-sm sm:text-base font-bold text-white line-clamp-2 break-words">
+                  <div className="bg-white border border-border rounded-xl p-3 sm:p-5 flex flex-col justify-between shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:shadow-elevated animate-card-entrance" style={{ animationDelay: '100ms' }}>
+                    <div className="text-[11px] text-text-secondary uppercase tracking-wider mb-2">Top Benefit</div>
+                    <div className="text-sm sm:text-base font-bold text-text-primary line-clamp-2 break-words">
                       {overviewMetrics.topBenefit}
                     </div>
-                    <div className="text-[11px] text-gray-600 mt-1">Most cited</div>
+                    <div className="text-[11px] text-text-tertiary mt-1">Most cited</div>
                   </div>
-                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
-                    <div className="text-[11px] text-gray-500 uppercase tracking-wider mb-2">Top Challenge</div>
-                    <div className="text-sm sm:text-base font-bold text-white line-clamp-2 break-words">
+                  <div className="bg-white border border-border rounded-xl p-3 sm:p-5 flex flex-col justify-between shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:shadow-elevated animate-card-entrance" style={{ animationDelay: '150ms' }}>
+                    <div className="text-[11px] text-text-secondary uppercase tracking-wider mb-2">Top Challenge</div>
+                    <div className="text-sm sm:text-base font-bold text-text-primary line-clamp-2 break-words">
                       {overviewMetrics.topChallenge}
                     </div>
-                    <div className="text-[11px] text-gray-600 mt-1">Most cited</div>
+                    <div className="text-[11px] text-text-tertiary mt-1">Most cited</div>
                   </div>
-                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
-                    <div className="text-[11px] text-gray-500 uppercase tracking-wider mb-2">Digital Presence</div>
-                    <div className="text-2xl sm:text-3xl font-bold text-blue-400">
-                      {overviewMetrics.digitalPresencePct !== null ? `${overviewMetrics.digitalPresencePct}%` : 'N/A'}
+                  <div className="bg-white border border-border rounded-xl p-3 sm:p-5 flex flex-col justify-between shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:shadow-elevated animate-card-entrance" style={{ animationDelay: '200ms' }}>
+                    <div className="text-[11px] text-text-secondary uppercase tracking-wider mb-2">Digital Presence</div>
+                    <div className="text-2xl sm:text-3xl font-bold text-accent">
+                      {overviewMetrics.digitalPresencePct !== null ? (
+                        <AnimatedNumber value={overviewMetrics.digitalPresencePct} suffix="%" />
+                      ) : 'N/A'}
                     </div>
-                    <div className="text-[11px] text-gray-600 mt-1">Active social media</div>
+                    <div className="text-[11px] text-text-tertiary mt-1">Active social media</div>
                   </div>
-                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
-                    <div className="text-[11px] text-gray-500 uppercase tracking-wider mb-2">Online Sales</div>
-                    <div className="text-2xl sm:text-3xl font-bold text-amber-400">
-                      {overviewMetrics.onlineSalesPct !== null ? `${overviewMetrics.onlineSalesPct}%` : 'N/A'}
+                  <div className="bg-white border border-border rounded-xl p-3 sm:p-5 flex flex-col justify-between shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:shadow-elevated animate-card-entrance" style={{ animationDelay: '250ms' }}>
+                    <div className="text-[11px] text-text-secondary uppercase tracking-wider mb-2">Online Sales</div>
+                    <div className="text-2xl sm:text-3xl font-bold text-amber-600">
+                      {overviewMetrics.onlineSalesPct !== null ? (
+                        <AnimatedNumber value={overviewMetrics.onlineSalesPct} suffix="%" />
+                      ) : 'N/A'}
                     </div>
-                    <div className="text-[11px] text-gray-600 mt-1">Online sales active</div>
+                    <div className="text-[11px] text-text-tertiary mt-1">Online sales active</div>
                   </div>
                 </div>
               </>
@@ -3245,8 +3287,8 @@ export default function Home() {
             )}
 
             {loadingVendors && !error && (
-              <div className="flex flex-col items-center justify-center p-12 bg-bg-surface border border-border rounded-xl">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-green"></div>
+              <div className="flex flex-col items-center justify-center p-12 bg-white border border-border rounded-xl shadow-xs">
+                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-accent"></div>
                 <div className="text-xs text-text-secondary mt-3">Fetching live vendor directory...</div>
               </div>
             )}
@@ -3315,13 +3357,13 @@ export default function Home() {
               </div>
 
               {/* Walk-ins Filter Bar */}
-              <div className="bg-bg-surface border border-border rounded-lg p-4 flex flex-wrap gap-4 items-end text-xs select-none">
+              <div className="bg-white border border-border rounded-xl shadow-xs p-4 flex flex-wrap gap-4 items-end text-xs select-none">
                 <div className="space-y-1">
                   <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider block">Region</label>
                   <select
                     value={walkinRegionFilter}
                     onChange={(e) => setWalkinRegionFilter(e.target.value)}
-                    className="bg-bg-elevated border border-border-light text-text-primary text-xs rounded-md px-3 py-2 cursor-pointer outline-none focus:border-green appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%209l3%203%203-3%22%20stroke%3D%22%238b949e%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[right_10px_center] bg-no-repeat pr-8 min-w-[120px]"
+                    className="bg-white border border-border text-text-primary text-xs rounded-md px-3 py-2 cursor-pointer outline-none focus:border-accent appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%209l3%203%203-3%22%20stroke%3D%22%238b949e%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[right_10px_center] bg-no-repeat pr-8 min-w-[120px]"
                   >
                     <option value="All">All Regions</option>
                     {regions.map(r => <option key={r} value={r}>{r}</option>)}
@@ -3333,7 +3375,7 @@ export default function Home() {
                   <select
                     value={walkinEditionFilter}
                     onChange={(e) => setWalkinEditionFilter(e.target.value)}
-                    className="bg-bg-elevated border border-border-light text-text-primary text-xs rounded-md px-3 py-2 cursor-pointer outline-none focus:border-green appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%209l3%203%203-3%22%20stroke%3D%22%238b949e%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[right_10px_center] bg-no-repeat pr-8 min-w-[140px]"
+                    className="bg-white border border-border text-text-primary text-xs rounded-md px-3 py-2 cursor-pointer outline-none focus:border-accent appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%209l3%203%203-3%22%20stroke%3D%22%238b949e%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[right_10px_center] bg-no-repeat pr-8 min-w-[140px]"
                   >
                     <option value="All">All Editions</option>
                     {editions.map(e => <option key={e.id} value={e.id}>{e.name}</option>)}
@@ -3348,7 +3390,7 @@ export default function Home() {
                       placeholder="Min"
                       value={walkinMinAgeFilter}
                       onChange={(e) => setWalkinMinAgeFilter(e.target.value ? parseInt(e.target.value) : '')}
-                      className="w-16 bg-bg-elevated border border-border-light rounded-md px-2.5 py-1.5 text-text-primary text-xs outline-none focus:border-green"
+                      className="w-16 bg-white border border-border rounded-md px-2.5 py-1.5 text-text-primary text-xs outline-none focus:border-accent"
                     />
                     <span className="text-text-tertiary font-bold">—</span>
                     <input
@@ -3356,7 +3398,7 @@ export default function Home() {
                       placeholder="Max"
                       value={walkinMaxAgeFilter}
                       onChange={(e) => setWalkinMaxAgeFilter(e.target.value ? parseInt(e.target.value) : '')}
-                      className="w-16 bg-bg-elevated border border-border-light rounded-md px-2.5 py-1.5 text-text-primary text-xs outline-none focus:border-green"
+                      className="w-16 bg-white border border-border rounded-md px-2.5 py-1.5 text-text-primary text-xs outline-none focus:border-accent"
                     />
                   </div>
                 </div>
@@ -3378,10 +3420,10 @@ export default function Home() {
                 )}
               </div>
 
-              <div className="bg-bg-surface border border-border rounded-lg overflow-hidden">
+              <div className="bg-white border border-border rounded-xl shadow-xs overflow-hidden">
                 <table className="w-full border-collapse text-left text-xs">
                   <thead>
-                    <tr className="bg-bg-elevated border-b border-border">
+                    <tr className="bg-slate-50 border-b border-border">
                       <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider">Full Name</th>
                       <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider">Phone</th>
                       <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider">Business Type</th>
@@ -3399,7 +3441,7 @@ export default function Home() {
                       </tr>
                     ) : (
                       filteredWalkins.map((w) => (
-                        <tr key={w.id} className="hover:bg-green-soft/10">
+                        <tr key={w.id} className="hover:bg-sky-50/50">
                           <td className="p-3.5">
                             <span className="block font-bold text-text-primary">{w.full_name}</span>
                           </td>
@@ -3441,12 +3483,12 @@ export default function Home() {
                     <ChevronRight className="w-4 h-4 rotate-180" /> Back
                   </button>
                 )}
-                <div className="w-1.5 h-5 bg-green-500 rounded-full" />
+                <div className="w-1.5 h-5 bg-accent rounded-full" />
                 <div>
-                  <h1 className="text-xl font-bold tracking-tight text-white">
+                  <h1 className="text-xl font-bold tracking-tight text-text-primary">
                     {showIncompleteVendors ? 'Incomplete Vendors' : 'Paid Vendors'}
                   </h1>
-                  <p className="text-xs text-gray-400 mt-0.5">
+                  <p className="text-xs text-text-secondary mt-0.5">
                     {showIncompleteVendors
                       ? 'CSV-imported vendors with missing profile details.'
                       : 'Vendor registration and payment tracking per edition.'}
@@ -3458,7 +3500,7 @@ export default function Home() {
                   {/* Incomplete vendors button */}
                   <button
                     onClick={() => setShowIncompleteVendors(true)}
-                    className="flex items-center gap-2 text-xs font-bold text-amber-400 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 px-3 py-2 rounded-lg transition-colors"
+                    className="flex items-center gap-2 text-xs font-bold text-amber-700 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-3 py-2 rounded-lg transition-colors cursor-pointer"
                   >
                     <Users className="w-3.5 h-3.5" />
                     Incomplete Vendors
@@ -3468,7 +3510,7 @@ export default function Home() {
                     onClick={() => setIsCsvImportModalOpen(true)}
                     disabled={!activeEdition}
                     title={!activeEdition ? 'Select an edition first' : 'Import paid vendor list from CSV'}
-                    className="flex items-center gap-2 text-xs font-bold text-black bg-green-500 hover:bg-green-400 disabled:opacity-40 disabled:cursor-not-allowed px-3 py-2 rounded-lg transition-colors"
+                    className="flex items-center gap-2 text-xs font-bold text-white bg-accent hover:bg-accent-hover disabled:opacity-40 disabled:cursor-not-allowed px-3 py-2 rounded-lg transition-colors cursor-pointer"
                   >
                     <Upload className="w-3.5 h-3.5" />
                     CSV Import
@@ -3476,7 +3518,7 @@ export default function Home() {
                   {/* Import History button */}
                   <button
                     onClick={() => setIsImportHistoryOpen(true)}
-                    className="flex items-center gap-2 text-xs font-bold text-gray-300 bg-white/5 hover:bg-white/10 border border-white/10 px-3 py-2 rounded-lg transition-colors"
+                    className="flex items-center gap-2 text-xs font-bold text-text-secondary bg-white hover:bg-slate-50 border border-border px-3 py-2 rounded-lg transition-colors cursor-pointer"
                   >
                     <History className="w-3.5 h-3.5" />
                     History
@@ -3497,61 +3539,67 @@ export default function Home() {
             ) : (
               <>
                 {!activeEdition ? (
-                  <div className="bg-[#0f1117] border border-white/5 rounded-xl p-12 text-center select-none">
-                    <CreditCard className="w-10 h-10 text-gray-500 mx-auto mb-3" />
-                    <p className="text-sm text-gray-300 font-semibold">Select an edition to view paid vendors</p>
+                  <div className="bg-white border border-border rounded-xl p-12 text-center select-none shadow-xs">
+                    <CreditCard className="w-10 h-10 text-text-tertiary mx-auto mb-3" />
+                    <p className="text-sm text-text-primary font-semibold">Select an edition to view paid vendors</p>
                   </div>
                 ) : (
                   <>
                     {/* Live Count Cards */}
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                      <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
+                      <div className="bg-white border border-border rounded-xl p-3 sm:p-5 flex flex-col justify-between shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:shadow-elevated animate-card-entrance" style={{ animationDelay: '0ms' }}>
                         <div className="flex items-start justify-between mb-3">
-                          <div className="bg-green-500/10 text-green-400 p-2.5 rounded-lg">
+                          <div className="bg-emerald-50 text-emerald-600 p-2.5 rounded-lg border border-emerald-200">
                             <CreditCard className="w-5 h-5" />
                           </div>
-                          <span className="text-[10px] font-semibold text-green-400 bg-green-500/10 px-2 py-0.5 rounded-full uppercase tracking-wider">Confirmed</span>
+                          <span className="text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full uppercase tracking-wider">Confirmed</span>
                         </div>
-                        <div className="text-3xl font-bold text-white tracking-tight">{paidVendorCounts.paid}</div>
-                        <div className="text-xs text-gray-400 uppercase tracking-wider mt-1">Paid Vendors</div>
+                        <div className="text-3xl font-bold text-text-primary tracking-tight">
+                          <AnimatedNumber value={paidVendorCounts.paid} />
+                        </div>
+                        <div className="text-xs text-text-secondary uppercase tracking-wider mt-1">Paid Vendors</div>
                       </div>
 
-                      <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
+                      <div className="bg-white border border-border rounded-xl p-3 sm:p-5 flex flex-col justify-between shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:shadow-elevated animate-card-entrance" style={{ animationDelay: '60ms' }}>
                         <div className="flex items-start justify-between mb-3">
-                          <div className="bg-amber-500/10 text-amber-400 p-2.5 rounded-lg">
+                          <div className="bg-amber-50 text-amber-600 p-2.5 rounded-lg border border-amber-200">
                             <AlertTriangle className="w-5 h-5" />
                           </div>
-                          <span className="text-[10px] font-semibold text-amber-400 bg-amber-500/10 px-2 py-0.5 rounded-full uppercase tracking-wider">Pending</span>
+                          <span className="text-[10px] font-semibold text-amber-700 bg-amber-50 border border-amber-200 px-2 py-0.5 rounded-full uppercase tracking-wider">Pending</span>
                         </div>
-                        <div className="text-3xl font-bold text-white tracking-tight">{paidVendorCounts.unpaid}</div>
-                        <div className="text-xs text-gray-400 uppercase tracking-wider mt-1">Pending / Unpaid</div>
+                        <div className="text-3xl font-bold text-text-primary tracking-tight">
+                          <AnimatedNumber value={paidVendorCounts.unpaid} />
+                        </div>
+                        <div className="text-xs text-text-secondary uppercase tracking-wider mt-1">Pending / Unpaid</div>
                       </div>
 
-                      <div className="bg-[#0f1117] border border-white/5 rounded-xl p-3 sm:p-5 flex flex-col justify-between">
+                      <div className="bg-white border border-border rounded-xl p-3 sm:p-5 flex flex-col justify-between shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:shadow-elevated animate-card-entrance" style={{ animationDelay: '120ms' }}>
                         <div className="flex items-start justify-between mb-3">
-                          <div className="bg-purple-500/10 text-purple-400 p-2.5 rounded-lg">
+                          <div className="bg-accent-soft text-accent p-2.5 rounded-lg border border-accent/20">
                             <TrendingUp className="w-5 h-5" />
                           </div>
-                          <span className="text-[10px] font-semibold text-purple-400 bg-purple-500/10 px-2 py-0.5 rounded-full uppercase tracking-wider">Collection</span>
+                          <span className="text-[10px] font-semibold text-accent bg-accent-soft border border-accent/20 px-2 py-0.5 rounded-full uppercase tracking-wider">Collection</span>
                         </div>
-                        <div className="text-3xl font-bold text-white tracking-tight">UGX {paidVendorCounts.revenue.toLocaleString()}</div>
-                        <div className="text-xs text-gray-400 uppercase tracking-wider mt-1">Total Revenue</div>
+                        <div className="text-3xl font-bold text-text-primary tracking-tight">
+                          UGX <AnimatedNumber value={paidVendorCounts.revenue} />
+                        </div>
+                        <div className="text-xs text-text-secondary uppercase tracking-wider mt-1">Total Revenue</div>
                       </div>
                     </div>
 
                     {/* Paid Vendors — Two-tab view: Registered / Not Yet Registered */}
-                    <div className="bg-[#0f1117] border border-white/5 rounded-xl overflow-hidden">
+                    <div className="bg-white border border-border rounded-xl overflow-hidden shadow-xs">
                       {/* Tab header */}
-                      <div className="p-4 border-b border-white/5 bg-white/[0.02] space-y-3">
+                      <div className="p-4 border-b border-border bg-slate-50/50 space-y-3">
                         {/* Combined total headline */}
                         <div className="flex items-center justify-between flex-wrap gap-2">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <div className="w-1 h-3.5 bg-green-500 rounded-full" />
-                            <span className="text-xs font-bold text-white">
+                            <div className="w-1 h-3.5 bg-accent rounded-full" />
+                            <span className="text-xs font-bold text-text-primary">
                               {paidVendorCounts.paid} Paid Vendor{paidVendorCounts.paid !== 1 ? 's' : ''}
                             </span>
                             {paidVendorCounts.paid > 0 && (
-                              <span className="text-[10px] text-gray-500">
+                              <span className="text-[10px] text-text-tertiary">
                                 — {paidVendors.filter(pv => pv.payment_status === 'paid' && pv.hasFormData).length} registered
                                 {' / '}
                                 {paidVendors.filter(pv => pv.payment_status === 'paid' && !pv.hasFormData).length} not yet registered
@@ -3563,42 +3611,42 @@ export default function Home() {
                         <div className="flex items-center gap-2 flex-wrap">
                           <button
                             onClick={() => setPaidVendorTab('registered')}
-                            className={`flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-colors ${paidVendorTab === 'registered'
-                                ? 'bg-green-500/15 border-green-500/30 text-green-400'
-                                : 'bg-white/[0.03] border-white/10 text-gray-400 hover:text-white hover:border-white/20'
+                            className={`flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-colors cursor-pointer ${paidVendorTab === 'registered'
+                                ? 'bg-accent-soft border-accent text-accent'
+                                : 'bg-white border-border text-text-secondary hover:text-text-primary hover:border-border-light'
                               }`}
                           >
-                            <span className="w-1.5 h-1.5 rounded-full bg-green-400 shrink-0" />
+                            <span className="w-1.5 h-1.5 rounded-full bg-accent shrink-0" />
                             Registered ({paidVendors.filter(pv => pv.payment_status === 'paid' && pv.hasFormData).length})
                           </button>
                           <button
                             onClick={() => setPaidVendorTab('pending')}
-                            className={`flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-colors ${paidVendorTab === 'pending'
-                                ? 'bg-amber-500/15 border-amber-500/30 text-amber-400'
-                                : 'bg-white/[0.03] border-white/10 text-gray-400 hover:text-white hover:border-white/20'
+                            className={`flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-colors cursor-pointer ${paidVendorTab === 'pending'
+                                ? 'bg-amber-50 border-amber-300 text-amber-700'
+                                : 'bg-white border-border text-text-secondary hover:text-text-primary hover:border-border-light'
                               }`}
                           >
-                            <span className="w-1.5 h-1.5 rounded-full bg-amber-400 shrink-0" />
+                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
                             Not Yet Registered ({paidVendors.filter(pv => pv.payment_status === 'paid' && !pv.hasFormData).length})
                           </button>
                         </div>
                         {/* Business name search */}
                         <div className="relative">
-                          <Search className="w-3.5 h-3.5 text-gray-500 absolute left-3 top-1/2 -translate-y-1/2" />
+                          <Search className="w-3.5 h-3.5 text-text-tertiary absolute left-3 top-1/2 -translate-y-1/2" />
                           <input
                             type="text"
                             value={paidVendorSearch}
                             onChange={e => setPaidVendorSearch(e.target.value)}
                             placeholder="Search business name..."
-                            className="w-full bg-white/[0.03] border border-white/10 rounded-lg pl-9 pr-3 py-2 text-xs text-white placeholder-gray-500 focus:outline-none focus:border-green-500/40 focus:bg-white/[0.05] transition-colors"
+                            className="w-full bg-white border border-border rounded-lg pl-9 pr-3 py-2 text-xs text-text-primary placeholder-text-tertiary focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-colors"
                           />
                         </div>
                       </div>
 
                       {loadingPaidVendors ? (
                         <div className="p-12 text-center">
-                          <div className="animate-spin w-6 h-6 border-2 border-green-400 border-t-transparent rounded-full mx-auto mb-3" />
-                          <p className="text-xs text-gray-400 font-medium">Loading paid vendors...</p>
+                          <div className="animate-spin w-6 h-6 border-2 border-accent border-t-transparent rounded-full mx-auto mb-3" />
+                          <p className="text-xs text-text-secondary font-medium">Loading paid vendors...</p>
                         </div>
                       ) : (() => {
                         const tabVendors = paidVendors.filter(pv => {
@@ -3615,15 +3663,15 @@ export default function Home() {
                           <div className="p-12 text-center select-none">
                             {paidVendorTab === 'registered' ? (
                               <>
-                                <CreditCard className="w-10 h-10 text-gray-600 mx-auto mb-3" />
-                                <p className="text-sm text-gray-300 font-semibold">No registered vendors yet.</p>
-                                <p className="text-xs text-gray-500 mt-1">Vendors who complete the registration form will appear here.</p>
+                                <CreditCard className="w-10 h-10 text-text-tertiary mx-auto mb-3" />
+                                <p className="text-sm text-text-primary font-semibold">No registered vendors yet.</p>
+                                <p className="text-xs text-text-secondary mt-1">Vendors who complete the registration form will appear here.</p>
                               </>
                             ) : (
                               <>
-                                <CreditCard className="w-10 h-10 text-gray-600 mx-auto mb-3" />
-                                <p className="text-sm text-gray-300 font-semibold">All paid vendors have registered.</p>
-                                <p className="text-xs text-gray-500 mt-1">CSV-imported vendors who haven&apos;t filled the form yet will appear here.</p>
+                                <CreditCard className="w-10 h-10 text-text-tertiary mx-auto mb-3" />
+                                <p className="text-sm text-text-primary font-semibold">All paid vendors have registered.</p>
+                                <p className="text-xs text-text-secondary mt-1">CSV-imported vendors who haven&apos;t filled the form yet will appear here.</p>
                               </>
                             )}
                           </div>
@@ -3631,23 +3679,23 @@ export default function Home() {
                           <div className="w-full overflow-x-auto">
                             <table className="w-full border-collapse text-left text-xs">
                               <thead>
-                                <tr className="bg-white/[0.02] border-b border-white/5">
-                                  <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest text-center">Ticket #</th>
-                                  <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Business Name</th>
-                                  <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Contact Name</th>
-                                  <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Phone</th>
-                                  <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Category</th>
-                                  <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest text-center">Status</th>
-                                  <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest text-right">Amount Paid</th>
+                                <tr className="bg-slate-50/80 border-b border-border">
+                                  <th className="p-4 text-[10px] font-semibold text-text-secondary uppercase tracking-widest text-center">Ticket #</th>
+                                  <th className="p-4 text-[10px] font-semibold text-text-secondary uppercase tracking-widest">Business Name</th>
+                                  <th className="p-4 text-[10px] font-semibold text-text-secondary uppercase tracking-widest">Contact Name</th>
+                                  <th className="p-4 text-[10px] font-semibold text-text-secondary uppercase tracking-widest">Phone</th>
+                                  <th className="p-4 text-[10px] font-semibold text-text-secondary uppercase tracking-widest">Category</th>
+                                  <th className="p-4 text-[10px] font-semibold text-text-secondary uppercase tracking-widest text-center">Status</th>
+                                  <th className="p-4 text-[10px] font-semibold text-text-secondary uppercase tracking-widest text-right">Amount Paid</th>
                                   {paidVendorTab === 'registered' ? (
-                                    <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest">Registered</th>
+                                    <th className="p-4 text-[10px] font-semibold text-text-secondary uppercase tracking-widest">Registered</th>
                                   ) : (
-                                    <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest text-center">Action</th>
+                                    <th className="p-4 text-[10px] font-semibold text-text-secondary uppercase tracking-widest text-center">Action</th>
                                   )}
-                                  <th className="p-4 text-[10px] font-semibold text-gray-400 uppercase tracking-widest text-center w-[60px]">Del</th>
+                                  <th className="p-4 text-[10px] font-semibold text-text-secondary uppercase tracking-widest text-center w-[60px]">Del</th>
                                 </tr>
                               </thead>
-                              <tbody className="divide-y divide-white/5 text-xs">
+                              <tbody className="divide-y divide-border text-xs">
                                 {tabVendors.map((pv) => (
                                   <tr
                                     key={pv.id}
@@ -3655,25 +3703,25 @@ export default function Home() {
                                       setSelectedVendorForChoice(pv);
                                       setIsChoiceModalOpen(true);
                                     }}
-                                    className="hover:bg-white/[0.02] transition-colors cursor-pointer"
+                                    className="hover:bg-slate-50/70 transition-colors cursor-pointer"
                                   >
                                     <td className="p-4 text-center">
                                       {pv.ticket_number ? (
-                                        <span className="inline-block px-2 py-0.5 rounded font-mono text-[11px] font-bold bg-green-500/15 text-green-400 border border-green-500/25">
+                                        <span className="inline-block px-2 py-0.5 rounded font-mono text-[11px] font-bold bg-accent-soft text-accent border border-accent/20">
                                           {pv.ticket_number}
                                         </span>
                                       ) : (
-                                        <span className="text-gray-600 font-mono text-[11px]">—</span>
+                                        <span className="text-text-tertiary font-mono text-[11px]">—</span>
                                       )}
                                     </td>
-                                    <td className="p-4 font-semibold text-white">{pv.business_name || '—'}</td>
-                                    <td className="p-4 text-gray-300 font-medium">{pv.contact_name || '—'}</td>
-                                    <td className="p-4 text-gray-400 font-mono text-[11px]">{pv.phone || <span className="text-gray-600 italic">No phone</span>}</td>
-                                    <td className="p-4 text-gray-300 font-medium">{pv.category || '—'}</td>
+                                    <td className="p-4 font-semibold text-text-primary">{pv.business_name || '—'}</td>
+                                    <td className="p-4 text-text-secondary font-medium">{pv.contact_name || '—'}</td>
+                                    <td className="p-4 text-text-tertiary font-mono text-[11px]">{pv.phone || <span className="text-text-tertiary italic">No phone</span>}</td>
+                                    <td className="p-4 text-text-secondary font-medium">{pv.category || '—'}</td>
                                     <td className="p-4 text-center">
-                                      <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${pv.payment_status === 'paid' ? 'bg-green-500/10 text-green-400 border border-green-500/20' :
-                                          pv.payment_status === 'waived' ? 'bg-gray-500/10 text-gray-400 border border-white/10' :
-                                            'bg-amber-500/10 text-amber-400 border border-amber-500/20'
+                                      <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${pv.payment_status === 'paid' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
+                                          pv.payment_status === 'waived' ? 'bg-slate-100 text-slate-700 border border-slate-200' :
+                                            'bg-amber-50 text-amber-700 border border-amber-200'
                                         }`}>
                                         {pv.payment_status}
                                       </span>
@@ -3684,22 +3732,22 @@ export default function Home() {
                                           setSelectedVendorForFeeEdit(pv);
                                           setIsVendorFeeModalOpen(true);
                                         }}
-                                        className="group inline-flex items-center gap-1.5 hover:bg-white/5 px-2 py-1 rounded-md transition-colors cursor-pointer"
+                                        className="group inline-flex items-center gap-1.5 hover:bg-slate-100 px-2 py-1 rounded-md transition-colors cursor-pointer"
                                         title="Click to edit fee or manage standard/override rate"
                                       >
-                                        <span className="text-white font-bold font-mono text-xs">
+                                        <span className="text-text-primary font-bold font-mono text-xs">
                                           UGX {Number(pv.amount_paid || 0).toLocaleString()}
                                         </span>
                                         {pv.fee_source === 'override' && (
-                                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-500/15 text-amber-400 border border-amber-500/30" title="Custom override rate (protected from standard fee sync)">
+                                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded text-[9px] font-bold bg-amber-50 text-amber-700 border border-amber-200" title="Custom override rate (protected from standard fee sync)">
                                             ⚡ Override
                                           </span>
                                         )}
-                                        <Edit3 className="w-3 h-3 text-gray-500 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                        <Edit3 className="w-3 h-3 text-text-tertiary opacity-0 group-hover:opacity-100 transition-opacity" />
                                       </button>
                                     </td>
                                     {paidVendorTab === 'registered' ? (
-                                      <td className="p-4 text-gray-400 font-medium">
+                                      <td className="p-4 text-text-secondary font-medium">
                                         {pv.created_at ? new Date(pv.created_at).toLocaleDateString() : '—'}
                                       </td>
                                     ) : (
@@ -3709,7 +3757,7 @@ export default function Home() {
                                             setSelectedVendorForChoice(pv);
                                             setIsChoiceModalOpen(true);
                                           }}
-                                          className="text-[10px] font-bold text-amber-400 hover:text-amber-300 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/20 px-2.5 py-1 rounded-lg transition-colors whitespace-nowrap"
+                                          className="text-[10px] font-bold text-amber-700 hover:text-amber-800 bg-amber-50 hover:bg-amber-100 border border-amber-200 px-2.5 py-1 rounded-lg transition-colors whitespace-nowrap cursor-pointer"
                                         >
                                           Fill In Details →
                                         </button>
@@ -3719,7 +3767,7 @@ export default function Home() {
                                       <button
                                         onClick={() => handleDeletePaidVendor(pv)}
                                         title="Delete paid vendor"
-                                        className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 transition-colors"
+                                        className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-text-tertiary hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-200 transition-colors cursor-pointer"
                                       >
                                         <Trash2 className="w-4 h-4" />
                                       </button>
@@ -3743,25 +3791,25 @@ export default function Home() {
         {activeNav === 'quick-entry' && (
           <div className="space-y-5 animate-fade-in text-left max-w-2xl mx-auto">
             <div className="flex items-center gap-2">
-              <div className="w-1.5 h-5 bg-green-500 rounded-full" />
+              <div className="w-1.5 h-5 bg-accent rounded-full" />
               <div>
-                <h1 className="text-xl font-bold tracking-tight text-white">Quick Entry Panel</h1>
-                <p className="text-xs text-gray-400 mt-0.5">Admin-side data entry forms for fast registration workflows.</p>
+                <h1 className="text-xl font-bold tracking-tight text-text-primary">Quick Entry Panel</h1>
+                <p className="text-xs text-text-secondary mt-0.5">Admin-side data entry forms for fast registration workflows.</p>
               </div>
             </div>
 
             {/* Active Workspace summary */}
-            <div className="bg-[#0f1117] border border-white/5 rounded-xl p-4 flex items-center justify-between select-none">
+            <div className="bg-white border border-border rounded-xl p-4 flex items-center justify-between select-none shadow-xs">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-green-500/10 text-green-400 flex items-center justify-center font-bold">
+                <div className="w-8 h-8 rounded-lg bg-accent-soft text-accent flex items-center justify-center font-bold">
                   <Map className="w-4 h-4" />
                 </div>
                 <div>
-                  <label className="text-[9px] font-semibold text-gray-400 uppercase tracking-widest block">Active Workspace</label>
-                  <span className="text-xs font-bold text-white flex items-center gap-1.5 mt-0.5">
+                  <label className="text-[9px] font-semibold text-text-tertiary uppercase tracking-widest block">Active Workspace</label>
+                  <span className="text-xs font-bold text-text-primary flex items-center gap-1.5 mt-0.5">
                     {activeRegion ? activeRegion.name : 'No Region'}
-                    <span className="text-gray-500 font-normal">/</span>
-                    <span className="text-green-400">{activeEdition ? activeEdition.name : 'No Edition'}</span>
+                    <span className="text-border-light font-normal">/</span>
+                    <span className="text-accent">{activeEdition ? activeEdition.name : 'No Edition'}</span>
                   </span>
                 </div>
               </div>
@@ -3803,19 +3851,19 @@ export default function Home() {
             />
 
             {/* Live Session Activity Feed */}
-            <div className="bg-[#0f1117] border border-white/5 rounded-xl overflow-hidden mt-6 animate-fade-in select-none">
-              <div className="p-4 bg-white/[0.02] border-b border-white/5 flex items-center justify-between">
+            <div className="bg-white border border-border rounded-xl overflow-hidden mt-6 animate-fade-in select-none shadow-xs">
+              <div className="p-4 bg-slate-50/50 border-b border-border flex items-center justify-between">
                 <div className="flex items-center gap-2">
                   <span className="relative flex h-2 w-2">
-                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-green-400 opacity-75"></span>
-                    <span className="relative inline-flex rounded-full h-2 w-2 bg-green-500"></span>
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-accent opacity-75"></span>
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-accent"></span>
                   </span>
-                  <h3 className="text-xs font-semibold text-gray-300 uppercase tracking-widest">Live Session Entries</h3>
+                  <h3 className="text-xs font-semibold text-text-primary uppercase tracking-widest">Live Session Entries</h3>
                 </div>
                 {recentActivities.length > 0 && (
                   <button
                     onClick={() => setRecentActivities([])}
-                    className="text-[10px] font-semibold text-red-400 hover:underline cursor-pointer transition-all"
+                    className="text-[10px] font-semibold text-red-600 hover:underline cursor-pointer transition-all"
                   >
                     Clear Log
                   </button>
@@ -3824,24 +3872,24 @@ export default function Home() {
 
               <div className="p-4 max-h-[380px] overflow-y-auto space-y-2.5">
                 {recentActivities.length === 0 ? (
-                  <div className="text-center py-8 border border-dashed border-white/10 rounded-lg bg-white/[0.01]">
-                    <p className="text-xs text-gray-400">No entries recorded this session yet.</p>
-                    <p className="text-[10px] text-gray-500 mt-1">Newly submitted registrations will appear here in real-time.</p>
+                  <div className="text-center py-8 border border-dashed border-border rounded-lg bg-slate-50/50">
+                    <p className="text-xs text-text-secondary">No entries recorded this session yet.</p>
+                    <p className="text-[10px] text-text-tertiary mt-1">Newly submitted registrations will appear here in real-time.</p>
                   </div>
                 ) : (
                   recentActivities.map((activity) => {
                     const getIcon = () => {
                       switch (activity.type) {
-                        case 'paid': return <Users className="w-4 h-4 text-green-400" />;
-                        case 'collection': return <Database className="w-4 h-4 text-blue-400" />;
-                        case 'walkin': return <Footprints className="w-4 h-4 text-purple-400" />;
+                        case 'paid': return <Users className="w-4 h-4 text-emerald-600" />;
+                        case 'collection': return <Database className="w-4 h-4 text-accent" />;
+                        case 'walkin': return <Footprints className="w-4 h-4 text-purple-600" />;
                       }
                     };
                     const getBadgeColor = () => {
                       switch (activity.type) {
-                        case 'paid': return 'bg-green-500/10 text-green-400 border-green-500/20';
-                        case 'collection': return 'bg-blue-500/10 text-blue-400 border-blue-500/20';
-                        case 'walkin': return 'bg-purple-500/10 text-purple-400 border-purple-500/20';
+                        case 'paid': return 'bg-emerald-50 text-emerald-700 border-emerald-200';
+                        case 'collection': return 'bg-accent-soft text-accent border-accent/20';
+                        case 'walkin': return 'bg-purple-50 text-purple-700 border-purple-200';
                       }
                     };
                     const getLabel = () => {
@@ -3855,24 +3903,24 @@ export default function Home() {
                     return (
                       <div
                         key={activity.id}
-                        className="flex items-center justify-between p-3.5 rounded-lg border border-white/5 bg-white/[0.02] hover:bg-white/[0.04] transition-all"
+                        className="flex items-center justify-between p-3.5 rounded-lg border border-border bg-white hover:bg-slate-50/80 transition-all"
                       >
                         <div className="flex items-center gap-3">
-                          <div className="p-2 rounded-lg bg-[#161922] border border-white/10 flex items-center justify-center">
+                          <div className="p-2 rounded-lg bg-slate-50 border border-border flex items-center justify-center">
                             {getIcon()}
                           </div>
                           <div className="space-y-0.5">
                             <div className="flex items-center gap-2">
-                              <span className="font-semibold text-white text-xs">{activity.name}</span>
+                              <span className="font-semibold text-text-primary text-xs">{activity.name}</span>
                               <span className={`text-[9px] font-bold uppercase tracking-wider px-2 py-0.5 rounded-full border ${getBadgeColor()}`}>
                                 {getLabel()}
                               </span>
                             </div>
-                            <div className="text-[10px] text-gray-400 flex items-center gap-1.5">
+                            <div className="text-[10px] text-text-secondary flex items-center gap-1.5">
                               <span>{activity.detail}</span>
                               {activity.phone && (
                                 <>
-                                  <span className="text-gray-600">•</span>
+                                  <span className="text-text-tertiary">•</span>
                                   <span className="font-mono">{activity.phone}</span>
                                 </>
                               )}
@@ -3880,7 +3928,7 @@ export default function Home() {
                           </div>
                         </div>
                         <div className="text-right">
-                          <span className="text-[10px] font-mono font-medium text-gray-500">{activity.timestamp}</span>
+                          <span className="text-[10px] font-mono font-medium text-text-tertiary">{activity.timestamp}</span>
                         </div>
                       </div>
                     );
@@ -3896,26 +3944,26 @@ export default function Home() {
           <div className="space-y-6 animate-fade-in text-left">
             <div className="flex justify-between items-center flex-wrap gap-4">
               <div className="flex items-center gap-2">
-                <div className="w-1.5 h-5 bg-green-500 rounded-full" />
+                <div className="w-1.5 h-5 bg-accent rounded-full" />
                 <div>
-                  <h1 className="text-xl font-bold tracking-tight text-white">Data Import & Export Pipeline</h1>
-                  <p className="text-xs text-gray-400 mt-0.5">Upload external CSV records or extract compiled event data sheets.</p>
+                  <h1 className="text-xl font-bold tracking-tight text-text-primary">Data Import & Export Pipeline</h1>
+                  <p className="text-xs text-text-secondary mt-0.5">Upload external CSV records or extract compiled event data sheets.</p>
                 </div>
               </div>
             </div>
 
             {/* Active Workspace summary */}
-            <div className="bg-[#0f1117] border border-white/5 rounded-xl p-4 flex items-center justify-between select-none max-w-xl">
+            <div className="bg-white border border-border rounded-xl p-4 flex items-center justify-between select-none max-w-xl shadow-xs">
               <div className="flex items-center gap-3">
-                <div className="w-8 h-8 rounded-lg bg-green-500/10 text-green-400 flex items-center justify-center font-bold">
+                <div className="w-8 h-8 rounded-lg bg-accent-soft text-accent flex items-center justify-center font-bold">
                   <Map className="w-4 h-4" />
                 </div>
                 <div>
-                  <label className="text-[9px] font-semibold text-gray-400 uppercase tracking-widest block">Active Workspace</label>
-                  <span className="text-xs font-bold text-white flex items-center gap-1.5 mt-0.5">
+                  <label className="text-[9px] font-semibold text-text-tertiary uppercase tracking-widest block">Active Workspace</label>
+                  <span className="text-xs font-bold text-text-primary flex items-center gap-1.5 mt-0.5">
                     {activeRegion ? activeRegion.name : 'No Region'}
-                    <span className="text-gray-500 font-normal">/</span>
-                    <span className="text-green-400">{activeEdition ? activeEdition.name : 'No Edition'}</span>
+                    <span className="text-border-light font-normal">/</span>
+                    <span className="text-accent">{activeEdition ? activeEdition.name : 'No Edition'}</span>
                   </span>
                 </div>
               </div>
@@ -3943,59 +3991,59 @@ export default function Home() {
             {/* Upload Cards Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5 select-none">
               {/* Card 1: Kobo data */}
-              <div className="bg-[#0f1117] border border-white/5 rounded-xl p-6 flex flex-col justify-between relative overflow-hidden">
+              <div className="bg-white border border-border rounded-xl p-6 flex flex-col justify-between relative overflow-hidden shadow-xs">
                 {!activeEdition && (
-                  <div className="absolute inset-0 bg-[#0f1117]/85 backdrop-blur-xs flex items-center justify-center p-4 text-center z-10">
-                    <span className="text-xs text-gray-400 font-semibold">Select active edition to upload</span>
+                  <div className="absolute inset-0 bg-white/85 backdrop-blur-xs flex items-center justify-center p-4 text-center z-10">
+                    <span className="text-xs text-text-secondary font-semibold">Select active edition to upload</span>
                   </div>
                 )}
                 <div className="space-y-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-blue-500/10 text-blue-400 flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-lg bg-accent-soft text-accent flex items-center justify-center">
                       <Database className="w-5 h-5 animate-pulse" />
                     </div>
-                    <h3 className="font-bold text-sm text-white">Upload Collected Data (Kobo / CSV)</h3>
+                    <h3 className="font-bold text-sm text-text-primary">Upload Collected Data (Kobo / CSV)</h3>
                   </div>
-                  <p className="text-xs text-gray-400 leading-relaxed">
+                  <p className="text-xs text-text-secondary leading-relaxed">
                     Historical demographics survey or direct Kobo export sheets from past market activities.
                   </p>
-                  <p className="text-[10px] text-gray-500 italic leading-relaxed">
+                  <p className="text-[10px] text-text-tertiary italic leading-relaxed">
                     Note: CSV must be exported from the standard Quonnect KoboCollect form. Older form exports may have missing fields.
                   </p>
-                  <div className="inline-block bg-white/5 border border-white/10 rounded-md px-3 py-1.5 text-[10px] text-gray-300 font-mono">
+                  <div className="inline-block bg-slate-100 border border-border rounded-md px-3 py-1.5 text-[10px] text-text-secondary font-mono">
                     name · phone · business_name · category · employees
                   </div>
                 </div>
                 <div className="pt-5">
-                  <Button variant="primary" fullWidth onClick={() => fileInputRef1.current?.click()} disabled={isImporting} className="bg-green-500 hover:bg-green-600 text-black font-semibold">
+                  <Button variant="primary" fullWidth onClick={() => fileInputRef1.current?.click()} disabled={isImporting}>
                     <span>{isImporting ? "Importing..." : "Upload CSV"}</span>
                   </Button>
                 </div>
               </div>
 
               {/* Card 2: Walk-in records */}
-              <div className="bg-[#0f1117] border border-white/5 rounded-xl p-6 flex flex-col justify-between relative overflow-hidden">
+              <div className="bg-white border border-border rounded-xl p-6 flex flex-col justify-between relative overflow-hidden shadow-xs">
                 {!activeEdition && (
-                  <div className="absolute inset-0 bg-[#0f1117]/85 backdrop-blur-xs flex items-center justify-center p-4 text-center z-10">
-                    <span className="text-xs text-gray-400 font-semibold">Select active edition to upload</span>
+                  <div className="absolute inset-0 bg-white/85 backdrop-blur-xs flex items-center justify-center p-4 text-center z-10">
+                    <span className="text-xs text-text-secondary font-semibold">Select active edition to upload</span>
                   </div>
                 )}
                 <div className="space-y-3">
                   <div className="flex items-center gap-3">
-                    <div className="w-10 h-10 rounded-lg bg-amber-500/10 text-amber-400 flex items-center justify-center">
+                    <div className="w-10 h-10 rounded-lg bg-amber-50 text-amber-600 flex items-center justify-center border border-amber-200">
                       <Footprints className="w-5 h-5 animate-pulse" />
                     </div>
-                    <h3 className="font-bold text-sm text-white">Upload Walk-in Records</h3>
+                    <h3 className="font-bold text-sm text-text-primary">Upload Walk-in Records</h3>
                   </div>
-                  <p className="text-xs text-gray-400 leading-relaxed">
+                  <p className="text-xs text-text-secondary leading-relaxed">
                     Visitor log sheets compiled manually or through gate-keeping forms outside the network range.
                   </p>
-                  <div className="inline-block bg-white/5 border border-white/10 rounded-md px-3 py-1.5 text-[10px] text-gray-300 font-mono">
+                  <div className="inline-block bg-slate-100 border border-border rounded-md px-3 py-1.5 text-[10px] text-text-secondary font-mono">
                     Full Name · Phone Number · Email · Business Type · Age
                   </div>
                 </div>
                 <div className="pt-5">
-                  <Button variant="primary" fullWidth onClick={() => fileInputRef2.current?.click()} className="bg-green-500 hover:bg-green-600 text-black font-semibold">
+                  <Button variant="primary" fullWidth onClick={() => fileInputRef2.current?.click()}>
                     <span>Upload CSV</span>
                   </Button>
                 </div>
@@ -4003,45 +4051,45 @@ export default function Home() {
             </div>
 
             {/* Clear Edition Data Section */}
-            <div className="bg-[#0f1117] border border-red-500/20 rounded-xl p-6 select-none flex flex-col md:flex-row items-center justify-between gap-4">
+            <div className="bg-red-50/50 border border-red-200 rounded-xl p-6 select-none flex flex-col md:flex-row items-center justify-between gap-4 shadow-xs">
               <div className="space-y-1 text-left flex-1">
-                <h3 className="font-bold text-sm text-red-400">Clear responses for active edition</h3>
-                <p className="text-xs text-gray-400 leading-normal max-w-xl">
-                  Delete existing survey responses and imported vendor records associated with <span className="font-bold text-white">{activeEdition ? activeEdition.name : 'the selected edition'}</span>. This lets you re-import clean CSV files without duplicates.
+                <h3 className="font-bold text-sm text-red-700">Clear responses for active edition</h3>
+                <p className="text-xs text-red-900/80 leading-normal max-w-xl">
+                  Delete existing survey responses and imported vendor records associated with <span className="font-bold text-red-950">{activeEdition ? activeEdition.name : 'the selected edition'}</span>. This lets you re-import clean CSV files without duplicates.
                 </p>
               </div>
               <div className="shrink-0">
-                <Button variant="danger" onClick={handleClearEditionData} disabled={!activeEdition} className="bg-red-500/10 text-red-400 border border-red-500/20 hover:bg-red-500/20">
+                <Button variant="danger" onClick={handleClearEditionData} disabled={!activeEdition} className="bg-red-600 text-white hover:bg-red-700 border-none font-semibold">
                   <span>Clear & Reset Data</span>
                 </Button>
               </div>
             </div>
 
             {/* Export Sheets Panel */}
-            <div className="bg-[#0f1117] border border-white/5 rounded-xl p-6 select-none space-y-4">
+            <div className="bg-white border border-border rounded-xl p-6 select-none space-y-4 shadow-xs">
               <div>
-                <h3 className="font-bold text-sm text-white">Export Active Region Data Sheets</h3>
-                <p className="text-xs text-gray-400 mt-0.5">
-                  Download complete data spreadsheets filtered for active region: <span className="font-bold text-green-400">{activeRegion ? activeRegion.name : 'No active region'}</span>.
+                <h3 className="font-bold text-sm text-text-primary">Export Active Region Data Sheets</h3>
+                <p className="text-xs text-text-secondary mt-0.5">
+                  Download complete data spreadsheets filtered for active region: <span className="font-bold text-accent">{activeRegion ? activeRegion.name : 'No active region'}</span>.
                 </p>
               </div>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
-                <Button variant="secondary" onClick={handleExportVendors} disabled={!activeRegion} className="bg-white/5 border border-white/10 text-white hover:bg-white/10">
+                <Button variant="secondary" onClick={handleExportVendors} disabled={!activeRegion}>
                   <span>Export Vendors CSV</span>
                 </Button>
-                <Button variant="secondary" onClick={handleExportWalkins} disabled={!activeRegion} className="bg-white/5 border border-white/10 text-white hover:bg-white/10">
+                <Button variant="secondary" onClick={handleExportWalkins} disabled={!activeRegion}>
                   <span>Export Walk-ins CSV</span>
                 </Button>
-                <Button variant="secondary" onClick={handleExportResponses} disabled={!activeRegion} className="bg-white/5 border border-white/10 text-white hover:bg-white/10">
+                <Button variant="secondary" onClick={handleExportResponses} disabled={!activeRegion}>
                   <span>Export Survey Responses CSV</span>
                 </Button>
               </div>
             </div>
 
             {/* Recent Uploads Table */}
-            <div className="bg-[#0f1117] border border-white/5 rounded-xl p-6 select-none">
-              <div className="font-bold text-xs text-white mb-3">Recent Uploads Log</div>
-              <div className="text-xs text-gray-400 py-2">
+            <div className="bg-white border border-border rounded-xl p-6 select-none shadow-xs">
+              <div className="font-bold text-xs text-text-primary mb-3">Recent Uploads Log</div>
+              <div className="text-xs text-text-secondary py-2">
                 No recent spreadsheet uploads logged for the selected edition/region.
               </div>
             </div>
@@ -4080,8 +4128,18 @@ export default function Home() {
           />
         )}
 
+        {/* USERS MANAGEMENT */}
+        {activeNav === 'users' && (
+          <div className="p-8 max-w-7xl mx-auto space-y-6">
+            <UserManagementSettings
+              currentUserRole={role}
+              currentUserId={profile?.user_id || ''}
+            />
+          </div>
+        )}
+
         {/* 7. OTHER SYSTEM PLACES (PLACEHOLDERS) */}
-        {!['overview', 'vendors', 'walkins', 'quick-entry', 'formbuilder', 'import-export', 'markets', 'jobs', 'paid-vendors', 'settings'].includes(activeNav) && (
+        {!['overview', 'vendors', 'walkins', 'quick-entry', 'formbuilder', 'import-export', 'markets', 'jobs', 'paid-vendors', 'settings', 'users'].includes(activeNav) && (
           <div className="py-24 text-center border border-dashed border-border rounded-lg select-none text-left animate-fade-in">
             <ClipboardList className="w-12 h-12 text-green mx-auto mb-3 opacity-80" />
             <h3 className="text-sm font-bold text-text-primary">Module Under Implementation</h3>
@@ -4271,11 +4329,11 @@ export default function Home() {
 
       {/* Generated link Modal Overlay */}
       {isLinkModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-[9000] select-none text-left">
-          <div className="bg-bg-surface border border-border rounded-lg max-w-md w-full p-5 shadow-modal animate-scale-up space-y-4.5">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-[9000] select-none text-left">
+          <div className="bg-white border border-border rounded-xl max-w-md w-full p-5 shadow-xl animate-scale-up space-y-4.5">
             <div className="flex items-center gap-2.5">
-              <div className="w-10 h-10 bg-green-muted text-green rounded-full flex items-center justify-center">
-                <LinkIcon className="w-5 h-5 text-green" />
+              <div className="w-10 h-10 bg-sky-50 text-accent rounded-full flex items-center justify-center">
+                <LinkIcon className="w-5 h-5 text-accent" />
               </div>
               <div>
                 <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider">
@@ -4302,23 +4360,23 @@ export default function Home() {
                     type="text"
                     value={generatedLinkUrl}
                     readOnly
-                    className="flex-1 bg-bg-input border border-border-light rounded-md px-3 py-1.5 text-xs text-green outline-none font-mono"
+                    className="flex-1 bg-white border border-border rounded-md px-3 py-1.5 text-xs text-accent font-mono outline-none"
                   />
                   <button
                     type="button"
                     onClick={handleCopyLink}
-                    className="p-2 bg-bg-elevated border border-border-light rounded-md text-text-secondary hover:text-green cursor-pointer"
+                    className="p-2 bg-slate-100 border border-border rounded-md text-text-secondary hover:text-accent cursor-pointer"
                   >
-                    {copiedText ? <Check className="w-4 h-4 text-green" /> : <Copy className="w-4 h-4" />}
+                    {copiedText ? <Check className="w-4 h-4 text-emerald-600" /> : <Copy className="w-4 h-4" />}
                   </button>
                 </div>
               </div>
 
               {/* Password credentials */}
-              <div className="bg-bg-input border border-border/40 rounded p-3 text-xs select-none">
+              <div className="bg-slate-50 border border-border rounded-lg p-3 text-xs select-none">
                 <div className="flex justify-between items-center">
                   <span className="text-text-secondary font-semibold">Event Password:</span>
-                  <code className="text-green font-bold bg-green-soft px-2 py-0.5 rounded font-mono text-[11px]">{generatedLinkPass}</code>
+                  <code className="text-accent font-bold bg-sky-50 border border-sky-200 px-2 py-0.5 rounded font-mono text-[11px]">{generatedLinkPass}</code>
                 </div>
               </div>
             </div>

@@ -61,7 +61,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
       {/* Header / quick clear row */}
       <div className="flex items-center justify-between gap-2 select-none">
         <div className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-bg-elevated border border-border-light rounded-full text-text-secondary text-[11px] font-semibold">
-          <Filter className="w-3.5 h-3.5 text-green" />
+          <Filter className="w-3.5 h-3.5 text-accent" />
           <span>Filters</span>
         </div>
 
@@ -84,10 +84,10 @@ export const FilterBar: React.FC<FilterBarProps> = ({
         <select
           value={filters.region}
           onChange={(e) => onFiltersChange({ region: e.target.value })}
-          className="w-full bg-bg-elevated border border-border-light text-text-primary text-xs rounded-md px-3 py-2 cursor-pointer outline-none transition-colors focus:border-green appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%209l3%203%203-3%22%20stroke%3D%22%238b949e%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[right_10px_center] bg-no-repeat pr-8"
+          className="w-full bg-white border border-border text-text-primary text-xs rounded-md px-3 py-2 cursor-pointer outline-none transition-colors focus:border-accent appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%209l3%203%203-3%22%20stroke%3D%22%2364748b%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[right_10px_center] bg-no-repeat pr-8"
         >
           {regions.map((r) => (
-            <option key={r.value} value={r.value} className="bg-bg-surface">
+            <option key={r.value} value={r.value} className="bg-white">
               {r.label}
             </option>
           ))}
@@ -97,23 +97,23 @@ export const FilterBar: React.FC<FilterBarProps> = ({
         <select
           value={filters.registrationType || 'All'}
           onChange={(e) => onFiltersChange({ registrationType: e.target.value as any })}
-          className="w-full bg-bg-elevated border border-border-light text-text-primary text-xs rounded-md px-3 py-2 cursor-pointer outline-none transition-colors focus:border-green appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%209l3%203%203-3%22%20stroke%3D%22%238b949e%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[right_10px_center] bg-no-repeat pr-8"
+          className="w-full bg-white border border-border text-text-primary text-xs rounded-md px-3 py-2 cursor-pointer outline-none transition-colors focus:border-accent appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%209l3%203%203-3%22%20stroke%3D%22%2364748b%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[right_10px_center] bg-no-repeat pr-8"
         >
-          <option value="All" className="bg-bg-surface">All Vendors</option>
-          <option value="survey" className="bg-bg-surface">Survey/Field Data Only</option>
-          <option value="paid" className="bg-bg-surface">Paid/Registered Only</option>
-          <option value="both" className="bg-bg-surface">Both (Surveyed & Paid)</option>
+          <option value="All" className="bg-white">All Vendors</option>
+          <option value="survey" className="bg-white">Survey/Field Data Only</option>
+          <option value="paid" className="bg-white">Paid/Registered Only</option>
+          <option value="both" className="bg-white">Both (Surveyed & Paid)</option>
         </select>
 
         {/* Business Type Dropdown */}
         <select
           value={filters.businessType}
           onChange={(e) => onFiltersChange({ businessType: e.target.value })}
-          className="w-full bg-bg-elevated border border-border-light text-text-primary text-xs rounded-md px-3 py-2 cursor-pointer outline-none transition-colors focus:border-green appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%209l3%203%203-3%22%20stroke%3D%22%238b949e%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[right_10px_center] bg-no-repeat pr-8 sm:col-span-2 lg:col-span-1"
+          className="w-full bg-white border border-border text-text-primary text-xs rounded-md px-3 py-2 cursor-pointer outline-none transition-colors focus:border-accent appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%209l3%203%203-3%22%20stroke%3D%22%2364748b%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[right_10px_center] bg-no-repeat pr-8 sm:col-span-2 lg:col-span-1"
         >
-          <option value="All" className="bg-bg-surface">All Business Types</option>
+          <option value="All" className="bg-white">All Business Types</option>
           {businessTypes.map((t) => (
-            <option key={t} value={t} className="bg-bg-surface">
+            <option key={t} value={t} className="bg-white">
               {t}
             </option>
           ))}
@@ -123,14 +123,14 @@ export const FilterBar: React.FC<FilterBarProps> = ({
       {/* Secondary filter chips row */}
       <div className="flex flex-wrap items-center gap-2.5 pt-0.5">
         {/* Gender selector chips */}
-        <div className="flex items-center bg-bg-elevated border border-border-light rounded-md p-0.5">
+        <div className="flex items-center bg-bg-elevated border border-border rounded-md p-0.5">
           {genders.map((g) => (
             <button
               key={g}
               onClick={() => onFiltersChange({ gender: g })}
               className={`px-2.5 py-1 text-xs font-semibold rounded transition-all cursor-pointer ${
                 filters.gender === g
-                  ? 'bg-green text-black font-bold'
+                  ? 'bg-accent text-white font-bold shadow-xs'
                   : 'text-text-secondary hover:text-text-primary'
               }`}
             >
@@ -150,7 +150,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
                 className={`px-2.5 py-1 text-xs font-semibold rounded-full border transition-all cursor-pointer ${
                   isSelected
                     ? 'bg-green-muted text-green border-green font-bold'
-                    : 'bg-bg-elevated text-text-secondary border-border-light hover:text-text-primary'
+                    : 'bg-bg-elevated text-text-secondary border-border hover:text-text-primary'
                 }`}
               >
                 {s}
@@ -160,7 +160,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
         </div>
 
         {/* Age Min-Max inputs */}
-        <div className="flex items-center gap-1 bg-bg-elevated border border-border-light rounded-md px-2 py-1">
+        <div className="flex items-center gap-1 bg-bg-elevated border border-border rounded-md px-2 py-1">
           <span className="text-[10px] text-text-tertiary uppercase font-bold select-none pr-1">Age</span>
           <input
             type="number"
@@ -196,7 +196,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
               onClick={() => onFiltersChange({ editionId: e.id })}
               className={`px-3 py-1 rounded-sm text-[11px] font-semibold transition-all cursor-pointer whitespace-nowrap ${
                 filters.editionId === e.id
-                  ? 'bg-green text-black font-extrabold'
+                  ? 'bg-accent text-white font-extrabold shadow-xs'
                   : 'text-text-secondary hover:text-text-primary'
               }`}
             >

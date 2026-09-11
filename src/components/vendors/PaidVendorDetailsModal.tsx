@@ -211,14 +211,14 @@ export const PaidVendorDetailsModal: React.FC<PaidVendorDetailsModalProps> = ({
     >
       {/* Backdrop */}
       <div
-        className="fixed inset-0 bg-black/65 backdrop-blur-sm animate-fade-in"
+        className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs animate-fade-in"
         onClick={handleClose}
       />
 
-      <div className="relative bg-bg-surface border border-border rounded-xl shadow-modal z-10 w-full max-w-[560px] max-h-[90vh] sm:max-h-[85vh] overflow-y-auto animate-scale-up sm:mt-[4vh]">
+      <div className="relative bg-white border border-border rounded-2xl shadow-xl z-10 w-full max-w-[560px] max-h-[90vh] sm:max-h-[85vh] overflow-y-auto animate-scale-up sm:mt-[4vh]">
 
         {/* Header */}
-        <div className="sticky top-0 bg-bg-surface border-b border-border p-4 flex items-center justify-between z-10 rounded-t-xl">
+        <div className="sticky top-0 bg-white border-b border-border p-4 flex items-center justify-between z-10 rounded-t-2xl">
           <div className="flex items-center gap-2">
             {onBack && (
               <button
@@ -232,11 +232,11 @@ export const PaidVendorDetailsModal: React.FC<PaidVendorDetailsModalProps> = ({
             <div>
               <div className="flex items-center gap-2">
                 <h2 className="text-sm font-bold text-text-primary flex items-center gap-1.5">
-                  <CreditCard className="w-3.5 h-3.5 text-blue" />
+                  <CreditCard className="w-3.5 h-3.5 text-accent" />
                   Paid Vendor Details
                 </h2>
                 {(vendor.ticket_number || vendor.stall_number) && (
-                  <span className="font-mono text-[10px] font-bold text-green-400 bg-green-500/15 px-2 py-0.5 rounded border border-green-500/25">
+                  <span className="font-mono text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
                     {vendor.ticket_number || vendor.stall_number}
                   </span>
                 )}
@@ -248,7 +248,7 @@ export const PaidVendorDetailsModal: React.FC<PaidVendorDetailsModalProps> = ({
           </div>
           <button
             onClick={handleClose}
-            className="w-8 h-8 rounded-full bg-bg-elevated border border-border text-text-secondary hover:text-red hover:border-red flex items-center justify-center transition-colors cursor-pointer"
+            className="w-8 h-8 rounded-full bg-slate-100 border border-border text-text-muted hover:text-text-primary hover:bg-slate-200 flex items-center justify-center transition-colors cursor-pointer"
           >
             <X className="w-3.5 h-3.5" />
           </button>
@@ -257,7 +257,7 @@ export const PaidVendorDetailsModal: React.FC<PaidVendorDetailsModalProps> = ({
         <div className="p-5 space-y-5">
           {/* Success flash */}
           {success && (
-            <div className="flex items-center gap-2 bg-green-500/10 border border-green-500/20 rounded-lg px-4 py-3 text-green text-xs font-semibold">
+            <div className="flex items-center gap-2 bg-emerald-50 border border-emerald-200 rounded-lg px-4 py-3 text-emerald-700 text-xs font-semibold">
               <CheckCircle2 className="w-4 h-4 shrink-0" />
               Saved successfully!
             </div>
@@ -265,7 +265,7 @@ export const PaidVendorDetailsModal: React.FC<PaidVendorDetailsModalProps> = ({
 
           {/* Error */}
           {error && (
-            <div className="flex items-start gap-2 bg-red-muted border border-red/20 rounded-lg px-4 py-3 text-red text-xs">
+            <div className="flex items-start gap-2 bg-red-50 border border-red-200 rounded-lg px-4 py-3 text-red-700 text-xs">
               <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
               {error}
             </div>
@@ -317,7 +317,7 @@ export const PaidVendorDetailsModal: React.FC<PaidVendorDetailsModalProps> = ({
               <select
                 value={form.category}
                 onChange={e => set('category', e.target.value)}
-                className="w-full bg-bg-input border border-border-light focus:border-blue rounded-lg px-3 py-2 text-text-primary text-xs outline-none transition-colors"
+                className="w-full bg-slate-50 border border-border focus:border-accent focus:bg-white rounded-lg px-3 py-2 text-text-primary text-xs outline-none transition-colors"
               >
                 <option value="">— Select category —</option>
                 {CATEGORIES.map(c => (
@@ -341,14 +341,14 @@ export const PaidVendorDetailsModal: React.FC<PaidVendorDetailsModalProps> = ({
                   Amount Paid (UGX)
                 </label>
                 <div className="relative">
-                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-green pointer-events-none">UGX</span>
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] font-bold text-emerald-600 pointer-events-none">UGX</span>
                   <input
                     type="text"
                     inputMode="numeric"
                     value={form.amount_paid}
                     onChange={e => set('amount_paid', e.target.value.replace(/[^0-9]/g, ''))}
                     placeholder="0"
-                    className="w-full pl-11 pr-3 bg-bg-input border border-border-light focus:border-green rounded-lg py-2 text-text-primary text-xs font-mono outline-none transition-colors"
+                    className="w-full pl-11 pr-3 bg-slate-50 border border-border focus:border-accent focus:bg-white rounded-lg py-2 text-text-primary text-xs font-mono outline-none transition-colors"
                   />
                 </div>
               </div>
@@ -361,7 +361,7 @@ export const PaidVendorDetailsModal: React.FC<PaidVendorDetailsModalProps> = ({
                 <select
                   value={form.payment_status}
                   onChange={e => set('payment_status', e.target.value)}
-                  className="w-full bg-bg-input border border-border-light focus:border-green rounded-lg px-3 py-2 text-text-primary text-xs outline-none transition-colors"
+                  className="w-full bg-slate-50 border border-border focus:border-accent focus:bg-white rounded-lg px-3 py-2 text-text-primary text-xs outline-none transition-colors"
                 >
                   {PAYMENT_STATUSES.map(s => (
                     <option key={s} value={s}>{s.charAt(0).toUpperCase() + s.slice(1)}</option>
@@ -376,14 +376,14 @@ export const PaidVendorDetailsModal: React.FC<PaidVendorDetailsModalProps> = ({
             <button
               onClick={handleClose}
               disabled={saving}
-              className="text-xs font-semibold text-text-secondary hover:text-text-primary bg-bg-elevated border border-border px-4 py-2 rounded-lg transition-colors"
+              className="text-xs font-semibold text-text-secondary hover:text-text-primary bg-slate-100 hover:bg-slate-200 border border-border px-4 py-2 rounded-lg transition-colors cursor-pointer"
             >
               Cancel
             </button>
             <button
               onClick={handleSave}
               disabled={saving || success}
-              className="flex items-center gap-2 text-xs font-bold text-black bg-green hover:bg-[#00ff7a] disabled:opacity-60 px-5 py-2 rounded-lg transition-colors"
+              className="flex items-center gap-2 text-xs font-bold text-white bg-accent hover:bg-accent-hover disabled:opacity-60 px-5 py-2 rounded-lg transition-colors cursor-pointer"
             >
               {saving ? (
                 <><Loader2 className="w-3.5 h-3.5 animate-spin" /> Saving…</>
@@ -417,7 +417,7 @@ const Field: React.FC<{
       value={value}
       onChange={e => onChange(e.target.value)}
       placeholder={placeholder}
-      className="w-full bg-bg-input border border-border-light focus:border-blue rounded-lg px-3 py-2 text-text-primary text-xs placeholder-text-muted outline-none transition-colors"
+      className="w-full bg-slate-50 border border-border focus:border-accent focus:bg-white rounded-lg px-3 py-2 text-text-primary text-xs placeholder-text-muted outline-none transition-colors"
     />
   </div>
 );

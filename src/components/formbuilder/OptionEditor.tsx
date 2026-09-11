@@ -78,7 +78,7 @@ export const OptionEditor: React.FC<OptionEditorProps> = ({
           options.map((option, idx) => (
             <div 
               key={idx}
-              className="flex items-center gap-2 bg-bg-input/60 border border-border-light rounded-md p-2"
+              className="flex items-center gap-2 bg-slate-50 border border-border rounded-lg p-2"
             >
               {/* Drag Indicator handle / move triggers */}
               <div className="flex flex-col text-text-muted hover:text-text-secondary shrink-0 select-none">
@@ -109,13 +109,13 @@ export const OptionEditor: React.FC<OptionEditorProps> = ({
                     type="text"
                     value={editingValue}
                     onChange={(e) => setEditingValue(e.target.value)}
-                    className="flex-1 bg-bg-input border border-green focus:ring-1 focus:ring-green rounded-md px-2.5 py-1 text-xs text-text-primary outline-none"
+                    className="flex-1 bg-white border border-accent focus:ring-1 focus:ring-accent rounded-md px-2.5 py-1 text-xs text-text-primary outline-none"
                     autoFocus
                   />
                   <button
                     type="button"
                     onClick={() => handleSaveEdit(idx)}
-                    className="p-1.5 text-green hover:bg-bg-hover rounded cursor-pointer"
+                    className="p-1.5 text-accent hover:bg-accent-soft rounded cursor-pointer"
                   >
                     <Check className="w-3.5 h-3.5" />
                   </button>
@@ -127,14 +127,14 @@ export const OptionEditor: React.FC<OptionEditorProps> = ({
                     <button
                       type="button"
                       onClick={() => handleStartEdit(idx)}
-                      className="p-1 text-text-tertiary hover:text-text-primary rounded cursor-pointer hover:bg-bg-hover"
+                      className="p-1 text-text-tertiary hover:text-text-primary rounded cursor-pointer hover:bg-slate-200"
                     >
                       <Edit2 className="w-3.5 h-3.5" />
                     </button>
                     <button
                       type="button"
                       onClick={() => handleRemoveOption(idx)}
-                      className="p-1 text-text-tertiary hover:text-red rounded cursor-pointer hover:bg-bg-hover"
+                      className="p-1 text-text-tertiary hover:text-red-600 rounded cursor-pointer hover:bg-red-50"
                     >
                       <Trash2 className="w-3.5 h-3.5" />
                     </button>
@@ -153,13 +153,13 @@ export const OptionEditor: React.FC<OptionEditorProps> = ({
           placeholder="Enter choice option (e.g. Female)..."
           value={newOption}
           onChange={(e) => setNewOption(e.target.value)}
-          className="flex-1 bg-bg-input border border-border-light focus:border-green focus:ring-1 focus:ring-green rounded-md px-3 py-2 text-xs text-text-primary outline-none"
+          className="flex-1 bg-white border border-border focus:border-accent focus:ring-1 focus:ring-accent rounded-lg px-3 py-2 text-xs text-text-primary outline-none"
         />
         <Button
           type="submit"
           variant="secondary"
           size="sm"
-          className="border-green hover:bg-green-soft text-green hover:text-green cursor-pointer shrink-0"
+          className="border-accent hover:bg-accent-soft text-accent hover:text-accent cursor-pointer shrink-0"
         >
           <Plus className="w-3.5 h-3.5" />
           <span>Add Option</span>

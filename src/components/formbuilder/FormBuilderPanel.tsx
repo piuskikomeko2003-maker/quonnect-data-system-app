@@ -984,27 +984,27 @@ export const FormBuilderPanel: React.FC = () => {
   const selectedForm = forms.find(f => f.id === selectedFormId);
 
   return (
-    <div className="flex flex-col h-[calc(100vh-140px)] md:h-[750px] bg-[#0f1117] border border-white/5 rounded-xl overflow-hidden select-none text-left relative">
+    <div className="flex flex-col h-[calc(100vh-140px)] md:h-[750px] bg-white border border-border rounded-xl overflow-hidden select-none text-left relative">
       {/* Toast container */}
       <div className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-2 max-w-sm pointer-events-none">
         {toasts.map((toast) => (
           <div
             key={toast.id}
-            className={`flex items-center gap-3 p-3.5 rounded-lg shadow-lg text-xs font-semibold text-white animate-slide-up pointer-events-auto border ${
+            className={`flex items-center gap-3 p-3.5 rounded-lg shadow-lg text-xs font-semibold animate-slide-up pointer-events-auto border ${
               toast.type === 'success' 
-                ? 'bg-green-500/90 border-green-400 text-white' 
-                : 'bg-red-500/90 border-red-400 text-white'
+                ? 'bg-emerald-50 border-emerald-200 text-emerald-800' 
+                : 'bg-red-50 border-red-200 text-red-800'
             }`}
           >
             {toast.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 text-white shrink-0" />
+              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
             ) : (
-              <AlertCircle className="w-4 h-4 text-white shrink-0" />
+              <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
             )}
             <span className="flex-1">{toast.message}</span>
             <button 
               onClick={() => setToasts((prev) => prev.filter((t) => t.id !== toast.id))}
-              className="text-gray-300 hover:text-white p-0.5"
+              className="text-text-muted hover:text-text-primary p-0.5"
             >
               <X className="w-3.5 h-3.5" />
             </button>
@@ -1015,34 +1015,34 @@ export const FormBuilderPanel: React.FC = () => {
       {/* Main Form Builder Section */}
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
         {/* Left Column: Forms List (320px) */}
-        <div className="w-full md:w-[320px] border-b md:border-b-0 md:border-r border-white/5 bg-white/[0.01] p-4.5 flex flex-col overflow-hidden shrink-0">
+        <div className="w-full md:w-[320px] border-b md:border-b-0 md:border-r border-border bg-slate-50/50 p-4.5 flex flex-col overflow-hidden shrink-0">
           <div className="flex justify-between items-center mb-4 select-none shrink-0">
-            <h3 className="text-xs font-semibold text-gray-300 uppercase tracking-widest flex items-center gap-2">
-              <ClipboardList className="w-4 h-4 text-green-400" />
+            <h3 className="text-xs font-semibold text-text-primary uppercase tracking-widest flex items-center gap-2">
+              <ClipboardList className="w-4 h-4 text-accent" />
               <span>Surveys Forms</span>
             </h3>
             <Button
               variant="primary"
               size="sm"
               onClick={() => setIsCreateModalOpen(true)}
-              className="px-2.5 bg-green-500 hover:bg-green-600 text-black font-semibold"
+              className="px-2.5 bg-accent hover:bg-accent-hover text-white font-semibold"
             >
-              <Plus className="w-3.5 h-3.5 text-black mr-1" />
+              <Plus className="w-3.5 h-3.5 text-white mr-1" />
               <span>New Form</span>
             </Button>
           </div>
 
           <div className="flex-1 overflow-y-auto space-y-2 pr-1">
             {loadingForms ? (
-              <div className="flex flex-col items-center justify-center py-10 text-gray-500 gap-2">
-                <Loader2 className="w-6 h-6 animate-spin text-green-400" />
+              <div className="flex flex-col items-center justify-center py-10 text-text-muted gap-2">
+                <Loader2 className="w-6 h-6 animate-spin text-accent" />
                 <span className="text-[10px]">Loading forms...</span>
               </div>
             ) : forms.length === 0 ? (
-              <div className="text-center py-10 px-4 border border-dashed border-white/10 rounded-xl">
-                <BookOpen className="w-8 h-8 text-gray-600 mx-auto mb-2 opacity-60" />
-                <p className="text-xs font-bold text-gray-300">No forms found</p>
-                <p className="text-[10px] text-gray-500 mt-1">Create your first database form to begin.</p>
+              <div className="text-center py-10 px-4 border border-dashed border-border rounded-xl bg-white">
+                <BookOpen className="w-8 h-8 text-text-muted mx-auto mb-2 opacity-60" />
+                <p className="text-xs font-bold text-text-primary">No forms found</p>
+                <p className="text-[10px] text-text-muted mt-1">Create your first database form to begin.</p>
               </div>
             ) : (
               forms.map((form) => {
@@ -1054,19 +1054,19 @@ export const FormBuilderPanel: React.FC = () => {
                     onClick={() => setSelectedFormId(form.id)}
                     className={`flex items-center justify-between p-3 rounded-xl border transition-all cursor-pointer group ${
                       isActive 
-                        ? 'bg-green-500/10 border-green-500/50' 
-                        : 'bg-white/[0.02] border-white/5 hover:border-white/10 hover:bg-white/[0.04]'
+                        ? 'bg-accent-soft border-accent' 
+                        : 'bg-white border-border hover:border-accent/40 hover:bg-slate-50'
                     }`}
                   >
                     <div className="min-w-0 flex-1 pr-2">
-                      <span className={`block font-bold text-xs truncate ${isActive ? 'text-green-400' : 'text-white'}`}>
+                      <span className={`block font-bold text-xs truncate ${isActive ? 'text-accent' : 'text-text-primary'}`}>
                         {form.name}
                       </span>
                       <div className="flex items-center gap-2 mt-0.5">
-                        <span className="block text-[10px] text-gray-500 font-mono truncate">
+                        <span className="block text-[10px] text-text-muted font-mono truncate">
                           /{form.slug}
                         </span>
-                        <span className="inline-block bg-white/5 border border-white/10 text-gray-300 font-mono text-[9px] px-1.5 py-0.2 rounded shrink-0">
+                        <span className="inline-block bg-slate-100 border border-border text-text-secondary font-mono text-[9px] px-1.5 py-0.2 rounded shrink-0">
                           {qCount} {qCount === 1 ? 'question' : 'questions'}
                         </span>
                       </div>
@@ -1077,12 +1077,12 @@ export const FormBuilderPanel: React.FC = () => {
                           e.stopPropagation();
                           handleDeleteForm(form.id, form.name);
                         }}
-                        className="p-1 rounded bg-white/5 hover:bg-red-500/20 text-gray-400 hover:text-red-400 border border-white/10 cursor-pointer"
+                        className="p-1 rounded bg-slate-100 hover:bg-red-50 text-text-muted hover:text-red-600 border border-border cursor-pointer"
                         title="Delete Form"
                       >
                         <Trash2 className="w-3.5 h-3.5" />
                       </button>
-                      <ChevronRight className={`w-3.5 h-3.5 ${isActive ? 'text-green-400' : 'text-gray-500'}`} />
+                      <ChevronRight className={`w-3.5 h-3.5 ${isActive ? 'text-accent' : 'text-text-muted'}`} />
                     </div>
                   </div>
                 );
@@ -1096,27 +1096,27 @@ export const FormBuilderPanel: React.FC = () => {
           {selectedFormId && selectedForm ? (
             <div className="flex-1 flex flex-col overflow-hidden">
               {/* Form Editor Header */}
-              <div className="p-4 border-b border-white/5 bg-[#0f1117] flex items-center justify-between shrink-0 select-none">
+              <div className="p-4 border-b border-border bg-slate-50 flex items-center justify-between shrink-0 select-none">
                 <div>
-                  <h2 className="text-sm font-bold text-white uppercase tracking-wider">{selectedForm.name}</h2>
-                  <p className="text-[10px] text-gray-400 mt-0.5">{selectedForm.description || "No description provided."}</p>
+                  <h2 className="text-sm font-bold text-text-primary uppercase tracking-wider">{selectedForm.name}</h2>
+                  <p className="text-[10px] text-text-muted mt-0.5">{selectedForm.description || "No description provided."}</p>
                 </div>
                 <div className="flex items-center gap-2">
                   <Button
                     variant="secondary"
                     size="sm"
                     onClick={() => setIsPreviewOpen(true)}
-                    className="text-[11px] bg-white/5 border border-white/10 text-white hover:bg-white/10"
+                    className="text-[11px] bg-white border border-border text-text-primary hover:bg-slate-100"
                     disabled={questions.length === 0}
                   >
-                    <Eye className="w-3.5 h-3.5 text-gray-400 mr-1" />
+                    <Eye className="w-3.5 h-3.5 text-text-muted mr-1" />
                     <span>Preview Form</span>
                   </Button>
                   <Button
                     variant="secondary"
                     size="sm"
                     onClick={() => setIsAddSectionOpen(!isAddSectionOpen)}
-                    className="text-[11px] bg-white/5 border border-white/10 text-white hover:bg-white/10"
+                    className="text-[11px] bg-white border border-border text-text-primary hover:bg-slate-100"
                   >
                     <Plus className="w-3.5 h-3.5 text-text-secondary mr-1" />
                     <span>Add Section</span>
@@ -1126,10 +1126,10 @@ export const FormBuilderPanel: React.FC = () => {
 
               {/* Add Section inline box */}
               {isAddSectionOpen && (
-                <form onSubmit={handleAddSection} className="p-4 bg-bg-elevated border-b border-border/80 space-y-3.5 select-none animate-slide-down shrink-0">
-                  <div className="flex justify-between items-center border-b border-border/30 pb-2">
+                <form onSubmit={handleAddSection} className="p-4 bg-slate-50 border-b border-border space-y-3.5 select-none animate-slide-down shrink-0">
+                  <div className="flex justify-between items-center border-b border-border/60 pb-2">
                     <h4 className="text-[10px] font-bold text-text-primary uppercase tracking-wider flex items-center gap-1.5">
-                      <FolderOpen className="w-4 h-4 text-green" />
+                      <FolderOpen className="w-4 h-4 text-accent" />
                       <span>New Section Details</span>
                     </h4>
                     <button 
@@ -1148,7 +1148,7 @@ export const FormBuilderPanel: React.FC = () => {
                         placeholder="e.g. Identity & Demographics"
                         value={newSectionName}
                         onChange={(e) => setNewSectionName(e.target.value)}
-                        className="w-full bg-bg-input border border-border-light rounded-md px-3 py-1.5 text-xs text-text-primary outline-none focus:border-green"
+                        className="w-full bg-white border border-border rounded-md px-3 py-1.5 text-xs text-text-primary outline-none focus:border-accent"
                         required
                       />
                     </div>
@@ -1159,7 +1159,7 @@ export const FormBuilderPanel: React.FC = () => {
                         placeholder="e.g. Basic demographics of field responder"
                         value={newSectionDescription}
                         onChange={(e) => setNewSectionDescription(e.target.value)}
-                        className="w-full bg-bg-input border border-border-light rounded-md px-3 py-1.5 text-xs text-text-primary outline-none focus:border-green"
+                        className="w-full bg-white border border-border rounded-md px-3 py-1.5 text-xs text-text-primary outline-none focus:border-accent"
                       />
                     </div>
                   </div>
@@ -1207,23 +1207,23 @@ export const FormBuilderPanel: React.FC = () => {
                       .sort((a, b) => a.sort_order - b.sort_order);
 
                     return (
-                      <div key={section.id} className="bg-bg-elevated/45 border border-border/80 rounded-xl overflow-hidden shadow-sm transition-all duration-200 text-xs">
+                      <div key={section.id} className="bg-white border border-border rounded-xl overflow-hidden shadow-xs transition-all duration-200 text-xs">
                         {/* Section Header */}
-                        <div className="p-4 bg-bg-surface border-b border-border/60 flex items-center justify-between gap-4">
+                        <div className="p-4 bg-slate-50 border-b border-border flex items-center justify-between gap-4">
                           {isEditing ? (
                             <div className="flex-1 flex flex-col gap-2">
                               <input 
                                 type="text"
                                 value={editSectionName}
                                 onChange={(e) => setEditSectionName(e.target.value)}
-                                className="w-full bg-bg-input border border-border-light rounded px-2.5 py-1 text-xs font-bold text-text-primary outline-none focus:border-green"
+                                className="w-full bg-white border border-border rounded px-2.5 py-1 text-xs font-bold text-text-primary outline-none focus:border-accent"
                                 placeholder="Section Name"
                               />
                               <input 
                                 type="text"
                                 value={editSectionDesc}
                                 onChange={(e) => setEditSectionDesc(e.target.value)}
-                                className="w-full bg-bg-input border border-border-light rounded px-2.5 py-1 text-[10px] text-text-secondary outline-none focus:border-green"
+                                className="w-full bg-white border border-border rounded px-2.5 py-1 text-[10px] text-text-secondary outline-none focus:border-accent"
                                 placeholder="Section Description"
                               />
                             </div>
@@ -1251,14 +1251,14 @@ export const FormBuilderPanel: React.FC = () => {
                                 <button
                                   onClick={() => handleUpdateSection(section.id)}
                                   disabled={isUpdatingSection}
-                                  className="p-1 rounded bg-green/10 border border-green/30 text-green hover:bg-green/20 cursor-pointer"
+                                  className="p-1 rounded bg-accent-soft border border-accent/20 text-accent hover:bg-accent/20 cursor-pointer"
                                   title="Save Changes"
                                 >
                                   <Check className="w-3.5 h-3.5" />
                                 </button>
                                 <button
                                   onClick={() => setEditingSectionId(null)}
-                                  className="p-1 rounded bg-bg-elevated border border-border-light text-text-secondary hover:text-text-primary cursor-pointer"
+                                  className="p-1 rounded bg-white border border-border text-text-muted hover:text-text-primary hover:bg-slate-100 cursor-pointer"
                                   title="Cancel"
                                 >
                                   <X className="w-3.5 h-3.5" />
@@ -1269,7 +1269,7 @@ export const FormBuilderPanel: React.FC = () => {
                                 <button
                                   onClick={() => handleReorderSection(sectionIdx, 'up')}
                                   disabled={sectionIdx === 0}
-                                  className={`p-1 rounded border border-border-light bg-bg-elevated text-text-secondary hover:text-text-primary cursor-pointer ${sectionIdx === 0 ? 'opacity-30 cursor-not-allowed' : ''}`}
+                                  className={`p-1 rounded border border-border bg-white text-text-muted hover:text-text-primary hover:bg-slate-100 cursor-pointer ${sectionIdx === 0 ? 'opacity-30 cursor-not-allowed' : ''}`}
                                   title="Move Section Up"
                                 >
                                   <ArrowUp className="w-3.5 h-3.5" />
@@ -1277,21 +1277,21 @@ export const FormBuilderPanel: React.FC = () => {
                                 <button
                                   onClick={() => handleReorderSection(sectionIdx, 'down')}
                                   disabled={sectionIdx === sections.length - 1}
-                                  className={`p-1 rounded border border-border-light bg-bg-elevated text-text-secondary hover:text-text-primary cursor-pointer ${sectionIdx === sections.length - 1 ? 'opacity-30 cursor-not-allowed' : ''}`}
+                                  className={`p-1 rounded border border-border bg-white text-text-muted hover:text-text-primary hover:bg-slate-100 cursor-pointer ${sectionIdx === sections.length - 1 ? 'opacity-30 cursor-not-allowed' : ''}`}
                                   title="Move Section Down"
                                 >
                                   <ArrowDown className="w-3.5 h-3.5" />
                                 </button>
                                 <button
                                   onClick={() => handleStartEditSection(section)}
-                                  className="p-1 rounded border border-border-light bg-bg-elevated text-text-secondary hover:text-text-primary cursor-pointer"
+                                  className="p-1 rounded border border-border bg-white text-text-muted hover:text-text-primary hover:bg-slate-100 cursor-pointer"
                                   title="Edit Section"
                                 >
                                   <Edit2 className="w-3.5 h-3.5" />
                                 </button>
                                 <button
                                   onClick={() => handleDeleteSection(section.id, section.name)}
-                                  className="p-1 rounded border border-border-light bg-bg-elevated hover:bg-red-soft/20 text-text-secondary hover:text-red cursor-pointer"
+                                  className="p-1 rounded border border-border bg-white hover:bg-red-50 text-text-muted hover:text-red-600 cursor-pointer"
                                   title="Delete Section"
                                 >
                                   <Trash2 className="w-3.5 h-3.5" />
@@ -1311,7 +1311,7 @@ export const FormBuilderPanel: React.FC = () => {
                         </div>
 
                         {/* Questions list inside the section */}
-                        <div className="bg-bg-surface/10 divide-y divide-border/30">
+                        <div className="bg-white divide-y divide-border">
                           {sectionQuestions.length === 0 ? (
                             <div className="p-5 text-center text-[10px] text-text-tertiary select-none">
                               No questions in this section yet. Click "+ Add Question" to get started.
@@ -1326,10 +1326,10 @@ export const FormBuilderPanel: React.FC = () => {
                                 <div 
                                   key={q.id} 
                                   onClick={() => handleOpenEditQuestion(q)}
-                                  className="p-3.5 hover:bg-bg-elevated/25 transition-all cursor-pointer flex items-center justify-between gap-4 group"
+                                  className="p-3.5 hover:bg-slate-50/70 transition-all cursor-pointer flex items-center justify-between gap-4 group"
                                 >
                                   <div className="min-w-0 flex-1 flex items-start gap-3">
-                                    <div className="w-5 h-5 rounded bg-bg-hover text-text-secondary flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">
+                                    <div className="w-5 h-5 rounded bg-slate-100 text-text-muted flex items-center justify-center font-bold text-[10px] shrink-0 mt-0.5">
                                       {qIdx + 1}
                                     </div>
                                     <div className="min-w-0 flex-1">
@@ -1349,7 +1349,7 @@ export const FormBuilderPanel: React.FC = () => {
                                         )}
                                       </div>
                                       <div className="flex items-center gap-3 mt-1.5 select-none text-[9px] text-text-tertiary">
-                                        <span className="font-mono font-semibold bg-bg-hover px-1.5 py-0.5 rounded text-green">
+                                        <span className="font-mono font-semibold bg-slate-100 px-1.5 py-0.5 rounded text-accent">
                                           csv: {q.csv_column}
                                         </span>
                                         {q.options && q.options.length > 0 && (
@@ -1363,7 +1363,7 @@ export const FormBuilderPanel: React.FC = () => {
                                     <button
                                       onClick={() => handleReorderQuestion(section.id, qIdx, 'up')}
                                       disabled={qIdx === 0}
-                                      className={`p-1 rounded border border-border-light bg-bg-elevated text-text-secondary hover:text-text-primary cursor-pointer ${qIdx === 0 ? 'opacity-30 cursor-not-allowed' : ''}`}
+                                      className={`p-1 rounded border border-border bg-slate-100 text-text-muted hover:text-text-primary hover:bg-slate-200 cursor-pointer ${qIdx === 0 ? 'opacity-30 cursor-not-allowed' : ''}`}
                                       title="Move Question Up"
                                     >
                                       <ArrowUp className="w-3 h-3" />
@@ -1371,28 +1371,28 @@ export const FormBuilderPanel: React.FC = () => {
                                     <button
                                       onClick={() => handleReorderQuestion(section.id, qIdx, 'down')}
                                       disabled={qIdx === sectionQuestions.length - 1}
-                                      className={`p-1 rounded border border-border-light bg-bg-elevated text-text-secondary hover:text-text-primary cursor-pointer ${qIdx === sectionQuestions.length - 1 ? 'opacity-30 cursor-not-allowed' : ''}`}
+                                      className={`p-1 rounded border border-border bg-slate-100 text-text-muted hover:text-text-primary hover:bg-slate-200 cursor-pointer ${qIdx === sectionQuestions.length - 1 ? 'opacity-30 cursor-not-allowed' : ''}`}
                                       title="Move Question Down"
                                     >
                                       <ArrowDown className="w-3 h-3" />
                                     </button>
                                     <button
                                       onClick={() => handleOpenSkipLogic(q)}
-                                      className="p-1 rounded border border-border-light bg-bg-elevated hover:bg-green-soft/20 text-text-secondary hover:text-green cursor-pointer"
+                                      className="p-1 rounded border border-border bg-slate-100 hover:bg-accent-soft text-text-muted hover:text-accent cursor-pointer"
                                       title="Skip Logic Rules"
                                     >
                                       <Sliders className="w-3.5 h-3.5" />
                                     </button>
                                     <button
                                       onClick={() => handleOpenEditQuestion(q)}
-                                      className="p-1 rounded border border-border-light bg-bg-elevated text-text-secondary hover:text-text-primary cursor-pointer"
+                                      className="p-1 rounded border border-border bg-slate-100 text-text-muted hover:text-text-primary hover:bg-slate-200 cursor-pointer"
                                       title="Edit Question"
                                     >
                                       <Edit2 className="w-3 h-3" />
                                     </button>
                                     <button
                                       onClick={() => handleDeleteQuestion(q.id, q.question_text)}
-                                      className="p-1 rounded border border-border-light bg-bg-elevated hover:bg-red-soft/20 text-text-secondary hover:text-red cursor-pointer"
+                                      className="p-1 rounded border border-border bg-slate-100 hover:bg-red-50 text-text-muted hover:text-red-600 cursor-pointer"
                                       title="Delete Question"
                                     >
                                       <Trash2 className="w-3.5 h-3.5" />
@@ -1423,11 +1423,11 @@ export const FormBuilderPanel: React.FC = () => {
 
       {/* Create Form Modal Overlay */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-[9000] select-none text-left">
-          <div className="bg-bg-surface border border-border rounded-lg max-w-md w-full p-5 shadow-modal animate-scale-up space-y-4">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-[9000] select-none text-left">
+          <div className="bg-white border border-border rounded-xl max-w-md w-full p-5 shadow-xl animate-scale-up space-y-4">
             <div className="flex justify-between items-center border-b border-border pb-3">
               <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider flex items-center gap-2">
-                <FolderPlus className="w-4.5 h-4.5 text-green" />
+                <FolderPlus className="w-4.5 h-4.5 text-accent" />
                 <span>Create New Survey Form</span>
               </h3>
               <button 
@@ -1446,7 +1446,7 @@ export const FormBuilderPanel: React.FC = () => {
                   placeholder="e.g. Field Inspection Survey" 
                   value={formName}
                   onChange={handleNameChange}
-                  className="w-full bg-bg-input border border-border-light rounded-md px-3 py-2 text-xs text-text-primary outline-none focus:border-green"
+                  className="w-full bg-white border border-border rounded-md px-3 py-2 text-xs text-text-primary outline-none focus:border-accent"
                   required
                 />
               </div>
@@ -1458,7 +1458,7 @@ export const FormBuilderPanel: React.FC = () => {
                   placeholder="e.g. field-inspection-survey" 
                   value={formSlug}
                   onChange={(e) => setFormSlug(slugify(e.target.value))}
-                  className="w-full bg-bg-input border border-border-light rounded-md px-3 py-2 text-xs text-text-primary outline-none focus:border-green font-mono"
+                  className="w-full bg-white border border-border rounded-md px-3 py-2 text-xs text-text-primary outline-none focus:border-accent font-mono"
                   required
                 />
               </div>
@@ -1469,7 +1469,7 @@ export const FormBuilderPanel: React.FC = () => {
                   placeholder="Optional brief description of what this form collects..." 
                   value={formDescription}
                   onChange={(e) => setFormDescription(e.target.value)}
-                  className="w-full bg-bg-input border border-border-light rounded-md px-3 py-2 text-xs text-text-primary outline-none focus:border-green min-h-[80px]"
+                  className="w-full bg-white border border-border rounded-md px-3 py-2 text-xs text-text-primary outline-none focus:border-accent min-h-[80px]"
                 />
               </div>
 
@@ -1498,11 +1498,11 @@ export const FormBuilderPanel: React.FC = () => {
 
       {/* Add / Edit Question Modal Overlay */}
       {isQuestionModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-[9000] select-none text-left">
-          <div className="bg-bg-surface border border-border rounded-lg max-w-lg w-full p-5 shadow-modal animate-scale-up space-y-4 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-[9000] select-none text-left">
+          <div className="bg-white border border-border rounded-xl max-w-lg w-full p-5 shadow-xl animate-scale-up space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center border-b border-border pb-3">
               <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider flex items-center gap-2">
-                <HelpCircle className="w-4.5 h-4.5 text-green" />
+                <HelpCircle className="w-4.5 h-4.5 text-accent" />
                 <span>{editingQuestionId ? 'Edit Survey Question' : 'Add New Question'}</span>
               </h3>
               <button 
@@ -1528,7 +1528,7 @@ export const FormBuilderPanel: React.FC = () => {
                       setCsvColumn(slugify(txt).replace(/-/g, '_'));
                     }
                   }}
-                  className="w-full bg-bg-input border border-border-light rounded-md px-3 py-2 text-xs text-text-primary outline-none focus:border-green"
+                  className="w-full bg-white border border-border rounded-md px-3 py-2 text-xs text-text-primary outline-none focus:border-accent"
                   required
                 />
               </div>
@@ -1539,7 +1539,7 @@ export const FormBuilderPanel: React.FC = () => {
                   <select
                     value={questionType}
                     onChange={(e) => setQuestionType(e.target.value)}
-                    className="w-full bg-bg-input border border-border-light rounded-md px-3 py-2 text-xs text-text-primary outline-none focus:border-green"
+                    className="w-full bg-white border border-border rounded-md px-3 py-2 text-xs text-text-primary outline-none focus:border-accent"
                   >
                     {QUESTION_TYPES.map((type) => (
                       <option key={type.value} value={type.value}>{type.label}</option>
@@ -1554,7 +1554,7 @@ export const FormBuilderPanel: React.FC = () => {
                     placeholder="e.g. business_category" 
                     value={csvColumn}
                     onChange={(e) => setCsvColumn(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
-                    className="w-full bg-bg-input border border-border-light rounded-md px-3 py-2 text-xs text-text-primary outline-none focus:border-green font-mono"
+                    className="w-full bg-white border border-border rounded-md px-3 py-2 text-xs text-text-primary outline-none focus:border-accent font-mono"
                     required
                   />
                 </div>
@@ -1566,7 +1566,7 @@ export const FormBuilderPanel: React.FC = () => {
                   id="isRequired"
                   checked={isRequired}
                   onChange={(e) => setIsRequired(e.target.checked)}
-                  className="w-4 h-4 rounded text-green bg-bg-input border border-border focus:ring-0 focus:ring-offset-0 cursor-pointer"
+                  className="w-4 h-4 rounded text-accent bg-white border border-border focus:ring-0 focus:ring-offset-0 cursor-pointer"
                 />
                 <label htmlFor="isRequired" className="text-xs font-semibold text-text-secondary cursor-pointer select-none">
                   Make this question mandatory (Field is required)
@@ -1575,13 +1575,13 @@ export const FormBuilderPanel: React.FC = () => {
 
               {/* Conditional Answer Choices Editor (select / multi_select) */}
               {['select', 'multi_select'].includes(questionType) && (
-                <div className="border border-border/80 bg-bg-elevated/20 rounded-lg p-3.5 space-y-3 select-none">
+                <div className="border border-border bg-slate-50 rounded-lg p-3.5 space-y-3 select-none">
                   <div className="flex justify-between items-center pb-1 border-b border-border/40">
                     <span className="text-[10px] font-bold text-text-primary uppercase tracking-wider">Answer Choices</span>
                     <button
                       type="button"
                       onClick={handleAddOption}
-                      className="text-[10px] font-bold text-green hover:underline flex items-center gap-1 cursor-pointer"
+                      className="text-[10px] font-bold text-accent hover:underline flex items-center gap-1 cursor-pointer"
                     >
                       <Plus className="w-3.5 h-3.5" />
                       <span>Add Choice</span>
@@ -1600,13 +1600,13 @@ export const FormBuilderPanel: React.FC = () => {
                             value={opt}
                             onChange={(e) => handleOptionChange(idx, e.target.value)}
                             placeholder={`e.g. Option ${idx + 1}`}
-                            className="flex-1 bg-bg-input border border-border-light rounded px-2.5 py-1 text-xs text-text-primary outline-none focus:border-green"
+                            className="flex-1 bg-white border border-border rounded px-2.5 py-1 text-xs text-text-primary outline-none focus:border-accent"
                             required
                           />
                           <button
                             type="button"
                             onClick={() => handleRemoveOption(idx)}
-                            className="p-1 rounded bg-bg-elevated hover:bg-red-soft/20 text-text-secondary hover:text-red cursor-pointer"
+                            className="p-1 rounded bg-slate-100 hover:bg-red-50 text-text-secondary hover:text-red cursor-pointer"
                             title="Remove Choice"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -1643,11 +1643,11 @@ export const FormBuilderPanel: React.FC = () => {
 
       {/* Skip Logic Modal Overlay */}
       {isLogicModalOpen && logicSourceQuestion && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-[9000] select-none text-left">
-          <div className="bg-bg-surface border border-border rounded-lg max-w-xl w-full p-5 shadow-modal animate-scale-up space-y-4.5 max-h-[90vh] overflow-y-auto">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-[9000] select-none text-left">
+          <div className="bg-white border border-border rounded-xl max-w-xl w-full p-5 shadow-xl animate-scale-up space-y-4.5 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center border-b border-border pb-3">
               <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider flex items-center gap-2">
-                <Sliders className="w-4.5 h-4.5 text-green" />
+                <Sliders className="w-4.5 h-4.5 text-accent" />
                 <span>Skip Logic Rules</span>
               </h3>
               <button 
@@ -1659,13 +1659,13 @@ export const FormBuilderPanel: React.FC = () => {
             </div>
 
             {/* Source question label */}
-            <div className="p-3 bg-bg-elevated/40 border border-border/60 rounded-lg space-y-1">
+            <div className="p-3 bg-slate-50 border border-border rounded-lg space-y-1">
               <span className="text-[9px] font-bold text-text-tertiary uppercase tracking-wider">Source Trigger Question</span>
               <p className="text-xs font-bold text-text-primary leading-normal">{logicSourceQuestion.question_text}</p>
             </div>
 
             {/* Add skip logic rule form */}
-            <form onSubmit={handleSaveSkipRule} className="p-4 bg-bg-elevated/20 border border-border/80 rounded-xl space-y-3.5">
+            <form onSubmit={handleSaveSkipRule} className="p-4 bg-slate-50/70 border border-border rounded-xl space-y-3.5">
               <span className="text-[10px] font-bold text-text-primary uppercase tracking-wider block border-b border-border/30 pb-1.5">
                 Create Skip Condition
               </span>
@@ -1676,7 +1676,7 @@ export const FormBuilderPanel: React.FC = () => {
                   <select
                     value={logicAction}
                     onChange={(e) => setLogicAction(e.target.value)}
-                    className="w-full bg-bg-input border border-border-light rounded-md px-3 py-1.5 text-xs text-text-primary outline-none focus:border-green"
+                    className="w-full bg-white border border-border rounded-md px-3 py-1.5 text-xs text-text-primary outline-none focus:border-accent"
                   >
                     <option value="show">Show</option>
                     <option value="hide">Hide</option>
@@ -1697,7 +1697,7 @@ export const FormBuilderPanel: React.FC = () => {
                         setLogicTargetId(sections.length > 0 ? sections[0].id : '');
                       }
                     }}
-                    className="w-full bg-bg-input border border-border-light rounded-md px-3 py-1.5 text-xs text-text-primary outline-none focus:border-green"
+                    className="w-full bg-white border border-border rounded-md px-3 py-1.5 text-xs text-text-primary outline-none focus:border-accent"
                   >
                     <option value="question">Question</option>
                     <option value="section">Section</option>
@@ -1711,7 +1711,7 @@ export const FormBuilderPanel: React.FC = () => {
                   <select
                     value={logicTargetId}
                     onChange={(e) => setLogicTargetId(e.target.value)}
-                    className="w-full bg-bg-input border border-border-light rounded-md px-3 py-1.5 text-xs text-text-primary outline-none focus:border-green font-semibold"
+                    className="w-full bg-white border border-border rounded-md px-3 py-1.5 text-xs text-text-primary outline-none focus:border-accent font-semibold"
                     required
                   >
                     <option value="" disabled>Select Target...</option>
@@ -1735,7 +1735,7 @@ export const FormBuilderPanel: React.FC = () => {
                     <select
                       value={logicOperator}
                       onChange={(e) => setLogicOperator(e.target.value)}
-                      className="w-full bg-bg-input border border-border-light rounded-md px-3 py-1.5 text-xs text-text-primary outline-none focus:border-green"
+                      className="w-full bg-white border border-border rounded-md px-3 py-1.5 text-xs text-text-primary outline-none focus:border-accent"
                     >
                       {LOGIC_OPERATORS.map(op => (
                         <option key={op.value} value={op.value}>{op.label}</option>
@@ -1749,7 +1749,7 @@ export const FormBuilderPanel: React.FC = () => {
                       placeholder="e.g. Yes"
                       value={logicValue}
                       onChange={(e) => setLogicValue(e.target.value)}
-                      className="w-full bg-bg-input border border-border-light rounded-md px-3 py-1.5 text-xs text-text-primary outline-none focus:border-green"
+                      className="w-full bg-white border border-border rounded-md px-3 py-1.5 text-xs text-text-primary outline-none focus:border-accent"
                       required
                     />
                   </div>
@@ -1773,7 +1773,7 @@ export const FormBuilderPanel: React.FC = () => {
             {/* List of existing logic rules */}
             <div className="space-y-2 select-none">
               <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider block">Active Rules Triggered by this Question</span>
-              <div className="divide-y divide-border/40 border border-border/60 rounded-xl overflow-hidden bg-bg-surface/50 max-h-[220px] overflow-y-auto">
+              <div className="divide-y divide-border border border-border rounded-xl overflow-hidden bg-white max-h-[220px] overflow-y-auto">
                 {questionRules.filter(r => r.source_question_id === logicSourceQuestion.id).length === 0 &&
                  sectionRules.filter(r => r.source_question_id === logicSourceQuestion.id).length === 0 ? (
                   <p className="text-[10px] text-text-tertiary text-center py-6">No logic rules created for this question yet.</p>
@@ -1783,9 +1783,9 @@ export const FormBuilderPanel: React.FC = () => {
                     {questionRules
                       .filter(r => r.source_question_id === logicSourceQuestion.id)
                       .map((rule) => (
-                        <div key={rule.id} className="p-3 hover:bg-bg-elevated/20 flex items-center justify-between gap-3 text-xs">
+                        <div key={rule.id} className="p-3 hover:bg-slate-50 flex items-center justify-between gap-3 text-xs">
                           <div className="flex items-start gap-2.5 min-w-0 flex-1">
-                            <GitCommit className="w-4 h-4 text-green shrink-0 mt-0.5" />
+                            <GitCommit className="w-4 h-4 text-accent shrink-0 mt-0.5" />
                             <span className="text-text-secondary leading-normal min-w-0 flex-1">
                               {getRuleDescription(rule, false)}
                             </span>
@@ -1793,7 +1793,7 @@ export const FormBuilderPanel: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => handleDeleteQuestionRule(rule.id)}
-                            className="p-1 rounded bg-bg-elevated hover:bg-red-soft/20 text-text-secondary hover:text-red border border-border-light cursor-pointer shrink-0"
+                            className="p-1 rounded bg-slate-100 hover:bg-red-50 text-text-secondary hover:text-red border border-border cursor-pointer shrink-0"
                             title="Delete Skip Rule"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -1805,9 +1805,9 @@ export const FormBuilderPanel: React.FC = () => {
                     {sectionRules
                       .filter(r => r.source_question_id === logicSourceQuestion.id)
                       .map((rule) => (
-                        <div key={rule.id} className="p-3 hover:bg-bg-elevated/20 flex items-center justify-between gap-3 text-xs">
+                        <div key={rule.id} className="p-3 hover:bg-slate-50 flex items-center justify-between gap-3 text-xs">
                           <div className="flex items-start gap-2.5 min-w-0 flex-1">
-                            <FolderOpen className="w-4 h-4 text-green shrink-0 mt-0.5" />
+                            <FolderOpen className="w-4 h-4 text-accent shrink-0 mt-0.5" />
                             <span className="text-text-secondary leading-normal min-w-0 flex-1">
                               {getRuleDescription(rule, true)}
                             </span>
@@ -1815,7 +1815,7 @@ export const FormBuilderPanel: React.FC = () => {
                           <button
                             type="button"
                             onClick={() => handleDeleteSectionRule(rule.id)}
-                            className="p-1 rounded bg-bg-elevated hover:bg-red-soft/20 text-text-secondary hover:text-red border border-border-light cursor-pointer shrink-0"
+                            className="p-1 rounded bg-slate-100 hover:bg-red-50 text-text-secondary hover:text-red border border-border cursor-pointer shrink-0"
                             title="Delete Skip Rule"
                           >
                             <Trash2 className="w-3.5 h-3.5" />
@@ -1843,12 +1843,12 @@ export const FormBuilderPanel: React.FC = () => {
 
       {/* Live Form Simulator Preview Modal Overlay */}
       {isPreviewOpen && selectedForm && (
-        <div className="fixed inset-0 bg-black/65 backdrop-blur-xs flex items-center justify-center p-4 z-[9000] select-none text-left">
-          <div className="bg-bg-surface border border-border rounded-xl max-w-2xl w-full p-5 shadow-modal animate-scale-up max-h-[92vh] flex flex-col overflow-hidden text-xs">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-[9000] select-none text-left">
+          <div className="bg-white border border-border rounded-xl max-w-2xl w-full p-5 shadow-xl animate-scale-up max-h-[92vh] flex flex-col overflow-hidden text-xs">
             <div className="flex justify-between items-center border-b border-border pb-3 shrink-0">
               <div>
                 <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider flex items-center gap-2">
-                  <Sparkles className="w-4.5 h-4.5 text-green" />
+                  <Sparkles className="w-4.5 h-4.5 text-accent" />
                   <span>Form Simulator: {selectedForm.name}</span>
                 </h3>
                 <p className="text-[10px] text-text-secondary mt-0.5">Live rendering of skip logic and validations.</p>
@@ -1856,7 +1856,7 @@ export const FormBuilderPanel: React.FC = () => {
               <div className="flex items-center gap-2">
                 <button
                   onClick={handleResetPreview}
-                  className="px-2.5 py-1 rounded bg-bg-elevated border border-border-light hover:border-green-soft text-text-secondary hover:text-green flex items-center gap-1 cursor-pointer"
+                  className="px-2.5 py-1 rounded bg-slate-100 border border-border hover:border-accent/40 text-text-secondary hover:text-accent flex items-center gap-1 cursor-pointer"
                   title="Reset all inputs"
                 >
                   <RotateCcw className="w-3 h-3" />
@@ -1891,9 +1891,9 @@ export const FormBuilderPanel: React.FC = () => {
                     }
 
                     return (
-                      <div key={sec.id} className="space-y-3.5 border-l-2 border-green/30 pl-4 py-1">
+                      <div key={sec.id} className="space-y-3.5 border-l-2 border-accent/40 pl-4 py-1">
                         <div>
-                          <Badge variant="success" size="sm" className="font-bold uppercase text-[9px] mb-1">
+                          <Badge variant="info" size="sm" className="font-bold uppercase text-[9px] mb-1">
                             Section: {sec.name}
                           </Badge>
                           {sec.description && (
@@ -1905,7 +1905,7 @@ export const FormBuilderPanel: React.FC = () => {
                           {sectionQuestions.map((q) => {
                             const val = previewAnswers[q.id];
                             return (
-                              <div key={q.id} className="bg-bg-elevated/20 border border-border/40 rounded-lg p-3.5 space-y-2 select-none">
+                              <div key={q.id} className="bg-slate-50 border border-border rounded-lg p-3.5 space-y-2 select-none">
                                 <label className="block text-xs font-bold text-text-primary leading-normal">
                                   {q.question_text}
                                   {q.is_required && <span className="text-red ml-0.5 font-bold">*</span>}
@@ -1918,7 +1918,7 @@ export const FormBuilderPanel: React.FC = () => {
                                     value={val || ''}
                                     onChange={(e) => handlePreviewAnswerChange(q.id, e.target.value)}
                                     placeholder="Enter text answer..."
-                                    className="w-full bg-bg-input border border-border-light rounded-md px-3 py-2 text-xs text-text-primary outline-none focus:border-green"
+                                    className="w-full bg-white border border-border rounded-md px-3 py-2 text-xs text-text-primary outline-none focus:border-accent"
                                   />
                                 )}
 
@@ -1928,7 +1928,7 @@ export const FormBuilderPanel: React.FC = () => {
                                     value={val || ''}
                                     onChange={(e) => handlePreviewAnswerChange(q.id, e.target.value)}
                                     placeholder="Enter numeric value..."
-                                    className="w-full bg-bg-input border border-border-light rounded-md px-3 py-2 text-xs text-text-primary outline-none focus:border-green"
+                                    className="w-full bg-white border border-border rounded-md px-3 py-2 text-xs text-text-primary outline-none focus:border-accent"
                                   />
                                 )}
 
@@ -1941,7 +1941,7 @@ export const FormBuilderPanel: React.FC = () => {
                                         value="Yes"
                                         checked={val === 'Yes'}
                                         onChange={() => handlePreviewAnswerChange(q.id, 'Yes')}
-                                        className="w-4 h-4 text-green focus:ring-0 cursor-pointer"
+                                        className="w-4 h-4 text-accent focus:ring-0 cursor-pointer"
                                       />
                                       <span>Yes</span>
                                     </label>
@@ -1952,7 +1952,7 @@ export const FormBuilderPanel: React.FC = () => {
                                         value="No"
                                         checked={val === 'No'}
                                         onChange={() => handlePreviewAnswerChange(q.id, 'No')}
-                                        className="w-4 h-4 text-green focus:ring-0 cursor-pointer"
+                                        className="w-4 h-4 text-accent focus:ring-0 cursor-pointer"
                                       />
                                       <span>No</span>
                                     </label>
@@ -1963,7 +1963,7 @@ export const FormBuilderPanel: React.FC = () => {
                                   <select
                                     value={val || ''}
                                     onChange={(e) => handlePreviewAnswerChange(q.id, e.target.value)}
-                                    className="w-full bg-bg-input border border-border-light rounded-md px-3 py-2 text-xs text-text-primary outline-none focus:border-green"
+                                    className="w-full bg-white border border-border rounded-md px-3 py-2 text-xs text-text-primary outline-none focus:border-accent"
                                   >
                                     <option value="">Select Option...</option>
                                     {q.options && q.options.map((opt, oIdx) => (
@@ -1982,7 +1982,7 @@ export const FormBuilderPanel: React.FC = () => {
                                             type="checkbox"
                                             checked={checked}
                                             onChange={(e) => handlePreviewMultiSelectChange(q.id, opt, e.target.checked)}
-                                            className="w-4 h-4 rounded border border-border text-green focus:ring-0 cursor-pointer"
+                                            className="w-4 h-4 rounded border border-border text-accent focus:ring-0 cursor-pointer"
                                           />
                                           <span>{opt}</span>
                                         </label>
@@ -1996,7 +1996,7 @@ export const FormBuilderPanel: React.FC = () => {
                                     type="date"
                                     value={val || ''}
                                     onChange={(e) => handlePreviewAnswerChange(q.id, e.target.value)}
-                                    className="w-full bg-bg-input border border-border-light rounded-md px-3 py-2 text-xs text-text-primary outline-none focus:border-green"
+                                    className="w-full bg-white border border-border rounded-md px-3 py-2 text-xs text-text-primary outline-none focus:border-accent"
                                   />
                                 )}
 
@@ -2005,7 +2005,7 @@ export const FormBuilderPanel: React.FC = () => {
                                     type="time"
                                     value={val || ''}
                                     onChange={(e) => handlePreviewAnswerChange(q.id, e.target.value)}
-                                    className="w-full bg-bg-input border border-border-light rounded-md px-3 py-2 text-xs text-text-primary outline-none focus:border-green"
+                                    className="w-full bg-white border border-border rounded-md px-3 py-2 text-xs text-text-primary outline-none focus:border-accent"
                                   />
                                 )}
 
@@ -2016,12 +2016,12 @@ export const FormBuilderPanel: React.FC = () => {
                                       readOnly
                                       value={val ? `Lat: ${val.lat}, Lng: ${val.lng}` : ''}
                                       placeholder="GPS Coordinates (Click Get GPS)"
-                                      className="flex-1 bg-bg-input border border-border-light rounded-md px-3 py-2 text-xs text-text-primary outline-none font-mono"
+                                      className="flex-1 bg-white border border-border rounded-md px-3 py-2 text-xs text-text-primary outline-none font-mono"
                                     />
                                     <button
                                       type="button"
                                       onClick={() => handlePreviewAnswerChange(q.id, { lat: (0.3476 + Math.random()*0.01).toFixed(4), lng: (32.5825 + Math.random()*0.01).toFixed(4) })}
-                                      className="px-3 py-2 bg-bg-elevated border border-border-light rounded-md text-text-secondary hover:text-green flex items-center gap-1 cursor-pointer"
+                                      className="px-3 py-2 bg-slate-100 border border-border rounded-md text-text-secondary hover:text-accent flex items-center gap-1 cursor-pointer"
                                     >
                                       <Compass className="w-3.5 h-3.5" />
                                       <span>Get GPS</span>
@@ -2031,7 +2031,7 @@ export const FormBuilderPanel: React.FC = () => {
 
                                 {q.question_type === 'photo' && (
                                   <div className="flex gap-3 items-center select-none">
-                                    <div className="w-12 h-12 rounded bg-bg-elevated border border-border-light flex items-center justify-center text-text-tertiary">
+                                    <div className="w-12 h-12 rounded bg-slate-100 border border-border flex items-center justify-center text-text-tertiary">
                                       <Camera className="w-5 h-5" />
                                     </div>
                                     <input
@@ -2044,7 +2044,7 @@ export const FormBuilderPanel: React.FC = () => {
                                 )}
 
                                 {q.question_type === 'note' && (
-                                  <div className="bg-green-soft/10 border-l-2 border-green p-2 text-[10px] text-text-secondary leading-relaxed">
+                                  <div className="bg-sky-50 border-l-2 border-accent p-2 text-[10px] text-text-secondary leading-relaxed">
                                     Note: Display message above. No input response required.
                                   </div>
                                 )}

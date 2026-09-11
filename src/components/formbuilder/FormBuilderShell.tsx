@@ -81,22 +81,22 @@ export const FormBuilderShell: React.FC<FormBuilderShellProps> = ({
   };
 
   return (
-    <div className="flex flex-col h-full bg-bg border border-border rounded-lg overflow-hidden select-none text-left">
+    <div className="flex flex-col h-full bg-white border border-border rounded-xl overflow-hidden select-none text-left">
       {/* 1. Editor Topbar Area */}
-      <div className="p-4 bg-bg-surface border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0">
+      <div className="p-4 bg-slate-50 border-b border-border flex flex-col sm:flex-row sm:items-center justify-between gap-4 shrink-0">
         <div className="flex items-center gap-3">
           {onBack && (
             <button 
               onClick={onBack}
-              className="p-1 rounded bg-bg-elevated border border-border-light text-text-secondary hover:text-text-primary cursor-pointer shrink-0"
+              className="p-1.5 rounded-lg bg-slate-100 border border-border text-text-muted hover:text-text-primary hover:bg-slate-200 transition-colors cursor-pointer shrink-0"
               title="Go Back"
             >
               <ArrowLeft className="w-4 h-4" />
             </button>
           )}
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded bg-green-muted text-green flex items-center justify-center font-bold">
-              <ClipboardList className="w-4.5 h-4.5 text-green" />
+            <div className="w-8 h-8 rounded-lg bg-accent-soft text-accent flex items-center justify-center font-bold">
+              <ClipboardList className="w-4.5 h-4.5 text-accent" />
             </div>
             <div>
               <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider">{formName}</h3>
@@ -139,7 +139,7 @@ export const FormBuilderShell: React.FC<FormBuilderShellProps> = ({
       {/* 2. Main Two-Panel Layout */}
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden min-h-[500px]">
         {/* Left question selector column (380px) */}
-        <div className="w-full md:w-[380px] bg-bg-surface/40 border-b md:border-b-0 md:border-r border-border p-4.5 flex flex-col overflow-hidden shrink-0">
+        <div className="w-full md:w-[380px] bg-slate-50/50 border-b md:border-b-0 md:border-r border-border p-4.5 flex flex-col overflow-hidden shrink-0">
           <h4 className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider mb-3 select-none flex items-center gap-1.5">
             <span>Question Structure</span>
             <span className="text-[9px] text-text-muted font-normal capitalize">(drag handle to reorder)</span>
@@ -155,7 +155,7 @@ export const FormBuilderShell: React.FC<FormBuilderShellProps> = ({
         </div>
 
         {/* Right editor details pane */}
-        <div className="flex-1 bg-bg-surface/10 p-5 overflow-y-auto">
+        <div className="flex-1 bg-white p-5 overflow-y-auto">
           <h4 className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider mb-4 border-b border-border/20 pb-2.5 flex items-center gap-1.5 select-none">
             <span>Question Settings</span>
             {activeQuestion && (

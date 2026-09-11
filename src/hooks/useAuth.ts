@@ -2,16 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
-import type { UserRole } from '@/lib/auth/permissions';
-import { ROLE_LABELS } from '@/lib/auth/permissions';
-
-interface UserProfile {
-  id: string;
-  user_id: string;
-  email: string;
-  role: UserRole;
-  created_at: string;
-}
+import type { UserRole, UserProfile } from '@/lib/auth/permissions';
+import { ROLE_LABELS, isApproved as checkApproved } from '@/lib/auth/permissions';
 
 interface CurrentUser {
   userId: string;
@@ -19,6 +11,8 @@ interface CurrentUser {
   profile: UserProfile | null;
   role: UserRole | null;
   loading: boolean;
+  isPending: boolean;
+  isApproved: boolean;
 }
 
 export function useAuth(): CurrentUser & {
@@ -31,6 +25,8 @@ export function useAuth(): CurrentUser & {
     profile: null,
     role: null,
     loading: true,
+    isPending: false,
+    isApproved: false,
   });
 
   const fetchProfile = useCallback(async () => {
@@ -41,12 +37,15 @@ export function useAuth(): CurrentUser & {
         throw new Error(errData.error || `HTTP ${res.status}`);
       }
       const data = await res.json();
+      const currentRole = data.profile?.role ?? null;
       setState({
         userId: data.id,
         email: data.email,
         profile: data.profile,
-        role: data.profile?.role ?? null,
+        role: currentRole,
         loading: false,
+        isPending: Boolean(data.id && (!currentRole || currentRole === 'unassigned')),
+        isApproved: Boolean(data.id && checkApproved(currentRole)),
       });
     } catch {
       setState({
@@ -55,6 +54,8 @@ export function useAuth(): CurrentUser & {
         profile: null,
         role: null,
         loading: false,
+        isPending: false,
+        isApproved: false,
       });
     }
   }, []);
@@ -78,3 +79,4 @@ export function useAuth(): CurrentUser & {
 
 export { ROLE_LABELS };
 export type { UserProfile, UserRole };
+

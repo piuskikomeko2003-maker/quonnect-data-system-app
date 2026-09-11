@@ -48,6 +48,10 @@
         "default": "now()",
         "format": "timestamp with time zone",
         "type": "string"
+      },
+      "import_batch": {
+        "format": "text",
+        "type": "string"
       }
     },
     "type": "object"
@@ -122,7 +126,8 @@
       "slug",
       "is_active",
       "created_at",
-      "updated_at"
+      "updated_at",
+      "prefill_defaults"
     ],
     "properties": {
       "id": {
@@ -157,6 +162,9 @@
         "default": "now()",
         "format": "timestamp with time zone",
         "type": "string"
+      },
+      "prefill_defaults": {
+        "format": "jsonb"
       }
     },
     "type": "object"
@@ -165,7 +173,6 @@
     "required": [
       "id",
       "market_day_id",
-      "count",
       "recorded_at"
     ],
     "properties": {
@@ -180,23 +187,30 @@
         "format": "uuid",
         "type": "string"
       },
-      "count": {
-        "default": 0,
-        "format": "integer",
-        "type": "integer"
-      },
       "recorded_at": {
         "default": "now()",
         "format": "timestamp with time zone",
         "type": "string"
       },
-      "recorded_by": {
+      "full_name": {
         "format": "text",
         "type": "string"
       },
-      "notes": {
+      "phone": {
         "format": "text",
         "type": "string"
+      },
+      "email": {
+        "format": "text",
+        "type": "string"
+      },
+      "business_type": {
+        "format": "text",
+        "type": "string"
+      },
+      "age": {
+        "format": "integer",
+        "type": "integer"
       }
     },
     "type": "object"
@@ -266,6 +280,53 @@
       },
       "support_needed": {
         "format": "text",
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "user_profiles": {
+    "required": [
+      "id",
+      "user_id",
+      "email",
+      "role",
+      "created_at",
+      "updated_at"
+    ],
+    "properties": {
+      "id": {
+        "default": "gen_random_uuid()",
+        "description": "Note:\nThis is a Primary Key.<pk/>",
+        "format": "uuid",
+        "type": "string"
+      },
+      "user_id": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "email": {
+        "format": "text",
+        "type": "string"
+      },
+      "role": {
+        "default": "user",
+        "enum": [
+          "super_admin",
+          "admin",
+          "user"
+        ],
+        "format": "public.user_role",
+        "type": "string"
+      },
+      "created_at": {
+        "default": "now()",
+        "format": "timestamp with time zone",
+        "type": "string"
+      },
+      "updated_at": {
+        "default": "now()",
+        "format": "timestamp with time zone",
         "type": "string"
       }
     },
@@ -449,6 +510,10 @@
         "default": "now()",
         "format": "timestamp with time zone",
         "type": "string"
+      },
+      "import_batch": {
+        "format": "text",
+        "type": "string"
       }
     },
     "type": "object"
@@ -546,6 +611,51 @@
     },
     "type": "object"
   },
+  "walkin_estimates": {
+    "required": [
+      "id",
+      "market_day_id",
+      "estimated_total",
+      "created_at",
+      "updated_at"
+    ],
+    "properties": {
+      "id": {
+        "default": "gen_random_uuid()",
+        "description": "Note:\nThis is a Primary Key.<pk/>",
+        "format": "uuid",
+        "type": "string"
+      },
+      "market_day_id": {
+        "description": "Note:\nThis is a Foreign Key to `market_days.id`.<fk table='market_days' column='id'/>",
+        "format": "uuid",
+        "type": "string"
+      },
+      "month": {
+        "format": "text",
+        "type": "string"
+      },
+      "estimated_total": {
+        "format": "integer",
+        "type": "integer"
+      },
+      "created_by": {
+        "format": "uuid",
+        "type": "string"
+      },
+      "created_at": {
+        "default": "now()",
+        "format": "timestamp with time zone",
+        "type": "string"
+      },
+      "updated_at": {
+        "default": "now()",
+        "format": "timestamp with time zone",
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
   "regions": {
     "required": [
       "id",
@@ -582,6 +692,45 @@
       },
       "updated_at": {
         "default": "now()",
+        "format": "timestamp with time zone",
+        "type": "string"
+      }
+    },
+    "type": "object"
+  },
+  "form_links": {
+    "required": [
+      "id",
+      "token",
+      "form_slug",
+      "created_at"
+    ],
+    "properties": {
+      "id": {
+        "default": "gen_random_uuid()",
+        "description": "Note:\nThis is a Primary Key.<pk/>",
+        "format": "uuid",
+        "type": "string"
+      },
+      "token": {
+        "format": "text",
+        "type": "string"
+      },
+      "form_slug": {
+        "format": "text",
+        "type": "string"
+      },
+      "edition_id": {
+        "description": "Note:\nThis is a Foreign Key to `market_days.id`.<fk table='market_days' column='id'/>",
+        "format": "uuid",
+        "type": "string"
+      },
+      "created_at": {
+        "default": "now()",
+        "format": "timestamp with time zone",
+        "type": "string"
+      },
+      "expires_at": {
         "format": "timestamp with time zone",
         "type": "string"
       }

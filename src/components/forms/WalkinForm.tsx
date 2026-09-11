@@ -33,13 +33,13 @@ export const WalkinForm: React.FC<WalkinFormProps> = ({
 }) => {
   if (successState.show) {
     return (
-      <div className="bg-bg-surface border border-border rounded-lg p-8 text-center flex flex-col items-center justify-center min-h-[380px] select-none text-left">
-        <div className="w-16 h-16 bg-green-muted text-green rounded-full flex items-center justify-center mb-5 animate-pulse">
+      <div className="bg-white border border-border rounded-xl shadow-xs p-8 text-center flex flex-col items-center justify-center min-h-[380px] select-none text-left">
+        <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mb-5 animate-pulse">
           <Check className="w-8 h-8 stroke-[3]" />
         </div>
         <h3 className="text-base font-bold text-text-primary mb-1">Walk-in Logged Successfully!</h3>
         <p className="text-xs text-text-secondary mb-6 max-w-[280px]">
-          Recorded walk-in guest <span className="text-green font-bold">{successState.visitorName || values.fullName || 'Anonymous Visitor'}</span>.
+          Recorded walk-in guest <span className="text-emerald-600 font-bold">{successState.visitorName || values.fullName || 'Anonymous Visitor'}</span>.
         </p>
         <Button variant="primary" onClick={successState.onAddAnother} className="w-full">
           <Plus className="w-4 h-4 text-white" />
@@ -50,11 +50,11 @@ export const WalkinForm: React.FC<WalkinFormProps> = ({
   }
 
   return (
-    <div className="bg-bg-surface border border-border rounded-lg p-5 max-w-[560px] mx-auto text-left relative select-none">
+    <div className="bg-white border border-border rounded-xl shadow-xs p-5 max-w-[560px] mx-auto text-left relative select-none">
       <div className="flex justify-between items-center border-b border-border pb-4 mb-5">
         <div className="flex flex-col">
           <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider flex items-center gap-1.5">
-            <Footprints className="w-4 h-4 text-green" /> Walk-in Guest Registry
+            <Footprints className="w-4 h-4 text-accent" /> Walk-in Guest Registry
           </h3>
           <span className="text-[10px] text-text-tertiary font-medium mt-0.5">Optimized for speed entry</span>
         </div>
@@ -67,14 +67,14 @@ export const WalkinForm: React.FC<WalkinFormProps> = ({
         <div>
           <label className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider flex items-center justify-between mb-1.5">
             <span>Full Name</span>
-            <span className="text-[9px] font-medium text-text-muted bg-bg-hover px-1.5 py-0.5 rounded uppercase">Optional</span>
+            <span className="text-[9px] font-medium text-text-muted bg-slate-100 px-1.5 py-0.5 rounded uppercase">Optional</span>
           </label>
           <input
             type="text"
             placeholder="e.g. Aisha Nakamya"
             value={values.fullName}
             onChange={(e) => onChange({ fullName: e.target.value })}
-            className="w-full bg-bg-input border border-border-light focus:border-green focus:ring-1 focus:ring-green rounded-md px-3.5 py-2.5 text-text-primary text-sm font-sans placeholder-text-muted transition-colors outline-none"
+            className="w-full bg-white border border-border focus:border-accent focus:ring-1 focus:ring-accent rounded-md px-3.5 py-2.5 text-text-primary text-sm font-sans placeholder-text-muted transition-colors outline-none"
           />
         </div>
 
@@ -82,28 +82,28 @@ export const WalkinForm: React.FC<WalkinFormProps> = ({
           <div>
             <label className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider flex items-center justify-between mb-1.5">
               <span>Phone Number</span>
-              <span className="text-[9px] font-medium text-text-muted bg-bg-hover px-1.5 py-0.5 rounded uppercase">Optional</span>
+              <span className="text-[9px] font-medium text-text-muted bg-slate-100 px-1.5 py-0.5 rounded uppercase">Optional</span>
             </label>
             <input
               type="tel"
               placeholder="07XX XXX XXX"
               value={values.phone}
               onChange={(e) => onChange({ phone: e.target.value })}
-              className="w-full bg-bg-input border border-border-light focus:border-green focus:ring-1 focus:ring-green rounded-md px-3.5 py-2.5 text-text-primary text-sm font-sans placeholder-text-muted transition-colors outline-none"
+              className="w-full bg-white border border-border focus:border-accent focus:ring-1 focus:ring-accent rounded-md px-3.5 py-2.5 text-text-primary text-sm font-sans placeholder-text-muted transition-colors outline-none"
             />
           </div>
 
           <div>
             <label className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider flex items-center justify-between mb-1.5">
               <span>Email</span>
-              <span className="text-[9px] font-medium text-text-muted bg-bg-hover px-1.5 py-0.5 rounded uppercase">Optional</span>
+              <span className="text-[9px] font-medium text-text-muted bg-slate-100 px-1.5 py-0.5 rounded uppercase">Optional</span>
             </label>
             <input
               type="email"
               placeholder="email@example.com"
               value={values.email}
               onChange={(e) => onChange({ email: e.target.value })}
-              className="w-full bg-bg-input border border-border-light focus:border-green focus:ring-1 focus:ring-green rounded-md px-3.5 py-2.5 text-text-primary text-sm font-sans placeholder-text-muted transition-colors outline-none"
+              className="w-full bg-white border border-border focus:border-accent focus:ring-1 focus:ring-accent rounded-md px-3.5 py-2.5 text-text-primary text-sm font-sans placeholder-text-muted transition-colors outline-none"
             />
           </div>
         </div>
@@ -112,14 +112,14 @@ export const WalkinForm: React.FC<WalkinFormProps> = ({
           <div>
             <label className="text-[11px] font-semibold text-text-tertiary uppercase tracking-wider flex items-center justify-between mb-1.5">
               <span>Business Type</span>
-              <span className="text-[9px] font-medium text-text-muted bg-bg-hover px-1.5 py-0.5 rounded uppercase">Optional</span>
+              <span className="text-[9px] font-medium text-text-muted bg-slate-100 px-1.5 py-0.5 rounded uppercase">Optional</span>
             </label>
             <input
               type="text"
               placeholder="e.g. Retail, Food, Services"
               value={values.businessType}
               onChange={(e) => onChange({ businessType: e.target.value })}
-              className="w-full bg-bg-input border border-border-light focus:border-green focus:ring-1 focus:ring-green rounded-md px-3.5 py-2.5 text-text-primary text-sm font-sans placeholder-text-muted transition-colors outline-none"
+              className="w-full bg-white border border-border focus:border-accent focus:ring-1 focus:ring-accent rounded-md px-3.5 py-2.5 text-text-primary text-sm font-sans placeholder-text-muted transition-colors outline-none"
             />
           </div>
 
@@ -134,7 +134,7 @@ export const WalkinForm: React.FC<WalkinFormProps> = ({
               placeholder="e.g. 25"
               value={values.age}
               onChange={(e) => onChange({ age: e.target.value })}
-              className="w-full bg-bg-input border border-border-light focus:border-green focus:ring-1 focus:ring-green rounded-md px-3.5 py-2.5 text-text-primary text-sm font-sans placeholder-text-muted transition-colors outline-none font-bold text-center"
+              className="w-full bg-white border border-border focus:border-accent focus:ring-1 focus:ring-accent rounded-md px-3.5 py-2.5 text-text-primary text-sm font-sans placeholder-text-muted transition-colors outline-none font-bold text-center"
             />
           </div>
         </div>

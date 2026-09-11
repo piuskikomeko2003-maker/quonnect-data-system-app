@@ -5,6 +5,7 @@ import { createClient } from '@/lib/supabase/client';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 import { Briefcase, Loader2 } from 'lucide-react';
 import { Badge } from '@/components/ui/Badge';
+import { AnimatedNumber } from '@/components/ui/AnimatedNumber';
 
 interface EditionJob {
   name: string;
@@ -24,22 +25,22 @@ const CustomJobsTooltip = ({ active, payload, label }: any) => {
   if (!active || !payload?.length) return null;
   const total = payload.reduce((sum: number, entry: any) => sum + (Number(entry.value) || 0), 0);
   return (
-    <div className="bg-[#1a1d24] border border-white/10 rounded-lg p-3 shadow-xl min-w-32 text-xs space-y-2 select-none">
-      <p className="text-xs text-gray-400 border-b border-white/10 pb-1 mb-1">{label}</p>
+    <div className="bg-white border border-border rounded-lg p-3 shadow-modal min-w-32 text-xs space-y-2 select-none">
+      <p className="text-xs text-text-secondary border-b border-border pb-1 mb-1">{label}</p>
       <div className="space-y-1">
         {payload.map((entry: any, index: number) => (
           <div key={`item-${index}`} className="flex justify-between items-center gap-4">
-            <span className="flex items-center gap-2 text-gray-300 font-medium">
+            <span className="flex items-center gap-2 text-text-secondary font-medium">
               <span className="w-2 h-2 rounded-full inline-block shrink-0" style={{ backgroundColor: entry.color || entry.fill }} />
               {entry.name}
             </span>
-            <span className="font-semibold text-white">{Number(entry.value).toLocaleString()}</span>
+            <span className="font-semibold text-text-primary">{Number(entry.value).toLocaleString()}</span>
           </div>
         ))}
       </div>
-      <div className="pt-1.5 border-t border-white/10 flex justify-between items-center font-bold">
-        <span className="text-gray-400">Total Jobs</span>
-        <span className="text-green-400">{total.toLocaleString()}</span>
+      <div className="pt-1.5 border-t border-border flex justify-between items-center font-bold">
+        <span className="text-text-secondary">Total Jobs</span>
+        <span className="text-accent">{total.toLocaleString()}</span>
       </div>
     </div>
   );
@@ -154,9 +155,18 @@ export const JobsSupportedPanel: React.FC<JobsSupportedPanelProps> = ({
 
   if (loading) {
     return (
-      <div className="py-24 flex flex-col items-center justify-center select-none text-left animate-fade-in">
-        <Loader2 className="w-8 h-8 animate-spin text-green mb-3" />
-        <p className="text-xs text-text-secondary">Calculating jobs supported across editions...</p>
+      <div className="space-y-5 animate-fade-in text-left select-none">
+        <div className="flex items-center justify-between">
+          <div className="space-y-2">
+            <div className="h-6 w-48 bg-slate-200/70 rounded-md animate-pulse" />
+            <div className="h-3 w-64 bg-slate-100 rounded-md animate-pulse" />
+          </div>
+          <div className="h-7 w-28 bg-slate-200/70 rounded-full animate-pulse" />
+        </div>
+        <div className="bg-white border border-border rounded-xl p-6 shadow-xs space-y-4">
+          <div className="h-4 w-40 bg-slate-200/60 rounded-md animate-pulse" />
+          <div className="h-[320px] w-full bg-slate-50/70 rounded-lg animate-pulse" />
+        </div>
       </div>
     );
   }
@@ -179,21 +189,24 @@ export const JobsSupportedPanel: React.FC<JobsSupportedPanelProps> = ({
           </p>
         </div>
         <Badge variant="success" size="md" className="text-sm font-extrabold">
-          {totalJobs.toLocaleString()} total jobs
+          <span className="flex items-center gap-1">
+            <AnimatedNumber value={totalJobs} />
+            <span>total jobs</span>
+          </span>
         </Badge>
       </div>
 
       {editionJobs.length === 0 ? (
-        <div className="bg-bg-surface border border-border rounded-lg p-10 text-center select-none">
+        <div className="bg-white border border-border rounded-xl shadow-xs p-10 text-center select-none">
           <Briefcase className="w-10 h-10 text-text-muted mx-auto mb-3" />
           <p className="text-xs text-text-secondary">No edition data available for this region.</p>
         </div>
       ) : (
         <>
-          <div className="bg-[#0f1117] border border-white/5 rounded-xl p-6">
+          <div className="bg-white border border-border rounded-xl p-6 shadow-xs">
             <div className="flex items-center gap-2 mb-6">
-              <div className="w-1 h-4 bg-green-500 rounded-full" />
-              <span className="text-xs font-semibold tracking-widest uppercase text-gray-400">
+              <div className="w-1 h-4 bg-accent rounded-full" />
+              <span className="text-xs font-semibold tracking-widest uppercase text-text-secondary">
                 Jobs Breakdown Per Edition
               </span>
             </div>
@@ -213,21 +226,21 @@ export const JobsSupportedPanel: React.FC<JobsSupportedPanelProps> = ({
                     <stop offset="100%" stopColor="#7e22ce" stopOpacity={0.85} />
                   </linearGradient>
                 </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.04)" vertical={false} />
+                <CartesianGrid strokeDasharray="3 3" stroke="#e2e8f0" vertical={false} />
                 <XAxis
                   dataKey="name"
-                  tick={{ fill: '#6b7280', fontSize: 11 }}
+                  tick={{ fill: '#64748b', fontSize: 11 }}
                   tickLine={false}
                   axisLine={false}
                   dy={6}
                 />
                 <YAxis
-                  tick={{ fill: '#6b7280', fontSize: 11 }}
+                  tick={{ fill: '#64748b', fontSize: 11 }}
                   tickLine={false}
                   axisLine={false}
                   dx={-4}
                 />
-                <Tooltip content={<CustomJobsTooltip />} cursor={{ fill: 'rgba(255, 255, 255, 0.03)' }} />
+                <Tooltip content={<CustomJobsTooltip />} cursor={{ fill: 'rgba(2, 132, 199, 0.04)' }} />
                 <Legend
                   iconType="circle"
                   iconSize={8}
@@ -242,16 +255,16 @@ export const JobsSupportedPanel: React.FC<JobsSupportedPanelProps> = ({
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {editionJobs.map((ed) => (
-              <div key={ed.name} className="bg-bg-surface border border-border rounded-lg p-4">
+              <div key={ed.name} className="bg-white border border-border rounded-xl shadow-xs p-4">
                 <h4 className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider mb-2">{ed.name}</h4>
                 <div className="space-y-2">
                   <div className="flex justify-between items-center">
                     <span className="text-[11px] text-text-secondary">Paid Vendors</span>
-                    <span className="text-xs font-bold text-green">{ed.paidVendors.toLocaleString()}</span>
+                    <span className="text-xs font-bold text-emerald-600">{ed.paidVendors.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-[11px] text-text-secondary">Employees</span>
-                    <span className="text-xs font-bold text-blue">{ed.employees.toLocaleString()}</span>
+                    <span className="text-xs font-bold text-accent">{ed.employees.toLocaleString()}</span>
                   </div>
                   <div className="flex justify-between items-center">
                     <span className="text-[11px] text-text-secondary">Casual Workers</span>

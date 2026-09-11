@@ -57,13 +57,13 @@ export const FieldCollectionForm: React.FC<FieldCollectionFormProps> = ({
 
   if (successState.show) {
     return (
-      <div className="bg-bg-surface border border-border rounded-lg p-8 text-center flex flex-col items-center justify-center min-h-[480px] select-none text-left">
-        <div className="w-16 h-16 bg-green-muted text-green rounded-full flex items-center justify-center mb-5 animate-pulse">
+      <div className="bg-white border border-border rounded-xl shadow-xs p-8 text-center flex flex-col items-center justify-center min-h-[480px] select-none text-left">
+        <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mb-5 animate-pulse">
           <Check className="w-8 h-8 stroke-[3]" />
         </div>
         <h3 className="text-base font-bold text-text-primary mb-1">Data Collection Complete!</h3>
         <p className="text-xs text-text-secondary mb-6 max-w-[280px]">
-          Saved collector profile sheet for <span className="text-green font-bold">{successState.vendorName || values.name}</span>.
+          Saved collector profile sheet for <span className="text-emerald-600 font-bold">{successState.vendorName || values.name}</span>.
         </p>
         <Button variant="primary" onClick={successState.onAddAnother} className="w-full">
           <Plus className="w-4 h-4 text-white" />
@@ -81,7 +81,7 @@ export const FieldCollectionForm: React.FC<FieldCollectionFormProps> = ({
   ];
 
   return (
-    <div className="bg-bg-surface border border-border rounded-lg p-5 max-w-[560px] mx-auto text-left select-none">
+    <div className="bg-white border border-border rounded-xl shadow-xs p-5 max-w-[560px] mx-auto text-left select-none">
       {/* Running counter header */}
       <div className="flex justify-between items-center border-b border-border pb-4 mb-5">
         <div className="flex flex-col">
@@ -107,7 +107,7 @@ export const FieldCollectionForm: React.FC<FieldCollectionFormProps> = ({
               placeholder="07XX XXX XXX"
               value={values.phone}
               onChange={handlePhoneChange}
-              className="w-full bg-bg-input border border-border-light focus:border-green focus:ring-1 focus:ring-green rounded-md px-3.5 py-2.5 text-text-primary font-bold text-sm tracking-wider placeholder-text-muted transition-colors outline-none"
+              className="w-full bg-white border border-border focus:border-accent focus:ring-1 focus:ring-accent rounded-md px-3.5 py-2.5 text-text-primary font-bold text-sm tracking-wider placeholder-text-muted transition-colors outline-none"
               required
             />
           </div>
@@ -115,8 +115,8 @@ export const FieldCollectionForm: React.FC<FieldCollectionFormProps> = ({
 
         {/* Paid status notification banner */}
         {isPaidVendor === true && (
-          <div className="bg-green-soft border border-green/20 text-green rounded-md p-3.5 flex items-center gap-2.5 animate-fade-in select-none">
-            <ShieldCheck className="w-5 h-5 text-green shrink-0 animate-bounce" />
+          <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-md p-3.5 flex items-center gap-2.5 animate-fade-in select-none">
+            <ShieldCheck className="w-5 h-5 text-emerald-600 shrink-0 animate-bounce" />
             <div className="text-[11px] leading-tight text-left">
               <strong className="block font-bold">Paid Registration Confirmed</strong>
               <span className="text-text-secondary font-medium">Vendor has completed fee payments for this edition.</span>
@@ -125,8 +125,8 @@ export const FieldCollectionForm: React.FC<FieldCollectionFormProps> = ({
         )}
 
         {isPaidVendor === false && (
-          <div className="bg-amber-muted border border-amber/20 text-amber rounded-md p-3.5 flex items-center gap-2.5 animate-fade-in select-none">
-            <ShieldAlert className="w-5 h-5 text-amber shrink-0 animate-pulse" />
+          <div className="bg-amber-50 border border-amber-200 text-amber-700 rounded-md p-3.5 flex items-center gap-2.5 animate-fade-in select-none">
+            <ShieldAlert className="w-5 h-5 text-amber-600 shrink-0 animate-pulse" />
             <div className="text-[11px] leading-tight text-left">
               <strong className="block font-bold">Payment Missing Warning</strong>
               <span className="text-text-secondary font-medium">This vendor has not paid this edition fee. Flag with supervisor.</span>
@@ -139,7 +139,7 @@ export const FieldCollectionForm: React.FC<FieldCollectionFormProps> = ({
           
           {/* Section 1: Personal Profile */}
           <div className="space-y-4">
-            <h4 className="text-[10px] font-bold text-green uppercase tracking-wider border-b border-border pb-1 mb-2">
+            <h4 className="text-[10px] font-bold text-accent uppercase tracking-wider border-b border-border pb-1 mb-2">
               1. Personal Profile
             </h4>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -180,7 +180,7 @@ export const FieldCollectionForm: React.FC<FieldCollectionFormProps> = ({
 
           {/* Section 2: Impact Assessment */}
           <div className="space-y-4">
-            <h4 className="text-[10px] font-bold text-green uppercase tracking-wider border-b border-border pb-1 mb-2">
+            <h4 className="text-[10px] font-bold text-accent uppercase tracking-wider border-b border-border pb-1 mb-2">
               2. Business Impact
             </h4>
             
@@ -232,8 +232,8 @@ export const FieldCollectionForm: React.FC<FieldCollectionFormProps> = ({
                       onClick={() => onChange({ sellsOwnProducts: opt as 'Yes' | 'No' })}
                       className={`flex-1 py-2 rounded-md font-semibold text-xs border transition-all cursor-pointer ${
                         values.sellsOwnProducts === opt
-                          ? 'bg-green text-black border-green font-bold'
-                          : 'bg-bg-input text-text-secondary border-border-light hover:text-text-primary'
+                          ? 'bg-accent text-white border-accent font-bold shadow-xs'
+                          : 'bg-white text-text-secondary border-border hover:text-text-primary hover:bg-slate-50'
                       }`}
                     >
                       {opt}
@@ -254,8 +254,8 @@ export const FieldCollectionForm: React.FC<FieldCollectionFormProps> = ({
                       onClick={() => onChange({ exportReady: opt as 'Yes' | 'No' })}
                       className={`flex-1 py-2 rounded-md font-semibold text-xs border transition-all cursor-pointer ${
                         values.exportReady === opt
-                          ? 'bg-green text-black border-green font-bold'
-                          : 'bg-bg-input text-text-secondary border-border-light hover:text-text-primary'
+                          ? 'bg-accent text-white border-accent font-bold shadow-xs'
+                          : 'bg-white text-text-secondary border-border hover:text-text-primary hover:bg-slate-50'
                       }`}
                     >
                       {opt}

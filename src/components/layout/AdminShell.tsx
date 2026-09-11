@@ -21,6 +21,7 @@ import {
   AlertCircle,
   CreditCard,
   Briefcase,
+  UserCheck,
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
@@ -106,6 +107,7 @@ export const AdminShell: React.FC<AdminShellProps> = ({
       items: [
         { id: 'formbuilder', name: 'Form Builder', icon: <ClipboardList className="w-5 h-5" /> },
         { id: 'markets', name: 'Create Market', icon: <Store className="w-5 h-5" /> },
+        { id: 'users', name: 'Users & Roles', icon: <UserCheck className="w-5 h-5" /> },
         { id: 'settings', name: 'Settings', icon: <Settings className="w-5 h-5" /> },
       ]
     }
@@ -122,6 +124,7 @@ export const AdminShell: React.FC<AdminShellProps> = ({
       case 'formbuilder': return <ClipboardList className="w-5 h-5" />;
       case 'markets': return <Store className="w-5 h-5" />;
       case 'jobs': return <Briefcase className="w-5 h-5" />;
+      case 'users': return <UserCheck className="w-5 h-5" />;
       case 'settings': return <Settings className="w-5 h-5" />;
       default: return <Building2 className="w-5 h-5" />;
     }
@@ -186,11 +189,11 @@ export const AdminShell: React.FC<AdminShellProps> = ({
   };
 
   return (
-    <div className="flex h-screen bg-[#0a0c10] text-white overflow-hidden">
+    <div className="flex h-screen bg-bg text-text-primary overflow-hidden">
       {/* Mobile Drawer Backdrop */}
       {isMobileMenuOpen && (
         <div
-          className="fixed inset-0 bg-black/70 backdrop-blur-xs z-40 md:hidden animate-fade-in"
+          className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-40 md:hidden animate-fade-in"
           onClick={() => setIsMobileMenuOpen(false)}
           aria-hidden="true"
         />
@@ -198,7 +201,7 @@ export const AdminShell: React.FC<AdminShellProps> = ({
 
       {/* Sidebar: always fixed — never scrolls with content */}
       <aside
-        className={`fixed top-0 left-0 h-screen bg-[#0f1117] border-r border-white/5 flex flex-col z-50 transition-all duration-300 ${
+        className={`fixed top-0 left-0 h-screen bg-white border-r border-border flex flex-col z-50 transition-all duration-300 ${
           isMobileMenuOpen
             ? 'w-[268px] translate-x-0 shadow-2xl'
             : '-translate-x-full md:translate-x-0 ' + (isDesktopCollapsed ? 'md:w-[60px]' : 'md:w-[268px]')
@@ -209,22 +212,22 @@ export const AdminShell: React.FC<AdminShellProps> = ({
         }}
       >
         {/* Brand logo */}
-        <div className="p-4 sm:p-5 border-b border-white/5 flex items-center justify-between">
+        <div className="p-4 sm:p-5 border-b border-border flex items-center justify-between">
           <div className={`logo font-black text-xl tracking-tight select-none ${isMobileMenuOpen ? 'block' : 'hidden'} ${isDesktopCollapsed ? 'md:hidden' : 'md:block'}`}>
-            QUON<span className="text-green-400">NECT</span>
-            <div className="text-[10px] text-gray-500 tracking-widest font-semibold uppercase mt-0.5">Workspace Mode</div>
+            QUON<span className="text-accent">NECT</span>
+            <div className="text-[10px] text-text-tertiary tracking-widest font-semibold uppercase mt-0.5">Workspace Mode</div>
           </div>
           {/* Mobile drawer close button */}
           <button 
             onClick={() => setIsMobileMenuOpen(false)} 
-            className="md:hidden text-gray-400 hover:text-white cursor-pointer p-1 rounded-lg hover:bg-white/5"
+            className="md:hidden text-text-secondary hover:text-text-primary cursor-pointer p-1 rounded-lg hover:bg-slate-100"
             aria-label="Close menu"
           >
             <X className="w-5 h-5" />
           </button>
           <button
             onClick={() => setIsDesktopCollapsed(!isDesktopCollapsed)}
-            className="hidden md:flex text-gray-400 hover:text-white cursor-pointer p-1"
+            className="hidden md:flex text-text-secondary hover:text-text-primary cursor-pointer p-1"
             title={isDesktopCollapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
             {isDesktopCollapsed ? (
@@ -236,7 +239,7 @@ export const AdminShell: React.FC<AdminShellProps> = ({
         </div>
 
         {/* WORKSPACE SELECTION BLOCK (Region and Edition) */}
-        <div className={`p-3 border-b border-white/5 space-y-2 select-none ${isMobileMenuOpen || !isDesktopCollapsed ? 'block' : 'hidden'}`}>
+        <div className={`p-3 border-b border-border space-y-2 select-none ${isMobileMenuOpen || !isDesktopCollapsed ? 'block' : 'hidden'}`}>
           
           {/* Region Switcher Button */}
           <div className="relative">
@@ -245,26 +248,26 @@ export const AdminShell: React.FC<AdminShellProps> = ({
                 setIsRegionDropdownOpen(!isRegionDropdownOpen);
                 setIsEditionDropdownOpen(false);
               }}
-              className="flex items-center gap-2.5 w-full p-2.5 bg-white/[0.02] border border-white/5 hover:border-green-500/40 hover:bg-white/[0.04] text-white cursor-pointer transition-all text-left rounded-xl"
+              className="flex items-center gap-2.5 w-full p-2.5 bg-slate-50 border border-border hover:border-accent/40 hover:bg-accent-soft/30 text-text-primary cursor-pointer transition-all text-left rounded-xl"
             >
-              <div className="w-7 h-7 rounded-lg bg-green-500/10 flex items-center justify-center text-green-400 shrink-0">
+              <div className="w-7 h-7 rounded-lg bg-accent-soft flex items-center justify-center text-accent shrink-0">
                 <MapPin className="w-4 h-4" />
               </div>
               <div className="flex-1 min-w-0">
-                <span className="block text-[11px] font-bold text-white truncate">
+                <span className="block text-[11px] font-bold text-text-primary truncate">
                   {activeRegion ? activeRegion.name : 'Select Region'}
                 </span>
-                <small className="block text-[9px] text-gray-400 truncate">
+                <small className="block text-[9px] text-text-tertiary truncate">
                   {activeRegion && activeEdition ? activeEdition.name : (activeRegion ? 'Switch region workspace' : 'Click to select region')}
                 </small>
               </div>
-              <ChevronDown className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+              <ChevronDown className="w-3.5 h-3.5 text-text-tertiary shrink-0" />
             </button>
 
             {/* Region dropdown overlay */}
             {isRegionDropdownOpen && (
-              <div className="absolute left-0 right-0 mt-1 bg-[#161922] border border-white/10 rounded-xl shadow-2xl z-[999] py-1">
-                <div className="max-h-[200px] overflow-y-auto divide-y divide-white/5">
+              <div className="absolute left-0 right-0 mt-1 bg-white border border-border rounded-xl shadow-modal z-[999] py-1">
+                <div className="max-h-[200px] overflow-y-auto divide-y divide-border text-left">
                   {regions.map((r) => {
                     const count = (r as any).market_days?.[0]?.count ?? 0;
                     const isActive = activeRegion?.id === r.id;
@@ -275,11 +278,11 @@ export const AdminShell: React.FC<AdminShellProps> = ({
                           switchRegion(r);
                           setIsRegionDropdownOpen(false);
                         }}
-                        className={`flex items-center justify-between w-full px-4 py-2 hover:bg-white/5 text-left text-xs ${isActive ? 'bg-green-500/10 text-green-400 font-bold border-l-2 border-green-500' : 'text-gray-300'}`}
+                        className={`flex items-center justify-between w-full px-4 py-2 hover:bg-slate-50 text-left text-xs ${isActive ? 'bg-accent-soft text-accent font-bold border-l-2 border-accent' : 'text-text-secondary'}`}
                       >
                         <div className="min-w-0 flex-1">
                           <span className="block truncate font-semibold">{r.name}</span>
-                          <span className="block text-[9px] text-gray-500 truncate mt-0.5">
+                          <span className="block text-[9px] text-text-tertiary truncate mt-0.5">
                             {count} {count === 1 ? 'Market Day' : 'Market Days'}
                           </span>
                         </div>
@@ -288,13 +291,13 @@ export const AdminShell: React.FC<AdminShellProps> = ({
                     );
                   })}
                 </div>
-                <div className="p-2 border-t border-white/5 bg-white/[0.02]">
+                <div className="p-2 border-t border-border bg-slate-50">
                   <button
                     onClick={() => {
                       setIsCreateModalOpen(true);
                       setIsRegionDropdownOpen(false);
                     }}
-                    className="w-full py-1 text-center text-[10px] font-bold text-green-400 hover:underline flex items-center justify-center gap-1 cursor-pointer"
+                    className="w-full py-1 text-center text-[10px] font-bold text-accent hover:underline flex items-center justify-center gap-1 cursor-pointer"
                   >
                     <PlusCircle className="w-3.5 h-3.5" />
                     <span>Create New Region</span>
@@ -312,30 +315,30 @@ export const AdminShell: React.FC<AdminShellProps> = ({
                   setIsEditionDropdownOpen(!isEditionDropdownOpen);
                   setIsRegionDropdownOpen(false);
                 }}
-                className="flex items-center gap-2.5 w-full p-2.5 bg-white/[0.02] border border-white/5 hover:border-green-500/40 hover:bg-white/[0.04] text-white cursor-pointer transition-all text-left rounded-xl"
+                className="flex items-center gap-2.5 w-full p-2.5 bg-slate-50 border border-border hover:border-accent/40 hover:bg-accent-soft/30 text-text-primary cursor-pointer transition-all text-left rounded-xl"
               >
-                <div className="w-7 h-7 rounded-lg bg-green-500/10 flex items-center justify-center text-green-400 shrink-0">
+                <div className="w-7 h-7 rounded-lg bg-accent-soft flex items-center justify-center text-accent shrink-0">
                   <Calendar className="w-4 h-4" />
                 </div>
                 <div className="flex-1 min-w-0">
-                  <span className="block text-[11px] font-bold text-white truncate">
+                  <span className="block text-[11px] font-bold text-text-primary truncate">
                     {activeEdition ? activeEdition.name : 'Select Event...'}
                   </span>
                   {activeEdition && (
-                    <small className="block text-[9px] text-gray-400 truncate">
+                    <small className="block text-[9px] text-text-tertiary truncate">
                       {activeEdition.venue || 'No venue configured'}
                     </small>
                   )}
                 </div>
-                <ChevronDown className="w-3.5 h-3.5 text-gray-400 shrink-0" />
+                <ChevronDown className="w-3.5 h-3.5 text-text-tertiary shrink-0" />
               </button>
 
               {/* Edition dropdown overlay */}
               {isEditionDropdownOpen && (
-                <div className="absolute left-0 right-0 mt-1 bg-[#161922] border border-white/10 rounded-xl shadow-2xl z-[999] py-1">
-                  <div className="max-h-[200px] overflow-y-auto divide-y divide-white/5">
+                <div className="absolute left-0 right-0 mt-1 bg-white border border-border rounded-xl shadow-modal z-[999] py-1">
+                  <div className="max-h-[200px] overflow-y-auto divide-y divide-border text-left">
                     {editions.length === 0 ? (
-                      <p className="text-[10px] text-gray-500 text-center py-4">No events found in this region.</p>
+                      <p className="text-[10px] text-text-tertiary text-center py-4">No events found in this region.</p>
                     ) : (
                       editions.map((e) => (
                         <button
@@ -344,11 +347,11 @@ export const AdminShell: React.FC<AdminShellProps> = ({
                             setActiveEdition(e);
                             setIsEditionDropdownOpen(false);
                           }}
-                          className={`flex items-center justify-between w-full px-4 py-2 hover:bg-white/5 text-left text-xs ${activeEdition?.id === e.id ? 'bg-green-500/10 text-green-400 font-bold border-l-2 border-green-500' : 'text-gray-300'}`}
+                          className={`flex items-center justify-between w-full px-4 py-2 hover:bg-slate-50 text-left text-xs ${activeEdition?.id === e.id ? 'bg-accent-soft text-accent font-bold border-l-2 border-accent' : 'text-text-secondary'}`}
                         >
                           <div className="min-w-0 flex-1">
                             <span className="block truncate font-semibold">{e.name}</span>
-                            <span className="block text-[9px] text-gray-500 truncate mt-0.5">{e.venue}</span>
+                            <span className="block text-[9px] text-text-tertiary truncate mt-0.5">{e.venue}</span>
                           </div>
                           {activeEdition?.id === e.id && <Badge variant="success" size="sm">Selected</Badge>}
                         </button>
@@ -365,7 +368,7 @@ export const AdminShell: React.FC<AdminShellProps> = ({
         <nav className="flex-1 overflow-y-auto py-4 space-y-4">
           {navigationSections.map((section, idx) => (
             <div key={idx}>
-              <div className={`px-5 py-1 text-[9px] font-semibold text-gray-500 uppercase tracking-widest select-none ${isMobileMenuOpen ? 'block' : 'hidden'} ${isDesktopCollapsed ? 'md:hidden' : 'md:block'}`}>
+              <div className={`px-5 py-1 text-[9px] font-semibold text-text-tertiary uppercase tracking-widest select-none ${isMobileMenuOpen ? 'block' : 'hidden'} ${isDesktopCollapsed ? 'md:hidden' : 'md:block'}`}>
                 {section.label}
               </div>
               <div className="mt-1 flex flex-col gap-0.5">
@@ -381,8 +384,8 @@ export const AdminShell: React.FC<AdminShellProps> = ({
                       title={item.name}
                       className={`flex items-center gap-3 py-2 px-3 mx-2 rounded-lg font-medium text-xs border transition-all cursor-pointer ${
                         isActive 
-                          ? 'bg-green-500 border-green-400 text-black font-bold shadow-lg' 
-                          : 'border-transparent text-gray-400 hover:text-white hover:bg-white/[0.03]'
+                          ? 'bg-accent border-accent text-white font-bold shadow-sm' 
+                          : 'border-transparent text-text-secondary hover:text-text-primary hover:bg-slate-100'
                       }`}
                     >
                       {getNavIcon(item.id)}
@@ -403,18 +406,18 @@ export const AdminShell: React.FC<AdminShellProps> = ({
         </nav>
 
         {/* Logged in User widget */}
-        <div className={`p-4 border-t border-white/5 flex items-center gap-3 bg-white/[0.02] ${isMobileMenuOpen ? 'block' : 'hidden'} ${isDesktopCollapsed ? 'md:hidden' : 'md:block'}`}>
-          <div className="w-8 h-8 rounded-lg bg-green-500 text-black flex items-center justify-center font-bold text-xs shrink-0 select-none">
+        <div className={`p-4 border-t border-border flex items-center gap-3 bg-slate-50/50 ${isMobileMenuOpen ? 'block' : 'hidden'} ${isDesktopCollapsed ? 'md:hidden' : 'md:block'}`}>
+          <div className="w-8 h-8 rounded-lg bg-accent text-white flex items-center justify-center font-bold text-xs shrink-0 select-none">
             {user.avatarInitials}
           </div>
           <div className="flex-1 min-w-0 select-none">
-            <span className="block text-[11px] font-bold text-white truncate">{user.name}</span>
-            <small className="block text-[9px] text-gray-400 truncate">{user.role}</small>
+            <span className="block text-[11px] font-bold text-text-primary truncate">{user.name}</span>
+            <small className="block text-[9px] text-text-secondary truncate">{user.role}</small>
           </div>
           {onLogout && (
             <button
               onClick={onLogout}
-              className="flex items-center gap-1.5 text-gray-400 hover:text-red-400 cursor-pointer p-1 rounded hover:bg-white/5 shrink-0 transition-colors"
+              className="flex items-center gap-1.5 text-text-tertiary hover:text-red cursor-pointer p-1 rounded hover:bg-red-muted/20 shrink-0 transition-colors"
               title="Sign Out"
             >
               <X className="w-4 h-4" />
@@ -423,39 +426,39 @@ export const AdminShell: React.FC<AdminShellProps> = ({
         </div>
 
         {/* Collapsed sidebar user indicator */}
-        <div className={`p-4 border-t border-white/5 flex items-center justify-center bg-white/[0.02] ${isMobileMenuOpen ? 'hidden' : 'block'} ${isDesktopCollapsed ? 'md:block' : 'md:hidden'}`}>
+        <div className={`p-4 border-t border-border flex items-center justify-center bg-slate-50/50 ${isMobileMenuOpen ? 'hidden' : 'block'} ${isDesktopCollapsed ? 'md:block' : 'md:hidden'}`}>
           {onLogout && (
             <button
               onClick={onLogout}
-              className="text-gray-400 hover:text-red-400 cursor-pointer p-1 rounded hover:bg-white/5 transition-colors"
+              className="text-text-tertiary hover:text-red cursor-pointer p-1 rounded hover:bg-red-muted/20 transition-colors"
               title="Sign Out"
             >
-              <X className="w-5 h-5" />
+              <X className="w-4 h-4" />
             </button>
           )}
         </div>
       </aside>
 
       {/* Main Content Area — left margin accounts for fixed sidebar */}
-      <main className={`flex-1 min-w-0 flex flex-col bg-[#0a0c10] overflow-hidden transition-all duration-300 ${
+      <main className={`flex-1 min-w-0 flex flex-col bg-bg overflow-hidden transition-all duration-300 ${
         isDesktopCollapsed ? 'md:ml-[60px]' : 'md:ml-[268px]'
       }`}>
         {/* Header container */}
         <header 
-          className="px-3 sm:px-4 py-3 border-b border-white/5 bg-[#0f1117] flex items-center justify-between select-none shrink-0 gap-2"
+          className="px-3 sm:px-4 py-3 border-b border-border bg-white flex items-center justify-between select-none shrink-0 gap-2"
           style={{ paddingTop: 'max(0.75rem, env(safe-area-inset-top))' }}
         >
           <div className="flex items-center gap-2 min-w-0">
             <button 
               onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)} 
-              className="md:hidden text-gray-400 hover:text-white cursor-pointer p-1.5 rounded-lg hover:bg-white/5 shrink-0"
+              className="md:hidden text-text-secondary hover:text-text-primary cursor-pointer p-1.5 rounded-lg hover:bg-slate-100 shrink-0"
               aria-label="Open menu"
             >
               <Menu className="w-5 h-5" />
             </button>
-            <div className="flex items-center gap-1.5 sm:gap-2 text-xs font-bold text-white min-w-0 flex-wrap">
+            <div className="flex items-center gap-1.5 sm:gap-2 text-xs font-bold text-text-primary min-w-0 flex-wrap">
               <span className="hidden sm:inline">Quonnect Data Hub</span>
-              <span className="sm:hidden text-[11px] font-black text-white">QDH</span>
+              <span className="sm:hidden text-[11px] font-black text-text-primary">QDH</span>
               {activeRegion && (
                 <>
                   <span className="text-text-tertiary">/</span>
@@ -475,14 +478,14 @@ export const AdminShell: React.FC<AdminShellProps> = ({
                       }}
                       className="flex items-center gap-1 px-2 py-1 text-[10px] font-bold text-text-primary bg-bg-elevated hover:bg-bg-hover border border-border rounded-md cursor-pointer transition-all max-w-[150px] sm:max-w-none truncate"
                     >
-                      <Calendar className="w-3 h-3 text-green shrink-0" />
+                      <Calendar className="w-3 h-3 text-accent shrink-0" />
                       <span className="truncate">{activeEdition ? activeEdition.name : 'Select Event...'}</span>
                       <ChevronDown className="w-3 h-3 text-text-tertiary shrink-0" />
                     </button>
 
                     {isEditionDropdownOpen && (
-                      <div className="absolute left-0 mt-1 w-56 sm:w-64 bg-bg-surface border border-border rounded-lg shadow-lg z-[9999] py-1">
-                        <div className="max-h-[200px] overflow-y-auto divide-y divide-border/20 text-left">
+                      <div className="absolute left-0 mt-1 w-56 sm:w-64 bg-white border border-border rounded-lg shadow-modal z-[9999] py-1">
+                        <div className="max-h-[200px] overflow-y-auto divide-y divide-border text-left">
                           {editions.length === 0 ? (
                             <p className="text-[10px] text-text-tertiary text-center py-4">No events found in this region.</p>
                           ) : (
@@ -492,7 +495,7 @@ export const AdminShell: React.FC<AdminShellProps> = ({
                                   setActiveEdition(null);
                                   setIsEditionDropdownOpen(false);
                                 }}
-                                className={`flex items-center justify-between w-full px-3 py-2 hover:bg-bg-hover text-left text-xs ${!activeEdition ? 'bg-green-soft text-green font-bold' : 'text-text-secondary'}`}
+                                className={`flex items-center justify-between w-full px-3 py-2 hover:bg-slate-50 text-left text-xs ${!activeEdition ? 'bg-accent-soft text-accent font-bold' : 'text-text-secondary'}`}
                               >
                                 <div className="min-w-0 flex-1">
                                   <span className="block truncate font-semibold">All Event Editions</span>
@@ -507,7 +510,7 @@ export const AdminShell: React.FC<AdminShellProps> = ({
                                     setActiveEdition(e);
                                     setIsEditionDropdownOpen(false);
                                   }}
-                                  className={`flex items-center justify-between w-full px-3 py-2 hover:bg-bg-hover text-left text-xs ${activeEdition?.id === e.id ? 'bg-green-soft text-green font-bold' : 'text-text-secondary'}`}
+                                  className={`flex items-center justify-between w-full px-3 py-2 hover:bg-slate-50 text-left text-xs ${activeEdition?.id === e.id ? 'bg-accent-soft text-accent font-bold' : 'text-text-secondary'}`}
                                 >
                                   <div className="min-w-0 flex-1">
                                     <span className="block truncate font-semibold">{e.name}</span>
@@ -533,7 +536,7 @@ export const AdminShell: React.FC<AdminShellProps> = ({
             {onLogout && (
               <button
                 onClick={onLogout}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-bold text-gray-400 hover:text-red-400 hover:bg-red-500/10 rounded-md cursor-pointer transition-colors"
+                className="flex items-center gap-1.5 px-2.5 py-1.5 text-[10px] font-bold text-text-secondary hover:text-red hover:bg-red-muted/20 rounded-md cursor-pointer transition-colors"
                 title="Sign Out"
               >
                 <LogOut className="w-3.5 h-3.5" />
@@ -554,11 +557,11 @@ export const AdminShell: React.FC<AdminShellProps> = ({
 
       {/* Region Creation Modal Overlay */}
       {isCreateModalOpen && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4 z-[9999] select-none text-left">
-          <div className="bg-bg-surface border border-border rounded-lg max-w-md w-full p-5 shadow-modal animate-scale-up space-y-4">
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-[9999] select-none text-left">
+          <div className="bg-white border border-border rounded-lg max-w-md w-full p-5 shadow-modal animate-scale-up space-y-4">
             <div className="flex justify-between items-center border-b border-border pb-3">
               <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider flex items-center gap-2">
-                <Plus className="w-4.5 h-4.5 text-green" />
+                <Plus className="w-4.5 h-4.5 text-accent" />
                 <span>Create Operational Region</span>
               </h3>
               <button 
@@ -577,7 +580,7 @@ export const AdminShell: React.FC<AdminShellProps> = ({
                   placeholder="e.g. Jinja" 
                   value={newRegionName}
                   onChange={handleRegionNameChange}
-                  className="w-full bg-bg-input border border-border-light rounded-md px-3 py-2 text-xs text-text-primary outline-none focus:border-green"
+                  className="w-full bg-bg-input border border-border rounded-md px-3 py-2 text-xs text-text-primary outline-none focus:border-accent"
                   required
                 />
               </div>
@@ -589,12 +592,12 @@ export const AdminShell: React.FC<AdminShellProps> = ({
                   placeholder="e.g. jinja" 
                   value={newRegionSlug}
                   onChange={(e) => setNewRegionSlug(slugify(e.target.value))}
-                  className="w-full bg-bg-input border border-border-light rounded-md px-3 py-2 text-xs text-text-primary outline-none focus:border-green font-mono"
+                  className="w-full bg-bg-input border border-border rounded-md px-3 py-2 text-xs text-text-primary outline-none focus:border-accent font-mono"
                   required
                 />
               </div>
 
-              <div className="flex justify-end gap-2 border-t border-border/60 pt-3">
+              <div className="flex justify-end gap-2 border-t border-border pt-3">
                 <Button 
                   type="button" 
                   variant="secondary" 

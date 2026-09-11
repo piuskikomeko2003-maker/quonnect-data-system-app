@@ -74,7 +74,7 @@ export const FormPreview: React.FC<FormPreviewProps> = ({
             placeholder="Type answer here..."
             value={currentValue}
             onChange={(e) => handleAnswerChange(q.id, e.target.value)}
-            className="w-full bg-bg-input border border-border-light focus:border-green focus:ring-1 focus:ring-green rounded-md px-3 py-2 text-text-primary text-xs outline-none font-sans"
+            className="w-full bg-white border border-border focus:border-accent focus:ring-1 focus:ring-accent rounded-lg px-3 py-2 text-text-primary text-xs outline-none font-sans"
           />
         );
 
@@ -85,7 +85,7 @@ export const FormPreview: React.FC<FormPreviewProps> = ({
             value={currentValue}
             onChange={(e) => handleAnswerChange(q.id, e.target.value)}
             rows={3}
-            className="w-full bg-bg-input border border-border-light focus:border-green focus:ring-1 focus:ring-green rounded-md px-3 py-2 text-text-primary text-xs outline-none font-sans resize-none"
+            className="w-full bg-white border border-border focus:border-accent focus:ring-1 focus:ring-accent rounded-lg px-3 py-2 text-text-primary text-xs outline-none font-sans resize-none"
           />
         );
 
@@ -96,7 +96,7 @@ export const FormPreview: React.FC<FormPreviewProps> = ({
             placeholder="Type number response..."
             value={currentValue}
             onChange={(e) => handleAnswerChange(q.id, e.target.value)}
-            className="w-full bg-bg-input border border-border-light focus:border-green focus:ring-1 focus:ring-green rounded-md px-3 py-2 text-text-primary text-xs outline-none font-sans"
+            className="w-full bg-white border border-border focus:border-accent focus:ring-1 focus:ring-accent rounded-lg px-3 py-2 text-text-primary text-xs outline-none font-sans"
           />
         );
 
@@ -106,11 +106,11 @@ export const FormPreview: React.FC<FormPreviewProps> = ({
           <select
             value={currentValue}
             onChange={(e) => handleAnswerChange(q.id, e.target.value)}
-            className="w-full bg-bg-input border border-border-light focus:border-green focus:ring-1 focus:ring-green rounded-md px-3 py-2 text-text-primary text-xs outline-none cursor-pointer appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%209l3%203%203-3%22%20stroke%3D%22%238b949e%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[right_10px_center] bg-no-repeat pr-8"
+            className="w-full bg-white border border-border focus:border-accent focus:ring-1 focus:ring-accent rounded-lg px-3 py-2 text-text-primary text-xs outline-none cursor-pointer appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%209l3%203%203-3%22%20stroke%3D%22%238b949e%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[right_10px_center] bg-no-repeat pr-8"
           >
             <option value="" className="text-text-muted">Select an option...</option>
             {options.map((opt, i) => (
-              <option key={i} value={opt} className="bg-bg-elevated text-text-primary">
+              <option key={i} value={opt} className="bg-white text-text-primary">
                 {opt}
               </option>
             ))}
@@ -123,10 +123,10 @@ export const FormPreview: React.FC<FormPreviewProps> = ({
             {(q.options || []).map((opt, i) => (
               <label 
                 key={i} 
-                className={`flex items-center gap-2.5 p-2 rounded-md border text-xs cursor-pointer transition-all ${
+                className={`flex items-center gap-2.5 p-2 rounded-lg border text-xs cursor-pointer transition-all ${
                   currentValue === opt 
-                    ? 'bg-green-soft border-green text-green font-semibold' 
-                    : 'bg-bg-input/40 border-border-light text-text-secondary hover:text-text-primary'
+                    ? 'bg-accent-soft border-accent text-accent font-semibold' 
+                    : 'bg-slate-50 border-border text-text-secondary hover:text-text-primary'
                 }`}
               >
                 <input
@@ -135,7 +135,7 @@ export const FormPreview: React.FC<FormPreviewProps> = ({
                   value={opt}
                   checked={currentValue === opt}
                   onChange={() => handleAnswerChange(q.id, opt)}
-                  className="w-4 h-4 text-green bg-bg-input border-border-light focus:ring-green cursor-pointer"
+                  className="w-4 h-4 text-accent bg-white border-border focus:ring-accent cursor-pointer"
                 />
                 <span>{opt}</span>
               </label>
@@ -161,15 +161,15 @@ export const FormPreview: React.FC<FormPreviewProps> = ({
                   key={i} 
                   className={`flex items-center gap-2 px-3 py-1.5 rounded-full border text-xs cursor-pointer transition-all ${
                     isChecked
-                      ? 'bg-green-muted text-green border-green font-semibold'
-                      : 'bg-bg-input/60 border-border-light text-text-secondary hover:text-text-primary'
+                      ? 'bg-accent-soft text-accent border-accent font-semibold'
+                      : 'bg-slate-50 border-border text-text-secondary hover:text-text-primary'
                   }`}
                 >
                   <input
                     type="checkbox"
                     checked={isChecked}
                     onChange={() => handleCheckChange(opt)}
-                    className="w-3.5 h-3.5 rounded border-border-light text-green focus:ring-green bg-bg-input cursor-pointer"
+                    className="w-3.5 h-3.5 rounded border-border text-accent focus:ring-accent bg-white cursor-pointer"
                   />
                   <span>{opt}</span>
                 </label>
@@ -186,10 +186,10 @@ export const FormPreview: React.FC<FormPreviewProps> = ({
                 key={opt}
                 type="button"
                 onClick={() => handleAnswerChange(q.id, opt)}
-                className={`flex-1 py-2 rounded-md font-semibold text-xs border transition-all cursor-pointer ${
+                className={`flex-1 py-2 rounded-lg font-semibold text-xs border transition-all cursor-pointer ${
                   currentValue === opt
-                    ? 'bg-green text-black border-green font-bold'
-                    : 'bg-bg-input text-text-secondary border-border-light hover:text-text-primary'
+                    ? 'bg-accent text-white border-accent font-bold'
+                    : 'bg-slate-50 text-text-secondary border-border hover:text-text-primary'
                 }`}
               >
                 {opt}
@@ -228,7 +228,7 @@ export const FormPreview: React.FC<FormPreviewProps> = ({
             type="date"
             value={currentValue}
             onChange={(e) => handleAnswerChange(q.id, e.target.value)}
-            className="w-full bg-bg-input border border-border-light focus:border-green focus:ring-1 focus:ring-green rounded-md px-3 py-2 text-text-primary text-xs outline-none font-sans"
+            className="w-full bg-white border border-border focus:border-accent focus:ring-1 focus:ring-accent rounded-lg px-3 py-2 text-text-primary text-xs outline-none font-sans"
           />
         );
 
@@ -239,7 +239,7 @@ export const FormPreview: React.FC<FormPreviewProps> = ({
             placeholder="07XX XXX XXX"
             value={currentValue}
             onChange={(e) => handleAnswerChange(q.id, e.target.value)}
-            className="w-full bg-bg-input border border-border-light focus:border-green focus:ring-1 focus:ring-green rounded-md px-3 py-2 text-text-primary text-xs outline-none font-sans font-bold tracking-wider"
+            className="w-full bg-white border border-border focus:border-accent focus:ring-1 focus:ring-accent rounded-lg px-3 py-2 text-text-primary text-xs outline-none font-sans font-bold tracking-wider"
           />
         );
 
@@ -256,7 +256,7 @@ export const FormPreview: React.FC<FormPreviewProps> = ({
       onClose={onClose}
       title={
         <div className="flex items-center gap-2 text-text-primary font-bold text-xs select-none">
-          <Eye className="w-5 h-5 text-green" />
+          <Eye className="w-5 h-5 text-accent" />
           <div className="text-left">
             <span>Form Preview: {formName}</span>
             <span className="block text-[10px] text-text-tertiary font-semibold mt-0.5 uppercase tracking-wide">Collector Interactive View</span>
@@ -267,8 +267,8 @@ export const FormPreview: React.FC<FormPreviewProps> = ({
     >
       <div className="space-y-6 select-none max-h-[60vh] overflow-y-auto pr-1 py-1 text-left">
         {/* Banner */}
-        <div className="bg-blue-muted border border-blue/20 text-blue rounded-md p-3.5 flex items-start gap-2.5">
-          <Sparkles className="w-4.5 h-4.5 text-blue shrink-0 mt-0.5 animate-pulse" />
+        <div className="bg-accent-soft border border-accent/20 text-accent rounded-xl p-3.5 flex items-start gap-2.5">
+          <Sparkles className="w-4.5 h-4.5 text-accent shrink-0 mt-0.5 animate-pulse" />
           <div className="text-[11px] leading-normal font-medium">
             <strong>Interactive Mode Enabled</strong>
             <span className="text-text-secondary block mt-0.5">
@@ -287,7 +287,7 @@ export const FormPreview: React.FC<FormPreviewProps> = ({
             {visibleQuestions.map((q, index) => (
               <div 
                 key={q.id}
-                className="bg-bg-elevated/20 border border-border/40 hover:border-border/60 rounded-lg p-4 space-y-2.5 transition-colors"
+                className="bg-slate-50 border border-border hover:border-accent/40 rounded-xl p-4 space-y-2.5 transition-colors"
               >
                 <div className="flex justify-between items-start gap-3">
                   <span className="block font-bold text-text-primary text-xs">

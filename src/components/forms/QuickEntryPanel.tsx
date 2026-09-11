@@ -20,7 +20,7 @@ const TAB_FORMS: Record<QuickEntryTab, TabFormConfig> = {
     label: 'Paid Vendor Entry',
     subtitle: 'Register confirmed/paid vendors',
     countLabel: 'paid vendors added',
-    icon: <Users className="w-4 h-4 text-green" />,
+    icon: <Users className="w-4 h-4 text-accent" />,
     lookupEnabled: true,
   },
   collection: {
@@ -28,7 +28,7 @@ const TAB_FORMS: Record<QuickEntryTab, TabFormConfig> = {
     label: 'Field Data Collection',
     subtitle: 'Impact & Demographics Sheet',
     countLabel: 'profiles collected',
-    icon: <Database className="w-4 h-4 text-green" />,
+    icon: <Database className="w-4 h-4 text-accent" />,
     lookupEnabled: true,
   },
   walkin: {
@@ -36,7 +36,7 @@ const TAB_FORMS: Record<QuickEntryTab, TabFormConfig> = {
     label: 'Walk-in Guest Registry',
     subtitle: 'Optimized for speed entry',
     countLabel: 'walk-ins entered',
-    icon: <Footprints className="w-4 h-4 text-green" />,
+    icon: <Footprints className="w-4 h-4 text-accent" />,
     lookupEnabled: false,
   },
 };
@@ -142,14 +142,14 @@ export const QuickEntryPanel: React.FC<QuickEntryPanelProps> = ({
   };
 
   return (
-    <div className="bg-[#0f1117] border border-white/5 rounded-xl overflow-hidden transition-all duration-300 select-none">
+    <div className="bg-white border border-border rounded-xl overflow-hidden transition-all duration-300 select-none shadow-sm">
       <div 
         onClick={onToggleCollapse}
-        className="p-4 bg-white/[0.02] border-b border-white/5 flex items-center justify-between cursor-pointer hover:bg-white/[0.04]"
+        className="p-4 bg-slate-50 border-b border-border flex items-center justify-between cursor-pointer hover:bg-slate-100"
       >
         <div className="flex items-center gap-2">
-          <Zap className="w-4 h-4 text-green-400 animate-pulse" />
-          <h3 className="text-xs font-semibold tracking-widest text-gray-300 uppercase">Quick Entry Panel</h3>
+          <Zap className="w-4 h-4 text-sky-500 animate-pulse" />
+          <h3 className="text-xs font-semibold tracking-widest text-text-primary uppercase">Quick Entry Panel</h3>
         </div>
         <div className="flex items-center gap-2">
           <Button
@@ -160,27 +160,27 @@ export const QuickEntryPanel: React.FC<QuickEntryPanelProps> = ({
               onGenerateLink();
             }}
             disabled={disabled}
-            className="text-[10px] bg-white/5 border border-white/10 text-white hover:bg-white/10"
+            className="text-[10px] bg-white border border-border text-text-primary hover:bg-slate-50"
           >
             <Link className="w-3.5 h-3.5" />
             <span>Generate Link</span>
           </Button>
-          <button className="text-gray-400 hover:text-white cursor-pointer p-1">
+          <button className="text-text-tertiary hover:text-text-primary cursor-pointer p-1">
             {isOpen ? <ChevronUp className="w-4 h-4" /> : <ChevronDown className="w-4 h-4" />}
           </button>
         </div>
       </div>
 
       <div className={`transition-all duration-300 overflow-hidden ${isOpen ? 'max-h-[1200px] border-t-0' : 'max-h-0 pointer-events-none'}`}>
-        <div className="flex border-b border-white/5 p-1.5 bg-white/[0.02] gap-1">
+        <div className="flex border-b border-border p-1.5 bg-slate-50 gap-1">
           {(['paid', 'collection', 'walkin'] as QuickEntryTab[]).map((tab) => (
             <button
               key={tab}
               onClick={() => !disabled && onTabChange(tab)}
               className={`flex-1 py-2.5 text-xs font-semibold rounded-lg transition-all flex items-center justify-center gap-2 cursor-pointer ${
                 activeTab === tab
-                  ? 'bg-white/10 text-green-400 border border-white/10 font-bold shadow-sm'
-                  : 'text-gray-400 hover:text-white'
+                  ? 'bg-white text-accent border border-border font-bold shadow-xs'
+                  : 'text-text-secondary hover:text-text-primary'
               } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
               disabled={disabled}
             >
@@ -192,11 +192,11 @@ export const QuickEntryPanel: React.FC<QuickEntryPanelProps> = ({
 
         <div className="p-5 bg-transparent relative min-h-[250px] max-h-[70vh] overflow-y-auto">
           {disabled && (
-            <div className="absolute inset-0 bg-[#0f1117]/85 backdrop-blur-[2px] z-50 flex items-center justify-center select-none p-6">
-              <div className="bg-[#161922] border border-white/10 rounded-xl p-6 text-center max-w-[280px] shadow-2xl animate-fade-in">
-                <ChevronDown className="w-8 h-8 text-amber-400 mx-auto mb-3 animate-pulse rotate-180" />
-                <h4 className="text-sm font-bold text-white mb-1.5">Quick Entry Locked</h4>
-                <p className="text-[11px] text-gray-400 leading-relaxed">
+            <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-[2px] z-50 flex items-center justify-center select-none p-6">
+              <div className="bg-white border border-border rounded-xl p-6 text-center max-w-[280px] shadow-modal animate-fade-in">
+                <ChevronDown className="w-8 h-8 text-amber-500 mx-auto mb-3 animate-pulse rotate-180" />
+                <h4 className="text-sm font-bold text-text-primary mb-1.5">Quick Entry Locked</h4>
+                <p className="text-[11px] text-text-secondary leading-relaxed">
                   Select an active event edition from the header/sidebar to start quick entry.
                 </p>
               </div>

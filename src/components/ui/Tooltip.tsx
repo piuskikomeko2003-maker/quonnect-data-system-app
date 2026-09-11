@@ -17,10 +17,10 @@ export const Tooltip: React.FC<TooltipProps> = ({ content, children, position = 
   };
 
   const arrowStyles = {
-    top: 'top-full left-1/2 -translate-x-1/2 border-t-bg-elevated border-t-border-light',
-    bottom: 'bottom-full left-1/2 -translate-x-1/2 border-b-bg-elevated border-b-border-light',
-    left: 'left-full top-1/2 -translate-y-1/2 border-l-bg-elevated border-l-border-light',
-    right: 'right-full top-1/2 -translate-y-1/2 border-r-bg-elevated border-r-border-light',
+    top: 'top-full left-1/2 -translate-x-1/2 border-t-white border-t-border',
+    bottom: 'bottom-full left-1/2 -translate-x-1/2 border-b-white border-b-border',
+    left: 'left-full top-1/2 -translate-y-1/2 border-l-white border-l-border',
+    right: 'right-full top-1/2 -translate-y-1/2 border-r-white border-r-border',
   };
 
   return (
@@ -34,7 +34,7 @@ export const Tooltip: React.FC<TooltipProps> = ({ content, children, position = 
       {children}
       {visible && (
         <div className={`absolute z-[2000] ${positionStyles[position]} pointer-events-none`}>
-          <div className="bg-bg-elevated border border-border-light text-text-primary text-[10px] font-semibold py-1 px-2 rounded-md shadow-elevated whitespace-nowrap">
+          <div className="bg-white border border-border text-text-primary text-[10px] font-semibold py-1 px-2 rounded-md shadow-elevated whitespace-nowrap">
             {content}
             <div className={`absolute border-4 border-transparent ${arrowStyles[position]}`} />
           </div>

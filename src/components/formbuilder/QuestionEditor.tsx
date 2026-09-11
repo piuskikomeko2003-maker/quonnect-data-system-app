@@ -85,17 +85,17 @@ export const QuestionEditor: React.FC<QuestionEditorProps> = ({
           </label>
           <div className="relative flex items-center">
             {questionTypes.find(t => t.value === question.type)?.icon && (
-              <span className="absolute left-3.5 text-green pointer-events-none">
+              <span className="absolute left-3.5 text-accent pointer-events-none">
                 {questionTypes.find(t => t.value === question.type)?.icon}
               </span>
             )}
             <select
               value={question.type}
               onChange={handleTypeChange}
-              className="w-full bg-bg-input border border-border-light focus:border-green focus:ring-1 focus:ring-green rounded-md pl-10 pr-8 py-2 text-text-primary text-xs font-sans placeholder-text-muted transition-colors outline-none cursor-pointer appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%209l3%203%203-3%22%20stroke%3D%22%238b949e%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[right_10px_center] bg-no-repeat"
+              className="w-full bg-slate-50 border border-border focus:border-accent focus:bg-white focus:ring-1 focus:ring-accent rounded-lg pl-10 pr-8 py-2 text-text-primary text-xs font-sans placeholder-text-muted transition-colors outline-none cursor-pointer appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%209l3%203%203-3%22%20stroke%3D%22%238b949e%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[right_10px_center] bg-no-repeat"
             >
               {questionTypes.map((t) => (
-                <option key={t.value} value={t.value} className="bg-bg-elevated text-text-primary">
+                <option key={t.value} value={t.value} className="bg-white text-text-primary">
                   {t.label}
                 </option>
               ))}
@@ -116,7 +116,7 @@ export const QuestionEditor: React.FC<QuestionEditorProps> = ({
                 onChange={(e) => onChange({ ...question, required: e.target.checked })}
                 className="sr-only peer"
               />
-              <div className="w-8 h-4.5 bg-bg-input rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-text-secondary after:border-border after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-green peer-checked:after:bg-black" />
+              <div className="w-8 h-4.5 bg-slate-200 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-0.5 after:left-[2px] after:bg-white after:border-border after:border after:rounded-full after:h-3.5 after:w-3.5 after:transition-all peer-checked:bg-accent peer-checked:after:bg-white" />
             </label>
             <span className="text-[11px] font-bold text-text-secondary">
               {question.required ? 'Respondent must answer' : 'Optional answer'}

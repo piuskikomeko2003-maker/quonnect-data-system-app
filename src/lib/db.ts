@@ -35,6 +35,10 @@ class OfflineDB extends Dexie {
       submissions: 'id, token, status, created_at',
       cached_schemas: '++id, token',
     });
+    this.version(2).stores({
+      submissions: 'id, token, status, created_at, [status+token]',
+      cached_schemas: '++id, token',
+    });
   }
 }
 

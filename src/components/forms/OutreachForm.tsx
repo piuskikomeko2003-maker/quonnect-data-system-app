@@ -28,7 +28,7 @@ export const OutreachForm: React.FC<OutreachFormProps> = ({
   const genderOptions: Array<Exclude<OutreachFormValues['gender'], ''>> = ['Female', 'Male', 'Other'];
 
   return (
-    <div className="bg-bg-surface border border-border rounded-lg p-5 max-w-[560px] mx-auto text-left relative select-none">
+    <div className="bg-white border border-border rounded-xl shadow-xs p-5 max-w-[560px] mx-auto text-left relative select-none">
       {/* Running counter header */}
       <div className="flex justify-between items-center border-b border-border pb-4 mb-5">
         <div className="flex flex-col">
@@ -85,8 +85,8 @@ export const OutreachForm: React.FC<OutreachFormProps> = ({
                   onClick={() => onChange({ gender: opt })}
                   className={`flex-1 py-2 rounded-md font-semibold text-xs border transition-all cursor-pointer ${
                     values.gender === opt
-                      ? 'bg-blue text-black border-blue font-bold'
-                      : 'bg-bg-input text-text-secondary border-border-light hover:text-text-primary'
+                      ? 'bg-accent text-white border-accent font-bold shadow-xs'
+                      : 'bg-white text-text-secondary border-border hover:text-text-primary hover:bg-slate-50'
                   }`}
                 >
                   {opt}
@@ -109,14 +109,14 @@ export const OutreachForm: React.FC<OutreachFormProps> = ({
           />
         </div>
 
-        {/* Submit button: blue theme */}
+        {/* Submit button: primary theme */}
         <div className="pt-2">
           <Button
             type="submit"
-            variant="secondary"
+            variant="primary"
             fullWidth
             size="lg"
-            className="hover:border-blue hover:text-blue py-3 font-extrabold text-xs"
+            className="py-3 font-extrabold text-xs"
             disabled={!values.name || !values.phone || !values.gender || !values.age}
           >
             <span>Register for Summit</span>

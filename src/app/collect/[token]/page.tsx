@@ -42,21 +42,21 @@ const FORM_CONFIG: Record<string, {
     label: 'Paid Vendor Registration',
     subtitle: 'Register confirmed/paid vendors',
     countLabel: 'vendors registered',
-    icon: <Users className="w-4 h-4 text-green" />,
+    icon: <Users className="w-4 h-4 text-accent" />,
     lookupEnabled: true,
   },
   vendor_data_collection: {
     label: 'Field Data Collection',
     subtitle: 'Impact & Demographics Sheet',
     countLabel: 'profiles collected',
-    icon: <Database className="w-4 h-4 text-green" />,
+    icon: <Database className="w-4 h-4 text-accent" />,
     lookupEnabled: true,
   },
   walkin_registration: {
     label: 'Walk-in Guest Registry',
     subtitle: 'Optimized for speed entry',
     countLabel: 'walk-ins entered',
-    icon: <Footprints className="w-4 h-4 text-green" />,
+    icon: <Footprints className="w-4 h-4 text-accent" />,
     lookupEnabled: false,
   },
 };
@@ -938,30 +938,30 @@ export default function CollectPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-[#0d1117] flex flex-col items-center justify-center space-y-4">
-        <Loader2 className="w-8 h-8 animate-spin text-green" />
-        <p className="text-xs text-[#8b949e]">Loading collection form...</p>
+      <div className="min-h-screen bg-bg flex flex-col items-center justify-center space-y-4">
+        <Loader2 className="w-8 h-8 animate-spin text-accent" />
+        <p className="text-xs text-text-secondary">Loading collection form...</p>
       </div>
     );
   }
 
   if (isLinkAlreadyUsed && !existingTicketData) {
     return (
-      <div className="min-h-screen bg-[#0d1117] flex flex-col items-center justify-center p-6 text-center select-none">
-        <div className="bg-[#161b22] border border-[#30363d] rounded-xl max-w-md w-full p-8 shadow-2xl relative overflow-hidden">
+      <div className="min-h-screen bg-bg flex flex-col items-center justify-center p-6 text-center select-none">
+        <div className="bg-white border border-border rounded-xl max-w-md w-full p-8 shadow-modal relative overflow-hidden">
           <div className="w-16 h-16 bg-amber/10 border border-amber/20 rounded-full flex items-center justify-center mx-auto mb-4 text-amber">
             <Lock className="w-7 h-7" />
           </div>
-          <h2 className="text-base font-bold text-[#c9d1d9] mb-1">Registration Link Closed</h2>
+          <h2 className="text-base font-bold text-text-primary mb-1">Registration Link Closed</h2>
           <span className="text-[10px] font-semibold text-amber uppercase tracking-wider bg-amber/10 px-2 py-0.5 rounded border border-amber/20 inline-block mb-4">
             Single-Use Link Already Redeemed
           </span>
-          <p className="text-xs text-[#8b949e] leading-relaxed mb-6">
+          <p className="text-xs text-text-secondary leading-relaxed mb-6">
             This one-time registration link has already been used to register a vendor and cannot be submitted again.
             Each vendor admission ticket requires a unique, active registration link.
           </p>
-          <div className="bg-[#0d1117] border border-[#21262d] rounded-lg p-3 text-[11px] text-[#8b949e] text-left">
-            <p className="text-[#c9d1d9] font-semibold mb-1">Need assistance?</p>
+          <div className="bg-bg-elevated border border-border rounded-lg p-3 text-[11px] text-text-secondary text-left">
+            <p className="text-text-primary font-semibold mb-1">Need assistance?</p>
             <p>If you have already registered and need your ticket pass, please check the device where you completed registration or contact the event organizers.</p>
           </div>
         </div>
@@ -971,10 +971,10 @@ export default function CollectPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-[#0d1117] flex flex-col items-center justify-center space-y-4 p-6">
+      <div className="min-h-screen bg-bg flex flex-col items-center justify-center space-y-4 p-6">
         <AlertCircle className="w-10 h-10 text-red" />
-        <h2 className="text-sm font-bold text-[#c9d1d9]">Link Error</h2>
-        <p className="text-xs text-[#8b949e] text-center max-w-md">{error}</p>
+        <h2 className="text-sm font-bold text-text-primary">Link Error</h2>
+        <p className="text-xs text-text-secondary text-center max-w-md">{error}</p>
       </div>
     );
   }
@@ -984,26 +984,26 @@ export default function CollectPage() {
   const config = FORM_CONFIG[linkData.form_slug];
 
   return (
-    <div className="min-h-screen bg-[#0d1117] flex flex-col">
-      <header className="border-b border-[#21262d] bg-[#161b22] px-4 sm:px-6 py-3 flex items-center justify-between gap-2 flex-wrap">
+    <div className="min-h-screen bg-bg flex flex-col">
+      <header className="border-b border-border bg-white px-4 sm:px-6 py-3 flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-3">
-          <div className="w-8 h-8 bg-green-muted/20 border border-green/30 rounded flex items-center justify-center">
-            <span className="text-green text-xs font-bold">Q</span>
+          <div className="w-8 h-8 bg-accent-soft border border-accent/30 rounded flex items-center justify-center">
+            <span className="text-accent text-xs font-bold">Q</span>
           </div>
           <div>
-            <h1 className="text-xs font-bold text-[#c9d1d9] uppercase tracking-wider">Quonnect Data Collection</h1>
-            <p className="text-[10px] text-[#8b949e]">{edition.name}</p>
+            <h1 className="text-xs font-bold text-text-primary uppercase tracking-wider">Quonnect Data Collection</h1>
+            <p className="text-[10px] text-text-secondary">{edition.name}</p>
           </div>
         </div>
         <div className="flex items-center gap-2 flex-wrap">
-          <span className="text-[10px] text-green bg-green-muted/10 px-2 py-1 rounded border border-green/20 font-semibold">
+          <span className="text-[10px] text-green bg-green-muted px-2 py-1 rounded border border-green/20 font-semibold">
             {syncCounts.pending + syncCounts.synced} collected
           </span>
           {syncCounts.pending > 0 && (
             <button
               onClick={manualSyncAll}
               disabled={syncing || isOnline === false && navigator.onLine === false}
-              className="text-[10px] text-amber bg-amber/10 px-2 py-1 rounded border border-amber/20 font-semibold flex items-center gap-1 cursor-pointer hover:bg-amber/20 transition-colors disabled:opacity-50"
+              className="text-[10px] text-amber bg-amber-muted px-2 py-1 rounded border border-amber/20 font-semibold flex items-center gap-1 cursor-pointer hover:bg-amber/20 transition-colors disabled:opacity-50"
             >
               {syncing ? (
                 <Loader2 className="w-3 h-3 animate-spin" />
@@ -1014,21 +1014,21 @@ export default function CollectPage() {
             </button>
           )}
           {syncCounts.synced > 0 && (
-            <span className="hidden sm:inline text-[10px] text-[#8b949e] bg-[#21262d] px-2 py-1 rounded border border-[#30363d] font-semibold">
+            <span className="hidden sm:inline text-[10px] text-text-secondary bg-slate-100 px-2 py-1 rounded border border-border font-semibold">
               {syncCounts.synced} synced
             </span>
           )}
           {syncCounts.pending > 0 && !syncing && (
             <button
               onClick={manualSyncAll}
-              className="text-[10px] text-green bg-green-muted/10 px-2 py-1 rounded border border-green/20 font-semibold flex items-center gap-1 cursor-pointer hover:bg-green/10 transition-colors"
+              className="text-[10px] text-accent bg-accent-soft px-2 py-1 rounded border border-accent/30 font-semibold flex items-center gap-1 cursor-pointer hover:bg-sky-100 transition-colors"
             >
               <RefreshCw className="w-3 h-3" />
               Sync Now
             </button>
           )}
           {!isOnline && (
-            <span className="text-[10px] text-red bg-red/10 px-2 py-1 rounded border border-red/20 font-semibold flex items-center gap-1">
+            <span className="text-[10px] text-red bg-red-muted px-2 py-1 rounded border border-red/20 font-semibold flex items-center gap-1">
               <WifiOff className="w-3 h-3" />
               Offline
             </span>
@@ -1046,7 +1046,7 @@ export default function CollectPage() {
       )}
 
       {pendingSubmissions.length > 0 && (
-        <div className="bg-[#161b22] border-b border-[#21262d] px-4 sm:px-6 py-3">
+        <div className="bg-white border-b border-border px-4 sm:px-6 py-3">
           <div className="max-w-[560px] mx-auto">
             <div className="flex items-center justify-between mb-2">
               <h3 className="text-[10px] font-bold text-amber uppercase tracking-wider flex items-center gap-1.5">
@@ -1062,21 +1062,21 @@ export default function CollectPage() {
                 return (
                   <div
                     key={sub.id}
-                    className="flex items-center justify-between bg-[#0d1117] border border-[#21262d] rounded px-3 py-2"
+                    className="flex items-center justify-between bg-slate-50 border border-border rounded px-3 py-2"
                   >
                     <div className="flex items-center gap-3 min-w-0">
                       <div className="w-6 h-6 bg-amber/10 border border-amber/20 rounded-full flex items-center justify-center shrink-0">
                         <CloudOff className="w-3 h-3 text-amber" />
                       </div>
                       <div className="min-w-0">
-                        <p className="text-[11px] font-semibold text-[#c9d1d9] truncate">{name}</p>
-                        <p className="text-[10px] text-[#8b949e]">{phone || 'No phone'} &middot; {time}</p>
+                        <p className="text-[11px] font-semibold text-text-primary truncate">{name}</p>
+                        <p className="text-[10px] text-text-secondary">{phone || 'No phone'} &middot; {time}</p>
                       </div>
                     </div>
                     <button
                       onClick={() => retrySingleSubmission(sub)}
                       disabled={syncing}
-                      className="text-[10px] text-green bg-green-muted/10 px-2 py-1 rounded border border-green/20 font-semibold cursor-pointer hover:bg-green/10 transition-colors disabled:opacity-50 shrink-0 flex items-center gap-1"
+                      className="text-[10px] text-accent bg-accent-soft px-2 py-1 rounded border border-accent/20 font-semibold cursor-pointer hover:bg-sky-100 transition-colors disabled:opacity-50 shrink-0 flex items-center gap-1"
                     >
                       {syncing ? (
                         <Loader2 className="w-3 h-3 animate-spin" />
@@ -1123,8 +1123,8 @@ export default function CollectPage() {
         </div>
       </main>
 
-      <footer className="border-t border-[#21262d] bg-[#161b22] px-6 py-2 text-center">
-        <p className="text-[10px] text-[#484f58]">
+      <footer className="border-t border-border bg-white px-6 py-2 text-center">
+        <p className="text-[10px] text-text-tertiary">
           Quonnect Data System &middot; Link-based collection form
           {syncCounts.pending > 0 && (
             <>

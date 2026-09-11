@@ -48,13 +48,13 @@ export const PaidVendorForm: React.FC<PaidVendorFormProps> = ({
 
   if (successState.show) {
     return (
-      <div className="bg-bg-surface border border-border rounded-lg p-8 text-center flex flex-col items-center justify-center min-h-[380px] select-none text-left">
-        <div className="w-16 h-16 bg-green-muted text-green rounded-full flex items-center justify-center mb-5 animate-pulse">
+      <div className="bg-white border border-border rounded-xl shadow-xs p-8 text-center flex flex-col items-center justify-center min-h-[380px] select-none text-left">
+        <div className="w-16 h-16 bg-emerald-50 text-emerald-600 rounded-full flex items-center justify-center mb-5 animate-pulse">
           <Check className="w-8 h-8 stroke-[3]" />
         </div>
         <h3 className="text-base font-bold text-text-primary mb-1">Registration Successful!</h3>
         <p className="text-xs text-text-secondary mb-6 max-w-[280px]">
-          Registered <span className="text-green font-bold">{successState.vendorName || values.name}</span> as a paid vendor.
+          Registered <span className="text-emerald-600 font-bold">{successState.vendorName || values.name}</span> as a paid vendor.
         </p>
         <Button variant="primary" onClick={successState.onAddAnother} className="w-full">
           <Plus className="w-4 h-4 text-white" />
@@ -72,7 +72,7 @@ export const PaidVendorForm: React.FC<PaidVendorFormProps> = ({
   ];
 
   return (
-    <div className="bg-bg-surface border border-border rounded-lg p-5 max-w-[560px] mx-auto text-left relative select-none">
+    <div className="bg-white border border-border rounded-xl shadow-xs p-5 max-w-[560px] mx-auto text-left relative select-none">
       {/* Running counter header */}
       <div className="flex justify-between items-center border-b border-border pb-4 mb-5">
         <div className="flex flex-col">
@@ -97,15 +97,15 @@ export const PaidVendorForm: React.FC<PaidVendorFormProps> = ({
             placeholder="07XX XXX XXX"
             value={values.phone}
             onChange={handlePhoneChange}
-            className="w-full bg-bg-input border border-border-light focus:border-green focus:ring-1 focus:ring-green rounded-md px-3.5 py-2.5 text-text-primary font-bold text-sm tracking-wider placeholder-text-muted transition-colors outline-none"
+            className="w-full bg-white border border-border focus:border-accent focus:ring-1 focus:ring-accent rounded-md px-3.5 py-2.5 text-text-primary font-bold text-sm tracking-wider placeholder-text-muted transition-colors outline-none"
             required
           />
         </div>
 
         {/* Lookup status banner */}
         {lookupStatus === 'returning' && (
-          <div className="bg-green-soft border border-green/20 text-green rounded-md p-3.5 flex items-start gap-2.5 animate-fade-in select-none">
-            <Sparkles className="w-4.5 h-4.5 text-green shrink-0 mt-0.5" />
+          <div className="bg-emerald-50 border border-emerald-200 text-emerald-700 rounded-md p-3.5 flex items-start gap-2.5 animate-fade-in select-none">
+            <Sparkles className="w-4.5 h-4.5 text-emerald-600 shrink-0 mt-0.5" />
             <div className="text-[11px] leading-tight text-left">
               <strong className="block font-bold">Returning Vendor Identified</strong>
               <span className="text-text-secondary font-medium">Existing profile details loaded. Review and make edits below.</span>
@@ -114,8 +114,8 @@ export const PaidVendorForm: React.FC<PaidVendorFormProps> = ({
         )}
 
         {lookupStatus === 'new' && (
-          <div className="bg-blue-muted border border-blue/20 text-blue rounded-md p-3.5 flex items-start gap-2.5 animate-fade-in select-none">
-            <AlertCircle className="w-4.5 h-4.5 text-blue shrink-0 mt-0.5" />
+          <div className="bg-sky-50 border border-sky-200 text-sky-700 rounded-md p-3.5 flex items-start gap-2.5 animate-fade-in select-none">
+            <AlertCircle className="w-4.5 h-4.5 text-accent shrink-0 mt-0.5" />
             <div className="text-[11px] leading-tight text-left">
               <strong className="block font-bold">New Vendor Profile</strong>
               <span className="text-text-secondary font-medium">No record found with this phone number. Complete details to create profile.</span>

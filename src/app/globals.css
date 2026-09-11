@@ -1,53 +1,54 @@
 @import "tailwindcss";
 
 @theme {
-  --color-bg: #0a0e14;
-  --color-bg-surface: #11161e;
-  --color-bg-elevated: #161c26;
-  --color-bg-hover: #1a2130;
-  --color-bg-input: #0d1117;
+  --color-bg: #f7f9fb;
+  --color-bg-surface: #ffffff;
+  --color-bg-elevated: #f1f5f9;
+  --color-bg-hover: #e5e9ee;
+  --color-bg-input: #ffffff;
   
-  --color-border: #1e2a3a;
-  --color-border-light: #243044;
+  --color-border: #e5e9ee;
+  --color-border-light: #f1f5f9;
+  --color-border-subtle: #f7f9fb;
+  --color-border-default: #e5e9ee;
+  --color-border-strong: #cbd5e1;
   
-  --color-green: #00e676;
-  --color-green-muted: rgba(0, 230, 118, 0.12);
-  --color-green-soft: rgba(0, 230, 118, 0.08);
+  --color-green: #10b981;
+  --color-green-muted: rgba(16, 185, 129, 0.12);
+  --color-green-soft: rgba(16, 185, 129, 0.08);
   
-  --color-amber: #ffb300;
-  --color-amber-muted: rgba(255, 179, 0, 0.12);
+  --color-amber: #f59e0b;
+  --color-amber-muted: rgba(245, 158, 11, 0.12);
   
-  --color-red: #ff5252;
-  --color-red-muted: rgba(255, 82, 82, 0.12);
+  --color-red: #ef4444;
+  --color-red-muted: rgba(239, 68, 68, 0.12);
   
-  --color-blue: #4dabf7;
-  --color-blue-muted: rgba(77, 171, 247, 0.12);
+  --color-blue: #1d4ed8;
+  --color-blue-muted: rgba(29, 78, 216, 0.12);
   
-  --color-purple: #c084fc;
-  --color-purple-muted: rgba(192, 132, 252, 0.12);
+  --color-purple: #8b5cf6;
+  --color-purple-muted: rgba(139, 92, 246, 0.12);
   
-  --color-text-primary: #e8edf4;
-  --color-text-secondary: #8b949e;
-  --color-text-tertiary: #5c6670;
-  --color-text-muted: #3d4650;
+  --color-text-primary: #111827;
+  --color-text-secondary: #6b7280;
+  --color-text-tertiary: #9ca3af;
+  --color-text-muted: #9ca3af;
 
-  --color-app-bg: #0a0a0b;
-  --color-app-sidebar: #0d0d0e;
-  --color-app-card: #131315;
-  --color-app-cardRaised: #17171a;
-  --color-app-input: #1a1a1d;
+  --color-app-bg: #f7f9fb;
+  --color-app-sidebar: #ffffff;
+  --color-app-card: #ffffff;
+  --color-app-cardRaised: #f7f9fb;
+  --color-app-input: #ffffff;
 
-  --color-accent: #7c5cff;
-  --color-accent-hover: #8f72ff;
-  --color-accent-soft: rgba(124, 92, 255, 0.12);
+  --color-accent: #1d4ed8;
+  --color-accent-hover: #1e40af;
+  --color-accent-soft: #dbeafe;
+  --color-accent-tint: #dbeafe;
+  --color-sky-bright: #38bdf8;
 
-  --color-border-subtle: rgba(255, 255, 255, 0.06);
-  --color-border-default: rgba(255, 255, 255, 0.09);
-  --color-border-strong: rgba(255, 255, 255, 0.14);
-
-  --color-ink-primary: #f5f5f6;
-  --color-ink-secondary: #9a9aa2;
-  --color-ink-muted: #6b6b73;
+  --color-ink-primary: #111827;
+  --color-ink-secondary: #6b7280;
+  --color-ink-muted: #9ca3af;
   
   --radius-sm: 6px;
   --radius-md: 10px;
@@ -55,9 +56,9 @@
   --radius-xl: 20px;
   --radius-card: 16px;
   
-  --shadow-card: 0 1px 0 rgba(255, 255, 255, 0.03) inset, 0 8px 24px rgba(0, 0, 0, 0.35);
-  --shadow-elevated: 0 8px 24px rgba(0, 0, 0, 0.5);
-  --shadow-modal: 0 20px 60px rgba(0, 0, 0, 0.7);
+  --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.03);
+  --shadow-elevated: 0 4px 14px rgba(17, 24, 39, 0.06), 0 1px 3px rgba(17, 24, 39, 0.04);
+  --shadow-modal: 0 20px 40px rgba(17, 24, 39, 0.12);
   
   --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
 }
@@ -71,7 +72,7 @@ body {
   -webkit-font-smoothing: antialiased;
 }
 
-/* Scrollbar styling for dark premium dashboard look */
+/* Scrollbar styling for clean light dashboard look */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -82,12 +83,12 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: var(--color-border-default);
+  background: var(--color-border);
   border-radius: 4px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: var(--color-border-strong);
+  background: var(--color-text-muted);
 }
 
 /* Pulsating animation for live indicators */
@@ -111,4 +112,32 @@ body {
   background: #00e676;
   box-shadow: 0 0 0 0 rgba(0, 230, 118, 0.7);
   animation: pulse 1.5s infinite;
+}
+
+/* Micro-interaction & Staggered Entrance Animations */
+@keyframes cardSlideUpFade {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-card-entrance {
+  animation: cardSlideUpFade 240ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+/* Global reduced-motion override */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }

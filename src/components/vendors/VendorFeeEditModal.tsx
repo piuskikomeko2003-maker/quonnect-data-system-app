@@ -163,39 +163,39 @@ export const VendorFeeEditModal: React.FC<VendorFeeEditModalProps> = ({
     >
       <div className="space-y-5 text-left text-xs">
         {/* Vendor Header Info */}
-        <div className="bg-white/[0.03] border border-white/10 rounded-xl p-4 space-y-1">
+        <div className="bg-slate-50 border border-border rounded-xl p-4 space-y-1">
           <div className="flex items-center justify-between">
-            <span className="text-gray-400 text-[11px] font-semibold uppercase tracking-wider">Business Name</span>
-            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-white/10 text-gray-300">
+            <span className="text-text-tertiary text-[11px] font-semibold uppercase tracking-wider">Business Name</span>
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-slate-200 text-slate-700">
               {vendor.payment_status}
             </span>
           </div>
-          <p className="text-base font-bold text-white">{vendor.business_name || 'Unnamed Vendor'}</p>
+          <p className="text-base font-bold text-text-primary">{vendor.business_name || 'Unnamed Vendor'}</p>
           {vendor.contact_name && (
-            <p className="text-gray-400 text-[11px]">Contact: {vendor.contact_name}</p>
+            <p className="text-text-secondary text-[11px]">Contact: {vendor.contact_name}</p>
           )}
         </div>
 
         {/* Status indicator */}
         <div className={`p-3.5 rounded-xl border flex items-start gap-3 ${
           isOverridden 
-            ? 'bg-amber-500/10 border-amber-500/20 text-amber-200' 
-            : 'bg-emerald-500/10 border-emerald-500/20 text-emerald-200'
+            ? 'bg-amber-50 border-amber-200 text-amber-900' 
+            : 'bg-emerald-50 border-emerald-200 text-emerald-900'
         }`}>
           {isOverridden ? (
-            <Zap className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
+            <Zap className="w-4 h-4 text-amber-600 shrink-0 mt-0.5" />
           ) : (
-            <ShieldCheck className="w-4 h-4 text-emerald-400 shrink-0 mt-0.5" />
+            <ShieldCheck className="w-4 h-4 text-emerald-600 shrink-0 mt-0.5" />
           )}
           <div className="flex-1 text-[11px] leading-relaxed">
             {isOverridden ? (
               <>
-                <strong className="text-amber-300 font-bold block">Custom Override Rate</strong>
+                <strong className="text-amber-800 font-bold block">Custom Override Rate</strong>
                 This amount is customized and will be protected from global edition standard fee changes.
               </>
             ) : (
               <>
-                <strong className="text-emerald-300 font-bold block">Standard Edition Rate</strong>
+                <strong className="text-emerald-800 font-bold block">Standard Edition Rate</strong>
                 This vendor follows the edition's default fee (UGX {editionStandardFee.toLocaleString()}).
               </>
             )}
@@ -205,14 +205,14 @@ export const VendorFeeEditModal: React.FC<VendorFeeEditModalProps> = ({
         {/* Amount Input */}
         <div className="space-y-2">
           <div className="flex items-center justify-between">
-            <label className="text-[11px] font-semibold text-gray-300 uppercase tracking-wider">
+            <label className="text-[11px] font-semibold text-text-secondary uppercase tracking-wider">
               Amount Paid (UGX)
             </label>
             {isOverridden && (
               <button
                 type="button"
                 onClick={handleResetToStandard}
-                className="text-[11px] font-medium text-emerald-400 hover:text-emerald-300 inline-flex items-center gap-1 transition-colors hover:underline"
+                className="text-[11px] font-medium text-accent hover:text-accent-hover inline-flex items-center gap-1 transition-colors hover:underline cursor-pointer"
               >
                 <RotateCcw className="w-3 h-3" />
                 Reset to Standard (UGX {editionStandardFee.toLocaleString()})
@@ -220,7 +220,7 @@ export const VendorFeeEditModal: React.FC<VendorFeeEditModalProps> = ({
             )}
           </div>
           <div className="relative flex items-center">
-            <span className="absolute left-3.5 text-xs font-bold text-emerald-400 select-none">
+            <span className="absolute left-3.5 text-xs font-bold text-accent select-none">
               UGX
             </span>
             <input
@@ -228,38 +228,38 @@ export const VendorFeeEditModal: React.FC<VendorFeeEditModalProps> = ({
               value={amountInput}
               onChange={(e) => handleInputChange(e.target.value)}
               placeholder="0"
-              className="w-full pl-14 pr-4 py-2.5 bg-black/40 border border-white/10 rounded-xl text-sm font-mono text-white font-bold focus:outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500 transition-all"
+              className="w-full pl-14 pr-4 py-2.5 bg-white border border-border rounded-xl text-sm font-mono text-text-primary font-bold focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all"
             />
           </div>
-          <p className="text-[10px] text-gray-500">
+          <p className="text-[10px] text-text-tertiary">
             Edition Standard Rate: UGX {editionStandardFee.toLocaleString()}
           </p>
         </div>
 
         {/* Error message */}
         {error && (
-          <div className="p-3 bg-red-950/80 border border-red-500/30 rounded-xl text-red-200 text-xs flex items-center gap-2">
-            <AlertCircle className="w-4 h-4 text-red-400 shrink-0" />
+          <div className="p-3 bg-red-50 border border-red-200 rounded-xl text-red-700 text-xs flex items-center gap-2">
+            <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
             <span>{error}</span>
           </div>
         )}
 
         {/* Actions */}
-        <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-white/5">
+        <div className="flex items-center justify-end gap-2.5 pt-2 border-t border-border">
           <Button
             variant="secondary"
             size="sm"
             onClick={onClose}
             disabled={saving}
-            className="border-white/10 text-gray-300 hover:bg-white/5"
           >
             Cancel
           </Button>
           <Button
+            variant="primary"
             size="sm"
             onClick={handleSave}
             disabled={saving}
-            className="bg-emerald-600 hover:bg-emerald-500 text-white font-semibold gap-1.5 px-5"
+            className="gap-1.5 px-5"
           >
             {saving ? (
               <>

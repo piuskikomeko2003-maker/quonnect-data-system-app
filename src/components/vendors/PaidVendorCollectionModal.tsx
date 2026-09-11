@@ -537,13 +537,13 @@ export const PaidVendorCollectionModal: React.FC<PaidVendorCollectionModalProps>
       }}
     >
       <div
-        className="fixed inset-0 bg-black/65 backdrop-blur-sm animate-fade-in"
+        className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs animate-fade-in"
         onClick={handleClose}
       />
 
-      <div className="relative bg-bg-surface border border-border rounded-xl shadow-modal z-10 w-full max-w-[600px] max-h-[90vh] sm:max-h-[85vh] overflow-y-auto animate-scale-up sm:mt-[4vh]">
+      <div className="relative bg-white border border-border rounded-2xl shadow-xl z-10 w-full max-w-[600px] max-h-[90vh] sm:max-h-[85vh] overflow-y-auto animate-scale-up sm:mt-[4vh]">
         {/* Header */}
-        <div className="sticky top-0 bg-bg-surface border-b border-border p-4 flex items-center justify-between z-10 rounded-t-xl">
+        <div className="sticky top-0 bg-white border-b border-border p-4 flex items-center justify-between z-10 rounded-t-2xl">
           <div className="flex items-center gap-2">
             {onBack && (
               <button
@@ -563,9 +563,9 @@ export const PaidVendorCollectionModal: React.FC<PaidVendorCollectionModalProps>
           </div>
           <button
             onClick={handleClose}
-            className="w-8 h-8 rounded-full bg-bg-surface border border-border text-text-secondary hover:text-red hover:border-red flex items-center justify-center transition-colors cursor-pointer"
+            className="w-8 h-8 rounded-full bg-slate-100 border border-border text-text-muted hover:text-text-primary hover:bg-slate-200 flex items-center justify-center transition-colors cursor-pointer"
           >
-            <X className="w-4 h-4" />
+            <X className="w-3.5 h-3.5" />
           </button>
         </div>
 
@@ -573,7 +573,7 @@ export const PaidVendorCollectionModal: React.FC<PaidVendorCollectionModalProps>
           {/* Loading state */}
           {loading && (
             <div className="flex flex-col items-center justify-center gap-3 py-16 text-text-secondary">
-              <Loader2 className="w-6 h-6 animate-spin text-green" />
+              <Loader2 className="w-6 h-6 animate-spin text-accent" />
               <p className="text-xs font-medium">Loading form data…</p>
             </div>
           )}
@@ -581,13 +581,13 @@ export const PaidVendorCollectionModal: React.FC<PaidVendorCollectionModalProps>
           {/* Error state */}
           {error && !loading && (
             <div className="space-y-4">
-              <div className="bg-red-muted border border-red/20 rounded-lg p-3 flex items-start gap-2">
-                <AlertCircle className="w-4 h-4 text-red shrink-0 mt-0.5" />
+              <div className="bg-red-50 border border-red-200 rounded-lg p-3 flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 text-red-600 shrink-0 mt-0.5" />
                 <p className="text-[11px] text-text-secondary">{error}</p>
               </div>
               <button
                 onClick={buildPrefillData}
-                className="w-full text-xs font-bold text-text-secondary hover:text-text-primary bg-bg-elevated border border-border hover:border-border-light rounded-lg py-2 transition-colors"
+                className="w-full text-xs font-bold text-text-secondary hover:text-text-primary bg-slate-100 hover:bg-slate-200 border border-border rounded-lg py-2 transition-colors cursor-pointer"
               >
                 Retry
               </button>
@@ -598,10 +598,10 @@ export const PaidVendorCollectionModal: React.FC<PaidVendorCollectionModalProps>
           {ready && formDataCache && !loading && (
             <div className="text-left">
               {Object.keys(prefillSource).length > 0 && (
-                <div className="bg-green-soft/30 border border-green/15 rounded-lg p-3 mb-5">
+                <div className="bg-slate-50 border border-border rounded-lg p-3 mb-5">
                   <div className="flex items-center gap-2 mb-2">
-                    <Info className="w-4 h-4 text-green" />
-                    <h4 className="text-[10px] font-bold text-green uppercase tracking-wider">Pre-filled Fields</h4>
+                    <Info className="w-4 h-4 text-accent" />
+                    <h4 className="text-[10px] font-bold text-text-primary uppercase tracking-wider">Pre-filled Fields</h4>
                   </div>
                   <div className="flex flex-wrap gap-2">
                     {Object.entries(prefillSource).map(([field, source]) => (
@@ -609,10 +609,10 @@ export const PaidVendorCollectionModal: React.FC<PaidVendorCollectionModalProps>
                         key={field}
                         className={`text-[9px] font-medium px-2 py-0.5 rounded-full border ${
                           source === 'registration'
-                            ? 'bg-blue-500/10 text-blue-400 border-blue-500/20'
+                            ? 'bg-accent-soft text-accent border-accent/20'
                             : source === 'last_visit'
-                              ? 'bg-purple-500/10 text-purple-400 border-purple-500/20'
-                              : 'bg-green-500/10 text-green-400 border-green-500/20'
+                              ? 'bg-purple-50 text-purple-700 border-purple-200'
+                              : 'bg-emerald-50 text-emerald-700 border-emerald-200'
                         }`}
                         title={`${field}: ${
                           source === 'registration' ? 'from registration' :
@@ -644,7 +644,7 @@ export const PaidVendorCollectionModal: React.FC<PaidVendorCollectionModalProps>
                   onAddAnother: () => {},
                 }}
                 runningCount={0}
-                formIcon={<Database className="w-4 h-4 text-green" />}
+                formIcon={<Database className="w-4 h-4 text-accent" />}
                 formLabel="Field Data Collection"
                 formSubtitle={`Collecting data for ${vendor.business_name || vendor.contact_name}`}
                 countLabel="collecting"

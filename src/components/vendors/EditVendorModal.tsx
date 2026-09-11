@@ -451,12 +451,12 @@ export const EditVendorModal: React.FC<EditVendorModalProps> = ({
       }}
     >
       <div
-        className="fixed inset-0 bg-black/60 backdrop-blur-xs animate-fade-in"
+        className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs animate-fade-in"
         onClick={handleClose}
       />
 
-      <div className="relative bg-bg-surface border border-border rounded-xl shadow-modal z-10 w-full max-w-[600px] max-h-[90vh] sm:max-h-[85vh] overflow-y-auto animate-scale-up sm:mt-[4vh]">
-        <div className="sticky top-0 bg-bg-surface border-b border-border p-4 flex items-center justify-between z-10 rounded-t-xl">
+      <div className="relative bg-white border border-border rounded-2xl shadow-xl z-10 w-full max-w-[600px] max-h-[90vh] sm:max-h-[85vh] overflow-y-auto animate-scale-up sm:mt-[4vh]">
+        <div className="sticky top-0 bg-white border-b border-border p-4 flex items-center justify-between z-10 rounded-t-2xl">
           <div className="flex items-center gap-2">
             {onBack && (
               <button
@@ -478,25 +478,25 @@ export const EditVendorModal: React.FC<EditVendorModalProps> = ({
           </div>
           <button
             onClick={handleClose}
-            className="w-8 h-8 rounded-full bg-bg-surface border border-border text-text-secondary hover:text-red hover:border-red flex items-center justify-center transition-colors cursor-pointer"
+            className="w-8 h-8 rounded-full bg-slate-100 border border-border text-text-muted hover:text-text-primary hover:bg-slate-200 flex items-center justify-center transition-colors cursor-pointer"
           >
-            <X className="w-4 h-4" />
+            <X className="w-3.5 h-3.5" />
           </button>
         </div>
 
         <div className="p-5">
           {loading && viewMode === 'choice' && (
             <div className="flex flex-col items-center justify-center py-12">
-              <Loader2 className="w-8 h-8 animate-spin text-green mb-3" />
+              <Loader2 className="w-8 h-8 animate-spin text-accent mb-3" />
               <span className="text-xs text-text-secondary">Loading vendor data...</span>
             </div>
           )}
 
           {error && (
-            <div className="bg-red-soft/10 border border-red/20 rounded-lg p-4 flex items-start gap-3">
-              <AlertCircle className="w-5 h-5 text-red shrink-0 mt-0.5" />
+            <div className="bg-red-50 border border-red-200 rounded-lg p-4 flex items-start gap-3">
+              <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
               <div className="text-left">
-                <strong className="block text-xs text-red font-bold">Error</strong>
+                <strong className="block text-xs text-red-700 font-bold">Error</strong>
                 <p className="text-[11px] text-text-secondary mt-0.5">{error}</p>
                 <Button variant="secondary" size="sm" className="mt-3" onClick={fetchContext}>
                   Retry
@@ -507,7 +507,7 @@ export const EditVendorModal: React.FC<EditVendorModalProps> = ({
 
           {!loading && !error && viewMode === 'choice' && (
             <div className="space-y-4 text-left">
-              <div className="bg-green-soft/50 border border-green/20 rounded-lg p-4">
+              <div className="bg-slate-50 border border-border rounded-lg p-4">
                 <p className="text-xs text-text-primary leading-relaxed">
                   This vendor&apos;s original submission may have used a different version of the form
                   than what&apos;s currently active. Choose how you&apos;d like to edit:
@@ -517,10 +517,10 @@ export const EditVendorModal: React.FC<EditVendorModalProps> = ({
               <div className="grid gap-3">
                 <button
                   onClick={handleUseOriginal}
-                  className="bg-bg-elevated border border-border hover:border-green/50 rounded-lg p-4 text-left transition-all cursor-pointer group"
+                  className="bg-white border border-border hover:border-accent hover:bg-accent-soft/20 rounded-lg p-4 text-left transition-all cursor-pointer group"
                 >
                   <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 bg-green-muted text-green rounded-lg flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                    <div className="w-10 h-10 bg-accent-soft text-accent rounded-lg flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
                       <FileText className="w-5 h-5" />
                     </div>
                     <div className="min-w-0">
@@ -542,10 +542,10 @@ export const EditVendorModal: React.FC<EditVendorModalProps> = ({
 
                 <button
                   onClick={handleUseCurrent}
-                  className="bg-bg-elevated border border-border hover:border-blue/50 rounded-lg p-4 text-left transition-all cursor-pointer group"
+                  className="bg-white border border-border hover:border-accent hover:bg-accent-soft/20 rounded-lg p-4 text-left transition-all cursor-pointer group"
                 >
                   <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 bg-blue-muted/50 text-blue rounded-lg flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                    <div className="w-10 h-10 bg-accent-soft text-accent rounded-lg flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
                       <RefreshCw className="w-5 h-5" />
                     </div>
                     <div className="min-w-0">
@@ -574,7 +574,7 @@ export const EditVendorModal: React.FC<EditVendorModalProps> = ({
 
           {loading && viewMode === 'form' && (
             <div className="flex flex-col items-center justify-center py-12">
-              <Loader2 className="w-8 h-8 animate-spin text-green mb-3" />
+              <Loader2 className="w-8 h-8 animate-spin text-accent mb-3" />
               <span className="text-xs text-text-secondary">Preparing form...</span>
             </div>
           )}
@@ -582,8 +582,8 @@ export const EditVendorModal: React.FC<EditVendorModalProps> = ({
           {!loading && viewMode === 'form' && formDataCache && (
             <div className="text-left">
               {Object.keys(orphanedAnswers).length > 0 && (
-                <div className="bg-amber/10 border border-amber/20 rounded-lg p-4 mb-5">
-                  <h4 className="text-[10px] font-bold text-amber uppercase tracking-wider mb-2">
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-5">
+                  <h4 className="text-[10px] font-bold text-amber-700 uppercase tracking-wider mb-2">
                     Previous Answers No Longer in the Form
                   </h4>
                   <p className="text-[10px] text-text-secondary mb-3">
@@ -594,7 +594,7 @@ export const EditVendorModal: React.FC<EditVendorModalProps> = ({
                     {Object.entries(orphanedAnswers).map(([field, val]) => (
                       <div
                         key={field}
-                        className="flex items-center justify-between gap-3 bg-bg-surface border border-border/40 rounded px-3 py-1.5"
+                        className="flex items-center justify-between gap-3 bg-white border border-border rounded px-3 py-1.5"
                       >
                         <span className="text-[10px] text-text-tertiary font-mono">{field}</span>
                         <span className="text-[10px] font-semibold text-text-primary truncate max-w-[200px]">
@@ -615,7 +615,7 @@ export const EditVendorModal: React.FC<EditVendorModalProps> = ({
                   onAddAnother: () => {},
                 }}
                 runningCount={0}
-                formIcon={<FileText className="w-4 h-4 text-green" />}
+                formIcon={<FileText className="w-4 h-4 text-accent" />}
                 formLabel="Edit Submission"
                 formSubtitle={`Editing answers for ${vendorName}`}
                 countLabel="editing"

@@ -166,35 +166,35 @@ export const DataGapsPanel: React.FC = () => {
       <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@3.30.0/dist/tabler-icons.min.css" />
       <style dangerouslySetInnerHTML={{ __html: `
         .datagaps-module {
-          --bg: #0a0e14;
-          --bg-surface: #11161e;
-          --bg-elevated: #161c26;
-          --bg-hover: #1a2130;
-          --bg-input: #0d1117;
-          --border: #1e2a3a;
-          --border-light: #243044;
-          --green: #00e676;
-          --green-muted: rgba(0, 230, 118, 0.12);
-          --green-soft: rgba(0, 230, 118, 0.08);
-          --amber: #ffb300;
-          --amber-muted: rgba(255, 179, 0, 0.12);
-          --red: #ff5252;
-          --red-muted: rgba(255, 82, 82, 0.12);
-          --blue: #4dabf7;
-          --blue-muted: rgba(77, 171, 247, 0.12);
-          --purple: #c084fc;
-          --purple-muted: rgba(192, 132, 252, 0.12);
-          --text-primary: #e8edf4;
-          --text-secondary: #8b949e;
-          --text-tertiary: #5c6670;
-          --text-muted: #3d4650;
+          --bg: #f7f9fb;
+          --bg-surface: #ffffff;
+          --bg-elevated: #f1f5f9;
+          --bg-hover: #e5e9ee;
+          --bg-input: #ffffff;
+          --border: #e5e9ee;
+          --border-light: #f1f5f9;
+          --green: #10b981;
+          --green-muted: rgba(16, 185, 129, 0.12);
+          --green-soft: rgba(16, 185, 129, 0.08);
+          --amber: #f59e0b;
+          --amber-muted: rgba(245, 158, 11, 0.12);
+          --red: #ef4444;
+          --red-muted: rgba(239, 68, 68, 0.12);
+          --blue: #1d4ed8;
+          --blue-muted: rgba(29, 78, 216, 0.12);
+          --purple: #8b5cf6;
+          --purple-muted: rgba(139, 92, 246, 0.12);
+          --text-primary: #111827;
+          --text-secondary: #6b7280;
+          --text-tertiary: #9ca3af;
+          --text-muted: #9ca3af;
           --radius-sm: 6px;
           --radius-md: 10px;
           --radius-lg: 16px;
           --radius-xl: 20px;
-          --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.3), 0 1px 2px rgba(0, 0, 0, 0.2);
-          --shadow-elevated: 0 8px 24px rgba(0, 0, 0, 0.5);
-          --shadow-modal: 0 20px 60px rgba(0, 0, 0, 0.7);
+          --shadow-card: 0 1px 3px rgba(0, 0, 0, 0.05), 0 1px 2px rgba(0, 0, 0, 0.03);
+          --shadow-elevated: 0 4px 16px rgba(0, 0, 0, 0.06);
+          --shadow-modal: 0 20px 40px rgba(15, 23, 42, 0.15);
           --transition: 0.2s ease;
         }
         .datagaps-module .top-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: 20px; flex-wrap: wrap; gap: 16px; }
@@ -202,7 +202,7 @@ export const DataGapsPanel: React.FC = () => {
         .datagaps-module .top-bar-left h1 { font-size: 1.5rem; font-weight: 800; letter-spacing: -0.025em; display: flex; align-items: center; gap: 8px; margin: 0; color: var(--text-primary); }
         .datagaps-module .top-bar-left h1 i { color: var(--green); }
         .datagaps-module .market-badge { padding: 4px 10px; border-radius: 20px; font-size: 10px; font-weight: 700; text-transform: uppercase; border: 1px solid transparent; }
-        .datagaps-module .market-badge.flagship { background: var(--green-muted); color: var(--green); border-color: rgba(0,230,118,0.1); }
+        .datagaps-module .market-badge.flagship { background: var(--green-muted); color: var(--green); border-color: rgba(2, 132, 199, 0.2); }
         
         .datagaps-module .edition-badge { background: var(--green-muted); padding: 8px 18px; border-radius: 40px; font-size: 13px; font-weight: 600; color: var(--green); display: flex; align-items: center; gap: 8px; }
 
@@ -243,7 +243,7 @@ export const DataGapsPanel: React.FC = () => {
         .datagaps-module .action-btn { background: var(--bg-elevated); border: 1px solid var(--border-light); color: var(--text-secondary); border-radius: 30px; padding: 6px 14px; font-size: 11px; font-weight: 500; cursor: pointer; display: inline-flex; align-items: center; gap: 6px; transition: all var(--transition); }
         .datagaps-module .action-btn:hover { border-color: var(--green); color: var(--green); background: var(--green-soft); }
         .datagaps-module .status-pill { display: inline-flex; align-items: center; gap: 5px; padding: 4px 10px; border-radius: 40px; font-size: 10px; font-weight: 600; }
-        .datagaps-module .pill-success { background: var(--green-muted); color: var(--green); }
+        .datagaps-module .pill-success { background: rgba(16, 185, 129, 0.12); color: #059669; }
         .datagaps-module .pill-danger { background: var(--red-muted); color: var(--red); }
         
         .datagaps-module .confirm-box { background: var(--bg-elevated); border: 1px solid var(--green); border-radius: var(--radius-lg); padding: 18px; margin-top: 12px; margin-bottom: 12px; text-align: left; }
@@ -256,11 +256,11 @@ export const DataGapsPanel: React.FC = () => {
         .datagaps-module .empty-state { text-align: center; padding: 48px 24px; background: var(--bg-surface); border-radius: var(--radius-lg); border: 1px solid var(--border); }
         .datagaps-module .empty-state i { font-size: 48px; color: var(--green); margin-bottom: 12px; display: block; }
 
-        .datagaps-module .btn-primary { background: var(--green); color: #000; border: none; font-weight: 600; padding: 10px 18px; border-radius: 30px; font-size: 12px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; transition: all var(--transition); }
-        .datagaps-module .btn-primary:hover { background: #00ff7a; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(0, 230, 118, 0.3); }
+        .datagaps-module .btn-primary { background: var(--green); color: #ffffff; border: none; font-weight: 600; padding: 10px 18px; border-radius: 30px; font-size: 12px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; transition: all var(--transition); }
+        .datagaps-module .btn-primary:hover { background: #0369a1; transform: translateY(-1px); box-shadow: 0 4px 12px rgba(2, 132, 199, 0.25); }
 
-        .datagaps-module .modal-overlay { position: fixed; inset: 0; background: rgba(0, 0, 0, 0.7); z-index: 1000; display: flex; align-items: center; justify-content: center; animation: fadeIn 0.2s ease; }
-        .datagaps-module .modal { background: var(--bg-surface); border: 1px solid var(--border-light); border-radius: var(--radius-xl); padding: 28px; max-width: 560px; width: 90%; box-shadow: var(--shadow-modal); position: relative; max-height: 85vh; overflow-y: auto; text-align: left; }
+        .datagaps-module .modal-overlay { position: fixed; inset: 0; background: rgba(15, 23, 42, 0.4); backdrop-filter: blur(4px); z-index: 1000; display: flex; align-items: center; justify-content: center; animation: fadeIn 0.2s ease; }
+        .datagaps-module .modal { background: var(--bg-surface); border: 1px solid var(--border); border-radius: var(--radius-xl); padding: 28px; max-width: 560px; width: 90%; box-shadow: var(--shadow-modal); position: relative; max-height: 85vh; overflow-y: auto; text-align: left; }
         .datagaps-module .modal-close { position: absolute; top: 16px; right: 16px; width: 32px; height: 32px; border-radius: 50%; background: var(--bg-elevated); border: 1px solid var(--border); color: var(--text-secondary); cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 16px; transition: all var(--transition); }
         .datagaps-module .modal-close:hover { color: var(--red); border-color: var(--red); }
         .datagaps-module .modal-header { display: flex; align-items: center; gap: 16px; margin-bottom: 20px; padding-bottom: 16px; border-bottom: 1px solid var(--border); }
@@ -269,7 +269,7 @@ export const DataGapsPanel: React.FC = () => {
         .datagaps-module .modal-subtitle { font-size: 11px; color: var(--text-tertiary); margin-top: 4px; }
         .datagaps-module .retention-track { display: flex; align-items: center; gap: 12px; margin: 16px 0; flex-wrap: wrap; }
         .datagaps-module .retention-dot { width: 10px; height: 10px; border-radius: 50%; }
-        .datagaps-module .retention-dot.attended { background: var(--green); }
+        .datagaps-module .retention-dot.attended { background: #10b981; }
         .datagaps-module .retention-dot.missed { background: var(--red); }
         .datagaps-module .retention-dot.upcoming { background: var(--border); border: 1px solid var(--text-tertiary); }
         .datagaps-module .meta-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin: 20px 0; }

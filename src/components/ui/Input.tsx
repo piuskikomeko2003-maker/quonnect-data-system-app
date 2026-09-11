@@ -20,14 +20,14 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
         )}
         <div className="relative flex items-center">
           {prefixText && (
-            <span className="absolute left-3.5 bg-green-muted text-green font-semibold text-xs px-2 py-0.5 rounded-full select-none pointer-events-none">
+            <span className="absolute left-3.5 bg-accent-soft text-accent font-semibold text-xs px-2 py-0.5 rounded-full select-none pointer-events-none">
               {prefixText}
             </span>
           )}
           <input
             ref={ref}
             type={type}
-            className={`w-full bg-bg-input border ${error ? 'border-red focus:border-red focus:ring-1 focus:ring-red' : 'border-border-light focus:border-green focus:ring-1 focus:ring-green'} rounded-md px-3.5 py-2 text-text-primary text-xs font-sans placeholder-text-muted transition-colors outline-none disabled:opacity-50 ${prefixText ? 'pl-14' : ''} ${className}`}
+            className={`w-full bg-bg-input border ${error ? 'border-red focus:border-red focus:ring-1 focus:ring-red' : 'border-border focus:border-accent focus:ring-1 focus:ring-accent'} rounded-md px-3.5 py-2 text-text-primary text-xs font-sans placeholder-text-muted transition-colors outline-none disabled:opacity-50 ${prefixText ? 'pl-14' : ''} ${className}`}
             {...props}
           />
         </div>
@@ -91,7 +91,7 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
         )}
         <textarea
           ref={setRefs}
-          className={`w-full bg-bg-input border ${error ? 'border-red focus:border-red focus:ring-1 focus:ring-red' : 'border-border-light focus:border-green focus:ring-1 focus:ring-green'} rounded-md px-3.5 py-2 text-text-primary text-xs font-sans placeholder-text-muted transition-colors outline-none resize-none min-height-[60px] disabled:opacity-50 ${className}`}
+          className={`w-full bg-bg-input border ${error ? 'border-red focus:border-red focus:ring-1 focus:ring-red' : 'border-border focus:border-accent focus:ring-1 focus:ring-accent'} rounded-md px-3.5 py-2 text-text-primary text-xs font-sans placeholder-text-muted transition-colors outline-none resize-none min-height-[60px] disabled:opacity-50 ${className}`}
           {...props}
           onChange={handleChange}
         />
