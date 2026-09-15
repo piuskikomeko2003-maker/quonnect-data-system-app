@@ -132,14 +132,14 @@ export default function SignupPage() {
 
   if (checking) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-bg">
+      <div className="min-h-dvh flex items-center justify-center bg-bg">
         <div className="w-5 h-5 border-2 border-accent border-t-transparent rounded-full animate-spin" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-bg p-4">
+    <div className="min-h-dvh flex items-center justify-center bg-bg p-4">
       <div className="w-full max-w-md p-8 bg-white border border-border rounded-2xl shadow-elevated">
         <div className="mb-6 text-center">
           <div className="text-2xl font-black tracking-tight text-text-primary">

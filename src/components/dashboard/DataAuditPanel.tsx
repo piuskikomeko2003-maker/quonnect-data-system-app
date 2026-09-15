@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+import { useToast } from '@/components/ui/ToastProvider';
 import { createClient } from '@/lib/supabase/client';
 import {
   AlertTriangle,
@@ -15,7 +16,6 @@ import {
   RefreshCw,
   Loader2,
   Check,
-  X,
 } from 'lucide-react';
 
 interface DuplicateGroup {
@@ -56,12 +56,7 @@ export const DataAuditPanel: React.FC<DataAuditPanelProps> = ({ onRefresh }) => 
   const [expandedGroup, setExpandedGroup] = useState<number | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
-
-  const addToast = (message: string, type: 'success' | 'error') => {
-    setToast({ message, type });
-    setTimeout(() => setToast(null), 4000);
-  };
+  const { addToast } = useToast();
 
   const isDeleted = (id: string) => deletedIds.has(id);
 
@@ -491,26 +486,6 @@ export const DataAuditPanel: React.FC<DataAuditPanelProps> = ({ onRefresh }) => 
               </tbody>
             </table>
             </div>
-          </div>
-        </div>
-      )}
-
-      {/* Toast */}
-      {toast && (
-        <div className="fixed bottom-6 right-6 z-[9999] pointer-events-none">
-          <div
-            className={`flex items-center gap-3 p-3.5 rounded-lg shadow-lg text-xs font-semibold text-white pointer-events-auto border ${
-              toast.type === 'success'
-                ? 'bg-green-soft/90 border-green text-green'
-                : 'bg-red-soft/90 border-red text-red'
-            }`}
-          >
-            {toast.type === 'success' ? (
-              <Check className="w-4 h-4 text-green shrink-0" />
-            ) : (
-              <X className="w-4 h-4 text-red shrink-0" />
-            )}
-            <span>{toast.message}</span>
           </div>
         </div>
       )}

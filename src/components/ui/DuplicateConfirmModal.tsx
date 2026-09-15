@@ -2,6 +2,8 @@
 
 import React from 'react';
 import { AlertTriangle, RefreshCw, X } from 'lucide-react';
+import { useScrollLock } from '@/hooks/useScrollLock';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 
 export interface DuplicateConfirmModalProps {
   isOpen: boolean;
@@ -26,6 +28,9 @@ export const DuplicateConfirmModal: React.FC<DuplicateConfirmModalProps> = ({
   onConfirm,
   onCancel,
 }) => {
+  useScrollLock(isOpen);
+  const focusTrapRef = useFocusTrap<HTMLDivElement>(isOpen);
+
   if (!isOpen) return null;
 
   return (
@@ -35,7 +40,13 @@ export const DuplicateConfirmModal: React.FC<DuplicateConfirmModalProps> = ({
         onClick={onCancel}
         aria-hidden="true"
       />
-      <div className="relative w-full max-w-[480px] bg-white border border-border rounded-2xl shadow-modal p-6 z-10 animate-scale-up text-left">
+      <div
+        ref={focusTrapRef}
+        role="dialog"
+        aria-modal="true"
+        tabIndex={-1}
+        className="relative w-full max-w-[480px] bg-white border border-border rounded-2xl shadow-modal p-6 z-10 animate-scale-up text-left outline-none"
+      >
         {/* Close icon */}
         <button
           onClick={onCancel}

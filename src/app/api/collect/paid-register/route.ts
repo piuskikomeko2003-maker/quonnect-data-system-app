@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/service';
+import { formatTicketCode } from '@/utils/ticket';
 
 // Keyed in-process mutex to serialize ticket number allocation per event edition,
 // guaranteeing that concurrent requests on the same server instance never collide.
@@ -126,7 +127,7 @@ export async function POST(request: NextRequest) {
       }
 
       const ticketNumber = (earlierCount || 0) + 1;
-      const ticketCode = `TKT-${String(ticketNumber).padStart(3, '0')}`;
+      const ticketCode = formatTicketCode(ticketNumber);
 
       // 3. Upsert vendor record atomically
       const { data: upsertedVendor, error: vErr } = await serviceClient
@@ -174,7 +175,7 @@ export async function POST(request: NextRequest) {
           amount_paid: amountPaid,
           payment_status: paymentStatus,
           stall_number: ticketCode,
-          notes: `Ticket #${ticketNumber} (${ticketCode})`,
+          notes: `Ticket #${ticketNumber}`,
         };
         if (submission_id) regPayload.id = submission_id;
 

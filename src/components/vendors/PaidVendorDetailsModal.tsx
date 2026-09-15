@@ -1,7 +1,10 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useScrollLock } from '@/hooks/useScrollLock';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { createClient } from '@/lib/supabase/client';
+import { normalizeTicketCode } from '@/utils/ticket';
 import {
   X,
   ChevronLeft,
@@ -199,11 +202,14 @@ export const PaidVendorDetailsModal: React.FC<PaidVendorDetailsModalProps> = ({
     if (onBack) onBack();
   };
 
+  useScrollLock(isOpen);
+  const focusTrapRef = useFocusTrap<HTMLDivElement>(isOpen);
+
   if (!isOpen || !vendor) return null;
 
   return (
     <div
-      className="fixed inset-0 z-[1150] flex items-center sm:items-start justify-center p-3 sm:p-4 overflow-y-auto"
+      className="fixed inset-0 z-[1150] flex items-center sm:items-start justify-center p-3 sm:p-4"
       style={{
         paddingTop: 'max(1rem, env(safe-area-inset-top))',
         paddingBottom: 'max(1rem, env(safe-area-inset-bottom))',
@@ -215,7 +221,13 @@ export const PaidVendorDetailsModal: React.FC<PaidVendorDetailsModalProps> = ({
         onClick={handleClose}
       />
 
-      <div className="relative bg-white border border-border rounded-2xl shadow-xl z-10 w-full max-w-[560px] max-h-[90vh] sm:max-h-[85vh] overflow-y-auto animate-scale-up sm:mt-[4vh]">
+      <div
+        ref={focusTrapRef}
+        role="dialog"
+        aria-modal="true"
+        tabIndex={-1}
+        className="relative bg-white border border-border rounded-2xl shadow-xl z-10 w-full max-w-[560px] max-h-[90vh] sm:max-h-[85vh] overflow-y-auto animate-scale-up sm:mt-[4vh] outline-none"
+      >
 
         {/* Header */}
         <div className="sticky top-0 bg-white border-b border-border p-4 flex items-center justify-between z-10 rounded-t-2xl">
@@ -237,7 +249,7 @@ export const PaidVendorDetailsModal: React.FC<PaidVendorDetailsModalProps> = ({
                 </h2>
                 {(vendor.ticket_number || vendor.stall_number) && (
                   <span className="font-mono text-[10px] font-bold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200">
-                    {vendor.ticket_number || vendor.stall_number}
+                    {normalizeTicketCode(vendor.ticket_number || vendor.stall_number)}
                   </span>
                 )}
               </div>

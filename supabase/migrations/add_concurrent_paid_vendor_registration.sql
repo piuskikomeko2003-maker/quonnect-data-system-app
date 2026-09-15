@@ -90,8 +90,8 @@ BEGIN
 
   IF v_existing_reg.id IS NOT NULL THEN
     v_reg_id := v_existing_reg.id;
-    v_ticket_code := v_existing_reg.stall_number;
-    v_ticket_number := COALESCE(substring(v_ticket_code from '\d+')::int, 1);
+    v_ticket_number := COALESCE(substring(v_existing_reg.stall_number from '\d+')::int, 1);
+    v_ticket_code := lpad(v_ticket_number::text, 3, '0');
   ELSE
     -- Count existing registrations under the advisory lock (guaranteed atomic!)
     SELECT count(*) INTO v_earlier_count
@@ -99,7 +99,7 @@ BEGIN
     WHERE market_day_id = p_edition_id;
 
     v_ticket_number := v_earlier_count + 1;
-    v_ticket_code := 'TKT-' || lpad(v_ticket_number::text, 3, '0');
+    v_ticket_code := lpad(v_ticket_number::text, 3, '0');
 
     INSERT INTO public.vendor_registrations (
       market_day_id,
@@ -114,7 +114,7 @@ BEGIN
       p_amount_paid,
       p_payment_status,
       v_ticket_code,
-      'Ticket #' || v_ticket_number || ' (' || v_ticket_code || ')'
+      'Ticket #' || v_ticket_number
     ) RETURNING id INTO v_reg_id;
   END IF;
 

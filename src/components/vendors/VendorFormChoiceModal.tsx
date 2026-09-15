@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useScrollLock } from '@/hooks/useScrollLock';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { createClient } from '@/lib/supabase/client';
 import {
   X,
@@ -173,6 +175,9 @@ export const VendorFormChoiceModal: React.FC<VendorFormChoiceModalProps> = ({
     }
   }, [isOpen, vendor, activeEdition, resolveStatuses]);
 
+  useScrollLock(isOpen);
+  const focusTrapRef = useFocusTrap<HTMLDivElement>(isOpen);
+
   if (!isOpen || !vendor) return null;
 
   const displayName = vendor.business_name || vendor.contact_name || 'Unnamed Vendor';
@@ -182,7 +187,7 @@ export const VendorFormChoiceModal: React.FC<VendorFormChoiceModalProps> = ({
 
   return (
     <div
-      className="fixed inset-0 z-[1100] flex items-center sm:items-start justify-center p-3 sm:p-4 overflow-y-auto"
+      className="fixed inset-0 z-[1100] flex items-center sm:items-start justify-center p-3 sm:p-4"
       style={{
         paddingTop: 'max(1rem, env(safe-area-inset-top))',
         paddingBottom: 'max(1rem, env(safe-area-inset-bottom))',
@@ -195,7 +200,13 @@ export const VendorFormChoiceModal: React.FC<VendorFormChoiceModalProps> = ({
       />
 
       {/* Dialog */}
-      <div className="relative bg-white border border-border rounded-2xl shadow-xl z-10 w-full max-w-[480px] animate-scale-up sm:mt-[6vh]">
+      <div
+        ref={focusTrapRef}
+        role="dialog"
+        aria-modal="true"
+        tabIndex={-1}
+        className="relative bg-white border border-border rounded-2xl shadow-xl z-10 w-full max-w-[480px] animate-scale-up sm:mt-[6vh] outline-none"
+      >
 
         {/* Header */}
         <div className="flex items-start justify-between p-5 pb-4 border-b border-border">

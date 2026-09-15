@@ -189,7 +189,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
       {/* Edition selector chips row (Keep exact style from HTML) */}
       <div className="border-t border-border pt-3.5 flex flex-col sm:flex-row sm:items-center gap-2">
         <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest select-none">Editions:</span>
-        <div className="flex bg-bg-elevated border border-border rounded-md p-1.5 gap-1 overflow-x-auto shrink-0 select-none">
+        <div className="flex bg-bg-elevated border border-border rounded-md p-1.5 gap-1 overflow-x-auto min-w-0 flex-1 select-none">
           {editions.map((e) => (
             <button
               key={e.id}

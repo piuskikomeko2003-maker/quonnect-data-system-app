@@ -91,7 +91,7 @@ export const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
         )}
         <textarea
           ref={setRefs}
-          className={`w-full bg-bg-input border ${error ? 'border-red focus:border-red focus:ring-1 focus:ring-red' : 'border-border focus:border-accent focus:ring-1 focus:ring-accent'} rounded-md px-3.5 py-2 text-text-primary text-xs font-sans placeholder-text-muted transition-colors outline-none resize-none min-height-[60px] disabled:opacity-50 ${className}`}
+          className={`w-full bg-bg-input border ${error ? 'border-red focus:border-red focus:ring-1 focus:ring-red' : 'border-border focus:border-accent focus:ring-1 focus:ring-accent'} rounded-md px-3.5 py-2 text-text-primary text-xs font-sans placeholder-text-muted transition-colors outline-none resize-none min-h-[60px] disabled:opacity-50 ${className}`}
           {...props}
           onChange={handleChange}
         />

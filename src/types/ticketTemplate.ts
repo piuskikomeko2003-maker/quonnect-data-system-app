@@ -57,7 +57,7 @@ export interface TicketVendorData {
 
 export const SAMPLE_TICKET_DATA: TicketVendorData = {
   ticketNumber: 42,
-  ticketCode: 'TKT-042',
+  ticketCode: '042',
   editionName: 'Kampala Flagship Market Day',
   vendorName: 'Jane Doe',
   businessName: 'Sunrise Handcrafted Goods',

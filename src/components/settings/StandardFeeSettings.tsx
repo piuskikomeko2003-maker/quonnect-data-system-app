@@ -5,10 +5,10 @@ import { createClient } from '@/lib/supabase/client';
 import { isTestEdition } from '@/lib/editions';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+import { useToast } from '@/components/ui/ToastProvider';
 import {
   DollarSign,
   CheckCircle2,
-  AlertCircle,
   Loader2,
   RefreshCw,
   ShieldCheck,
@@ -40,15 +40,7 @@ export const StandardFeeSettings: React.FC = () => {
   const [feeInputs, setFeeInputs] = useState<Record<string, string>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
-  const [toasts, setToasts] = useState<Array<{ id: string; message: string; type: 'success' | 'error' | 'info' }>>([]);
-
-  const addToast = (message: string, type: 'success' | 'error' | 'info') => {
-    const id = crypto.randomUUID();
-    setToasts((prev) => [...prev, { id, message, type }]);
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 5000);
-  };
+  const { addToast } = useToast();
 
   const fetchEditionsData = useCallback(async () => {
     try {
@@ -125,7 +117,7 @@ export const StandardFeeSettings: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [addToast]);
 
   const processMarketDays = (marketDays: any[], registrations: any[]) => {
     // Map stats & infer standard fee from existing records if standard_fee column is not populated
@@ -313,31 +305,6 @@ export const StandardFeeSettings: React.FC = () => {
 
   return (
     <div className="space-y-6 text-left animate-fade-in">
-      {/* Toast Notifications */}
-      {toasts.length > 0 && (
-        <div className="fixed bottom-5 right-5 z-50 flex flex-col gap-2 max-w-md">
-          {toasts.map((t) => (
-            <div
-              key={t.id}
-              className={`p-4 rounded-xl border shadow-xl flex items-start gap-3 backdrop-blur-md text-xs font-medium animate-slide-up ${
-                t.type === 'success'
-                  ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                  : t.type === 'error'
-                  ? 'bg-red-50 border-red-200 text-red-800'
-                  : 'bg-accent-soft border-accent/20 text-accent'
-              }`}
-            >
-              {t.type === 'success' ? (
-                <CheckCircle2 className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
-              ) : (
-                <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
-              )}
-              <span className="flex-1 leading-relaxed">{t.message}</span>
-            </div>
-          ))}
-        </div>
-      )}
-
       {/* Header Info */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 border-b border-border pb-5">
         <div>

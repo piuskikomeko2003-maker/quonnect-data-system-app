@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState, useRef, useCallback, useEffect } from 'react';
+import { useScrollLock } from '@/hooks/useScrollLock';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { createClient } from '@/lib/supabase/client';
 import {
   X,
@@ -245,18 +247,25 @@ export const PaidVendorCsvImportModal: React.FC<PaidVendorCsvImportModalProps> =
   const willImportCount = preview.filter(r => r.status === 'new' || (r.status === 'likely_duplicate' && r.importAnyway)).length;
   const progressPct = importProgress.total > 0 ? Math.round((importProgress.current / importProgress.total) * 100) : 0;
 
+  useScrollLock(isOpen);
+  const focusTrapRef = useFocusTrap<HTMLDivElement>(isOpen);
+
   if (!isOpen) return null;
 
   return (
     <div 
-      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/40 backdrop-blur-xs"
+      className="fixed inset-0 z-[1000] flex items-center justify-center p-3 sm:p-4 bg-slate-900/40 backdrop-blur-xs"
       style={{
         paddingTop: 'max(0.75rem, env(safe-area-inset-top))',
         paddingBottom: 'max(0.75rem, env(safe-area-inset-bottom))',
       }}
     >
       <div
-        className="relative bg-white border border-border rounded-2xl shadow-xl w-full max-w-3xl max-h-[92vh] sm:max-h-[90vh] flex flex-col overflow-hidden"
+        ref={focusTrapRef}
+        role="dialog"
+        aria-modal="true"
+        tabIndex={-1}
+        className="relative bg-white border border-border rounded-2xl shadow-xl w-full max-w-3xl max-h-[92vh] sm:max-h-[90vh] flex flex-col overflow-hidden outline-none"
         style={{ animation: 'fadeInScale 0.2s ease-out' }}
       >
         {/* Header */}

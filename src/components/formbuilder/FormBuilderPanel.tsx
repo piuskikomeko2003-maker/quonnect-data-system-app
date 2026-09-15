@@ -4,6 +4,8 @@ import React, { useState, useEffect } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
+import { useToast } from '../ui/ToastProvider';
+import { useScrollLock } from '@/hooks/useScrollLock';
 import { 
   ClipboardList, 
   Plus, 
@@ -12,8 +14,6 @@ import {
   BookOpen, 
   Loader2,
   X,
-  AlertCircle,
-  CheckCircle2,
   ChevronRight,
   ArrowUp,
   ArrowDown,
@@ -76,12 +76,6 @@ interface SectionLogic {
   action: string;
   target_section_id: string;
   sort_order: number;
-}
-
-interface Toast {
-  id: string;
-  message: string;
-  type: 'success' | 'error';
 }
 
 const QUESTION_TYPES = [
@@ -164,16 +158,9 @@ export const FormBuilderPanel: React.FC = () => {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [previewAnswers, setPreviewAnswers] = useState<Record<string, any>>({});
 
-  // Toast notifications state
-  const [toasts, setToasts] = useState<Toast[]>([]);
-
-  const addToast = (message: string, type: 'success' | 'error') => {
-    const id = crypto.randomUUID();
-    setToasts((prev) => [...prev, { id, message, type }]);
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 4000);
-  };
+  // Toast notifications
+  const { addToast } = useToast();
+  useScrollLock(isCreateModalOpen || isQuestionModalOpen || isLogicModalOpen || isPreviewOpen);
 
   const fetchForms = async () => {
     setLoadingForms(true);
@@ -984,34 +971,7 @@ export const FormBuilderPanel: React.FC = () => {
   const selectedForm = forms.find(f => f.id === selectedFormId);
 
   return (
-    <div className="flex flex-col h-[calc(100vh-140px)] md:h-[750px] bg-white border border-border rounded-xl overflow-hidden select-none text-left relative">
-      {/* Toast container */}
-      <div className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-2 max-w-sm pointer-events-none">
-        {toasts.map((toast) => (
-          <div
-            key={toast.id}
-            className={`flex items-center gap-3 p-3.5 rounded-lg shadow-lg text-xs font-semibold animate-slide-up pointer-events-auto border ${
-              toast.type === 'success' 
-                ? 'bg-emerald-50 border-emerald-200 text-emerald-800' 
-                : 'bg-red-50 border-red-200 text-red-800'
-            }`}
-          >
-            {toast.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-            ) : (
-              <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
-            )}
-            <span className="flex-1">{toast.message}</span>
-            <button 
-              onClick={() => setToasts((prev) => prev.filter((t) => t.id !== toast.id))}
-              className="text-text-muted hover:text-text-primary p-0.5"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        ))}
-      </div>
-
+    <div className="flex flex-col flex-1 min-h-[480px] bg-white border border-border rounded-xl overflow-hidden select-none text-left relative">
       {/* Main Form Builder Section */}
       <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
         {/* Left Column: Forms List (320px) */}
@@ -1424,7 +1384,7 @@ export const FormBuilderPanel: React.FC = () => {
       {/* Create Form Modal Overlay */}
       {isCreateModalOpen && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-[9000] select-none text-left">
-          <div className="bg-white border border-border rounded-xl max-w-md w-full p-5 shadow-xl animate-scale-up space-y-4">
+          <div role="dialog" aria-modal="true" className="bg-white border border-border rounded-xl max-w-md w-full p-5 shadow-xl animate-scale-up space-y-4">
             <div className="flex justify-between items-center border-b border-border pb-3">
               <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider flex items-center gap-2">
                 <FolderPlus className="w-4.5 h-4.5 text-accent" />
@@ -1499,7 +1459,7 @@ export const FormBuilderPanel: React.FC = () => {
       {/* Add / Edit Question Modal Overlay */}
       {isQuestionModalOpen && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-[9000] select-none text-left">
-          <div className="bg-white border border-border rounded-xl max-w-lg w-full p-5 shadow-xl animate-scale-up space-y-4 max-h-[90vh] overflow-y-auto">
+          <div role="dialog" aria-modal="true" className="bg-white border border-border rounded-xl max-w-lg w-full p-5 shadow-xl animate-scale-up space-y-4 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center border-b border-border pb-3">
               <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider flex items-center gap-2">
                 <HelpCircle className="w-4.5 h-4.5 text-accent" />
@@ -1644,7 +1604,7 @@ export const FormBuilderPanel: React.FC = () => {
       {/* Skip Logic Modal Overlay */}
       {isLogicModalOpen && logicSourceQuestion && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-[9000] select-none text-left">
-          <div className="bg-white border border-border rounded-xl max-w-xl w-full p-5 shadow-xl animate-scale-up space-y-4.5 max-h-[90vh] overflow-y-auto">
+          <div role="dialog" aria-modal="true" className="bg-white border border-border rounded-xl max-w-xl w-full p-5 shadow-xl animate-scale-up space-y-4.5 max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center border-b border-border pb-3">
               <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider flex items-center gap-2">
                 <Sliders className="w-4.5 h-4.5 text-accent" />
@@ -1844,7 +1804,7 @@ export const FormBuilderPanel: React.FC = () => {
       {/* Live Form Simulator Preview Modal Overlay */}
       {isPreviewOpen && selectedForm && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-[9000] select-none text-left">
-          <div className="bg-white border border-border rounded-xl max-w-2xl w-full p-5 shadow-xl animate-scale-up max-h-[92vh] flex flex-col overflow-hidden text-xs">
+          <div role="dialog" aria-modal="true" className="bg-white border border-border rounded-xl max-w-2xl w-full p-5 shadow-xl animate-scale-up max-h-[92vh] flex flex-col overflow-hidden text-xs">
             <div className="flex justify-between items-center border-b border-border pb-3 shrink-0">
               <div>
                 <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider flex items-center gap-2">

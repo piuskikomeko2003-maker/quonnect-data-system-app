@@ -4,6 +4,8 @@ import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useLiveMetrics } from '@/hooks/useLiveMetrics';
 import { useAuth } from '@/hooks/useAuth';
+import { useToast } from '@/components/ui/ToastProvider';
+import { useScrollLock } from '@/hooks/useScrollLock';
 import { useRegion } from '@/context/RegionContext';
 import { AdminShell } from '@/components/layout/AdminShell';
 import { SettingsView } from '@/components/settings/SettingsView';
@@ -11,6 +13,7 @@ import { PendingApprovalView } from '@/components/auth/PendingApprovalView';
 import { importCSV } from '@/utils/csvImport';
 import { resolveGender, isGenderColumn, isGenderValue } from '@/utils/gender';
 import { isFirstTimer, isReturning, getAttendanceCount, attendedLastEdition, attendedRegion, isFirstTimerColumn, isAttendedLastColumn } from '@/utils/retention';
+import { formatTicketCode, normalizeTicketCode } from '@/utils/ticket';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 export interface Market {
@@ -68,8 +71,6 @@ import {
   Map,
   ChevronRight,
   Loader2,
-  CheckCircle2,
-  AlertCircle,
   CreditCard,
   ArrowUpRight,
   RotateCcw,
@@ -78,6 +79,8 @@ import {
   History,
   Trash2,
   Edit3,
+  DoorOpen,
+  ShieldCheck,
 } from 'lucide-react';
 
 const CustomGrowthTooltip = ({ active, payload, label }: any) => {
@@ -160,15 +163,7 @@ export default function Home() {
   const { activeRegion, activeEdition, regions: ctxRegions, switchRegion, loadingRegions, editions: ctxEditions, setActiveEdition } = useRegion();
   const { email, role, profile, loading: authLoading, isPending, signOut, refreshProfile } = useAuth();
 
-  const [toasts, setToasts] = useState<Array<{ id: string; message: string; type: 'success' | 'error' }>>([]);
-
-  const addToast = (message: string, type: 'success' | 'error' = 'success') => {
-    const id = crypto.randomUUID();
-    setToasts(prev => [...prev, { id, message, type }]);
-    setTimeout(() => {
-      setToasts(prev => prev.filter(t => t.id !== id));
-    }, 4000);
-  };
+  const { addToast } = useToast();
 
   const fileInputRef1 = useRef<HTMLInputElement>(null);
   const fileInputRef2 = useRef<HTMLInputElement>(null);
@@ -244,6 +239,9 @@ export default function Home() {
   /** 'registered' = vendor has survey response | 'pending' = no survey response yet */
   const [paidVendorTab, setPaidVendorTab] = useState<'registered' | 'pending'>('registered');
   const [paidVendorSearch, setPaidVendorSearch] = useState('');
+  /** 'all' = everyone | 'confirmed' = entered venue | 'awaiting' = not yet entered */
+  const [paidVendorEntryFilter, setPaidVendorEntryFilter] = useState<'all' | 'confirmed' | 'awaiting'>('all');
+  const [checkingInId, setCheckingInId] = useState<string | null>(null);
 
   // Overview live counts
   const [overviewCounts, setOverviewCounts] = useState({ paidVendors: 0, walkins: 0, surveyResponses: 0 });
@@ -882,6 +880,7 @@ export default function Home() {
               fee_source,
               stall_number,
               notes,
+              check_in_time,
               created_at,
               vendors (
                 id,
@@ -910,6 +909,7 @@ export default function Home() {
               amount_paid,
               stall_number,
               notes,
+              check_in_time,
               created_at,
               vendors (
                 id,
@@ -934,24 +934,30 @@ export default function Home() {
           (srResult?.data || []).map((r: any) => r.vendor_id).filter(Boolean)
         );
 
-        const registrations = regRows.map((r: any) => ({
-          id: r.id,
-          vendor_id: r.vendors?.id || '',
-          payment_status: r.payment_status,
-          amount_paid: r.amount_paid,
-          fee_source: r.fee_source || 'standard',
-          stall_number: r.stall_number || '',
-          notes: r.notes || '',
-          ticket_number: r.stall_number || (r.notes?.match(/TKT-\d+/)?.[0]) || '',
-          created_at: r.created_at,
-          business_name: r.vendors?.business_name || '',
-          contact_name: r.vendors?.contact_name || '',
-          phone: r.vendors?.phone || '',
-          email: r.vendors?.email || '',
-          category: r.vendors?.category || '',
-          // true = vendor completed the registration form; false = CSV-imported / form not yet done
-          hasFormData: surveyVendorSet.has(r.vendors?.id || ''),
-        }));
+        const registrations = regRows.map((r: any) => {
+          const ticketNumber = normalizeTicketCode(r.ticket_number || r.stall_number || r.notes?.match(/Ticket #(\d+)/)?.[1]) || '';
+          return {
+            id: r.id,
+            vendor_id: r.vendors?.id || '',
+            payment_status: r.payment_status,
+            amount_paid: r.amount_paid,
+            fee_source: r.fee_source || 'standard',
+            stall_number: r.stall_number || '',
+            notes: r.notes || '',
+            ticket_number: ticketNumber,
+            check_in_time: r.check_in_time || null,
+            created_at: r.created_at,
+            business_name: r.vendors?.business_name || '',
+            contact_name: r.vendors?.contact_name || '',
+            phone: r.vendors?.phone || '',
+            email: r.vendors?.email || '',
+            category: r.vendors?.category || '',
+            // Registered = completed registration via a paid vendor link form (auto-assigned a
+            // ticket) OR submitted a survey response. CSV-imported rows have neither until the
+            // vendor completes the form, so they stay in "Not Yet Registered".
+            hasFormData: surveyVendorSet.has(r.vendors?.id || '') || !!ticketNumber,
+          };
+        });
 
         const paid = registrations.filter(r => r.payment_status === 'paid').length;
         const unpaid = registrations.filter(r => r.payment_status !== 'paid').length;
@@ -1021,6 +1027,32 @@ export default function Home() {
       fetchOverviewMetrics();
     } catch (err: any) {
       window.alert(`Failed to delete paid vendor: ${err?.message || err}`);
+    }
+  };
+
+  /** Toggle gate entry for a vendor: sets check_in_time when marking, clears it when undoing. */
+  const handleToggleVendorEntry = async (pv: { id: string; business_name?: string; contact_name?: string; ticket_number?: string; check_in_time?: string | null }) => {
+    const supabase = createClient();
+    if (!supabase) return;
+    const isConfirmed = !!pv.check_in_time;
+    const nextCheckIn = isConfirmed ? null : new Date().toISOString();
+
+    // Optimistic update so the badge + counter react instantly at the gate.
+    setPaidVendors(prev => prev.map(p => (p.id === pv.id ? { ...p, check_in_time: nextCheckIn } : p)));
+    setCheckingInId(pv.id);
+
+    try {
+      const { error } = await supabase
+        .from('vendor_registrations')
+        .update({ check_in_time: nextCheckIn })
+        .eq('id', pv.id);
+      if (error) throw error;
+    } catch (err: any) {
+      // Roll back the optimistic change if the write failed.
+      setPaidVendors(prev => prev.map(p => (p.id === pv.id ? { ...p, check_in_time: pv.check_in_time ?? null } : p)));
+      window.alert(`Failed to ${isConfirmed ? 'undo' : 'confirm'} entry: ${err?.message || err}`);
+    } finally {
+      setCheckingInId(null);
     }
   };
 
@@ -1331,7 +1363,7 @@ export default function Home() {
           .channel('public-vendor_registrations-realtime')
           .on(
             'postgres_changes',
-            { event: 'INSERT', schema: 'public', table: 'vendor_registrations' },
+            { event: '*', schema: 'public', table: 'vendor_registrations' },
             () => {
               fetchPaidVendors();
               fetchOverviewCounts();
@@ -1406,6 +1438,7 @@ export default function Home() {
   const [selectedVendorId, setSelectedVendorId] = useState<string | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
+  useScrollLock(isLinkModalOpen);
   const [generatedLinkUrl, setGeneratedLinkUrl] = useState('');
   const [generatedLinkPass, setGeneratedLinkPass] = useState('');
   const [generatedLinkSlug, setGeneratedLinkSlug] = useState('');
@@ -1560,7 +1593,7 @@ export default function Home() {
 
   if (!mounted || loadingVendors) {
     return (
-      <div className="min-h-screen bg-bg-base flex flex-col items-center justify-center space-y-4 select-none">
+      <div className="min-h-dvh bg-bg flex flex-col items-center justify-center space-y-4 select-none">
         <div className="relative w-12 h-12">
           <div className="absolute inset-0 rounded-full border-4 border-sky-100"></div>
           <div className="absolute inset-0 rounded-full border-4 border-t-accent border-r-transparent border-b-transparent border-l-transparent animate-spin"></div>
@@ -1712,7 +1745,7 @@ export default function Home() {
             .eq('market_day_id', activeEdition.id);
 
           const ticketNumber = (earlierCount || 0) + 1;
-          const ticketCode = `TKT-${String(ticketNumber).padStart(3, '0')}`;
+          const ticketCode = formatTicketCode(ticketNumber);
 
           const payload: Record<string, unknown> = {
             market_day_id: activeEdition.id,
@@ -1720,7 +1753,7 @@ export default function Home() {
             amount_paid: amountPaid,
             payment_status: paymentStatus,
             stall_number: ticketCode,
-            notes: `Ticket #${ticketNumber} (${ticketCode})`,
+            notes: `Ticket #${ticketNumber}`,
           };
 
           try {
@@ -2405,7 +2438,7 @@ export default function Home() {
 
   if (!activeRegion) {
     return (
-      <div className="flex min-h-screen bg-bg-base items-center justify-center p-6 text-left select-none">
+      <div className="flex min-h-dvh bg-bg items-center justify-center p-6 text-left select-none">
         <div className="max-w-md w-full bg-white border border-border rounded-xl p-6 shadow-xl space-y-6">
           <div className="text-center space-y-2">
             <div className="w-12 h-12 rounded-full bg-sky-50 text-accent flex items-center justify-center mx-auto">
@@ -2857,7 +2890,7 @@ export default function Home() {
 
   if (authLoading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-bg">
+      <div className="min-h-dvh flex items-center justify-center bg-bg">
         <div className="w-6 h-6 border-2 border-accent border-t-transparent rounded-full animate-spin" />
       </div>
     );
@@ -3419,8 +3452,8 @@ export default function Home() {
                 )}
               </div>
 
-              <div className="bg-white border border-border rounded-xl shadow-xs overflow-hidden">
-                <table className="w-full border-collapse text-left text-xs">
+              <div className="bg-white border border-border rounded-xl shadow-xs overflow-x-auto">
+                <table className="w-full min-w-[720px] border-collapse text-left text-xs">
                   <thead>
                     <tr className="bg-slate-50 border-b border-border">
                       <th className="p-3.5 text-[10px] font-bold text-text-tertiary uppercase tracking-wider">Full Name</th>
@@ -3545,7 +3578,7 @@ export default function Home() {
                 ) : (
                   <>
                     {/* Live Count Cards */}
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
                       <div className="bg-white border border-border rounded-xl p-3 sm:p-5 flex flex-col justify-between shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:shadow-elevated animate-card-entrance" style={{ animationDelay: '0ms' }}>
                         <div className="flex items-start justify-between mb-3">
                           <div className="bg-emerald-50 text-emerald-600 p-2.5 rounded-lg border border-emerald-200">
@@ -3584,6 +3617,29 @@ export default function Home() {
                         </div>
                         <div className="text-xs text-text-secondary uppercase tracking-wider mt-1">Total Revenue</div>
                       </div>
+
+                      {(() => {
+                        const paidRegistered = paidVendors.filter(pv => pv.payment_status === 'paid' && pv.hasFormData);
+                        const confirmed = paidRegistered.filter(pv => pv.check_in_time).length;
+                        return (
+                          <div className="bg-white border border-emerald-200 rounded-xl p-3 sm:p-5 flex flex-col justify-between shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:shadow-elevated animate-card-entrance" style={{ animationDelay: '180ms' }}>
+                            <div className="flex items-start justify-between mb-3">
+                              <div className="bg-emerald-50 text-emerald-600 p-2.5 rounded-lg border border-emerald-200">
+                                <DoorOpen className="w-5 h-5" />
+                              </div>
+                              <span className="flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full uppercase tracking-wider">
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
+                                Live
+                              </span>
+                            </div>
+                            <div className="text-3xl font-bold text-text-primary tracking-tight">
+                              <AnimatedNumber value={confirmed} />
+                              <span className="text-lg text-text-tertiary font-semibold"> / {paidRegistered.length}</span>
+                            </div>
+                            <div className="text-xs text-emerald-700 uppercase tracking-wider mt-1 font-semibold">Checked In</div>
+                          </div>
+                        );
+                      })()}
                     </div>
 
                     {/* Paid Vendors — Two-tab view: Registered / Not Yet Registered */}
@@ -3629,6 +3685,47 @@ export default function Home() {
                             Not Yet Registered ({paidVendors.filter(pv => pv.payment_status === 'paid' && !pv.hasFormData).length})
                           </button>
                         </div>
+                        {/* Gate entry filter — only meaningful for registered vendors (they hold tickets) */}
+                        {paidVendorTab === 'registered' && (() => {
+                          const registered = paidVendors.filter(pv => pv.payment_status === 'paid' && pv.hasFormData);
+                          const confirmedCount = registered.filter(pv => pv.check_in_time).length;
+                          const awaitingCount = registered.length - confirmedCount;
+                          const pill = 'flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-colors cursor-pointer';
+                          return (
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="text-[10px] font-semibold text-text-tertiary uppercase tracking-widest">Gate Entry</span>
+                              <button
+                                onClick={() => setPaidVendorEntryFilter('all')}
+                                className={`${pill} ${paidVendorEntryFilter === 'all'
+                                    ? 'bg-accent-soft border-accent text-accent'
+                                    : 'bg-white border-border text-text-secondary hover:text-text-primary hover:border-border-light'
+                                  }`}
+                              >
+                                All ({registered.length})
+                              </button>
+                              <button
+                                onClick={() => setPaidVendorEntryFilter('confirmed')}
+                                className={`${pill} ${paidVendorEntryFilter === 'confirmed'
+                                    ? 'bg-emerald-50 border-emerald-300 text-emerald-700'
+                                    : 'bg-white border-border text-text-secondary hover:text-text-primary hover:border-border-light'
+                                  }`}
+                              >
+                                <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
+                                Confirmed ({confirmedCount})
+                              </button>
+                              <button
+                                onClick={() => setPaidVendorEntryFilter('awaiting')}
+                                className={`${pill} ${paidVendorEntryFilter === 'awaiting'
+                                    ? 'bg-slate-100 border-slate-300 text-slate-700'
+                                    : 'bg-white border-border text-text-secondary hover:text-text-primary hover:border-border-light'
+                                  }`}
+                              >
+                                <span className="w-1.5 h-1.5 rounded-full bg-slate-400 shrink-0" />
+                                Awaiting ({awaitingCount})
+                              </button>
+                            </div>
+                          );
+                        })()}
                         {/* Business name search */}
                         <div className="relative">
                           <Search className="w-3.5 h-3.5 text-text-tertiary absolute left-3 top-1/2 -translate-y-1/2" />
@@ -3636,7 +3733,7 @@ export default function Home() {
                             type="text"
                             value={paidVendorSearch}
                             onChange={e => setPaidVendorSearch(e.target.value)}
-                            placeholder="Search business name..."
+                            placeholder="Search ticket # or business name..."
                             className="w-full bg-white border border-border rounded-lg pl-9 pr-3 py-2 text-xs text-text-primary placeholder-text-tertiary focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-colors"
                           />
                         </div>
@@ -3651,9 +3748,13 @@ export default function Home() {
                         const tabVendors = paidVendors.filter(pv => {
                           if (pv.payment_status !== 'paid') return false;
                           if (paidVendorTab === 'registered' ? !pv.hasFormData : pv.hasFormData) return false;
+                          if (paidVendorTab === 'registered') {
+                            if (paidVendorEntryFilter === 'confirmed' && !pv.check_in_time) return false;
+                            if (paidVendorEntryFilter === 'awaiting' && pv.check_in_time) return false;
+                          }
                           if (paidVendorSearch) {
-                            const term = paidVendorSearch.toLowerCase();
-                            const hay = `${pv.business_name || ''} ${pv.contact_name || ''}`.toLowerCase();
+                            const term = paidVendorSearch.toLowerCase().trim();
+                            const hay = `${pv.ticket_number || ''} ${pv.business_name || ''} ${pv.contact_name || ''}`.toLowerCase();
                             if (!hay.includes(term)) return false;
                           }
                           return true;
@@ -3661,11 +3762,25 @@ export default function Home() {
                         return tabVendors.length === 0 ? (
                           <div className="p-12 text-center select-none">
                             {paidVendorTab === 'registered' ? (
-                              <>
-                                <CreditCard className="w-10 h-10 text-text-tertiary mx-auto mb-3" />
-                                <p className="text-sm text-text-primary font-semibold">No registered vendors yet.</p>
-                                <p className="text-xs text-text-secondary mt-1">Vendors who complete the registration form will appear here.</p>
-                              </>
+                              paidVendorEntryFilter !== 'all' ? (
+                                <>
+                                  <DoorOpen className="w-10 h-10 text-text-tertiary mx-auto mb-3" />
+                                  <p className="text-sm text-text-primary font-semibold">
+                                    {paidVendorEntryFilter === 'confirmed' ? 'No vendors checked in yet.' : 'All vendors have checked in.'}
+                                  </p>
+                                  <p className="text-xs text-text-secondary mt-1">
+                                    {paidVendorEntryFilter === 'confirmed'
+                                      ? 'Mark vendors as they arrive at the gate; they will appear here.'
+                                      : 'Switch to Confirmed to see who has entered the venue.'}
+                                  </p>
+                                </>
+                              ) : (
+                                <>
+                                  <CreditCard className="w-10 h-10 text-text-tertiary mx-auto mb-3" />
+                                  <p className="text-sm text-text-primary font-semibold">No registered vendors yet.</p>
+                                  <p className="text-xs text-text-secondary mt-1">Vendors who complete the registration form will appear here.</p>
+                                </>
+                              )
                             ) : (
                               <>
                                 <CreditCard className="w-10 h-10 text-text-tertiary mx-auto mb-3" />
@@ -3676,7 +3791,7 @@ export default function Home() {
                           </div>
                         ) : (
                           <div className="w-full overflow-x-auto">
-                            <table className="w-full border-collapse text-left text-xs">
+                            <table className="w-full min-w-[900px] border-collapse text-left text-xs">
                               <thead>
                                 <tr className="bg-slate-50/80 border-b border-border">
                                   <th className="p-4 text-[10px] font-semibold text-text-secondary uppercase tracking-widest text-center">Ticket #</th>
@@ -3685,6 +3800,9 @@ export default function Home() {
                                   <th className="p-4 text-[10px] font-semibold text-text-secondary uppercase tracking-widest">Phone</th>
                                   <th className="p-4 text-[10px] font-semibold text-text-secondary uppercase tracking-widest">Category</th>
                                   <th className="p-4 text-[10px] font-semibold text-text-secondary uppercase tracking-widest text-center">Status</th>
+                                  {paidVendorTab === 'registered' && (
+                                    <th className="p-4 text-[10px] font-semibold text-text-secondary uppercase tracking-widest text-center">Entry</th>
+                                  )}
                                   <th className="p-4 text-[10px] font-semibold text-text-secondary uppercase tracking-widest text-right">Amount Paid</th>
                                   {paidVendorTab === 'registered' ? (
                                     <th className="p-4 text-[10px] font-semibold text-text-secondary uppercase tracking-widest">Registered</th>
@@ -3702,7 +3820,7 @@ export default function Home() {
                                       setSelectedVendorForChoice(pv);
                                       setIsChoiceModalOpen(true);
                                     }}
-                                    className="hover:bg-slate-50/70 transition-colors cursor-pointer"
+                                    className={`hover:bg-slate-50/70 transition-colors cursor-pointer ${pv.check_in_time ? 'bg-emerald-50/50' : ''}`}
                                   >
                                     <td className="p-4 text-center">
                                       {pv.ticket_number ? (
@@ -3725,6 +3843,34 @@ export default function Home() {
                                         {pv.payment_status}
                                       </span>
                                     </td>
+                                    {paidVendorTab === 'registered' && (
+                                      <td className="p-4 text-center" onClick={(e) => e.stopPropagation()}>
+                                        {pv.check_in_time ? (
+                                          <button
+                                            onClick={() => handleToggleVendorEntry(pv)}
+                                            title={`Checked in ${new Date(pv.check_in_time).toLocaleString()} — click to undo`}
+                                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 hover:bg-emerald-200 transition-colors cursor-pointer whitespace-nowrap"
+                                          >
+                                            <ShieldCheck className="w-3 h-3" />
+                                            Confirmed
+                                          </button>
+                                        ) : (
+                                          <button
+                                            onClick={() => handleToggleVendorEntry(pv)}
+                                            disabled={checkingInId === pv.id}
+                                            title="Confirm this vendor has entered the venue"
+                                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold text-text-secondary bg-white border border-border hover:border-emerald-300 hover:text-emerald-700 hover:bg-emerald-50 transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50 disabled:cursor-wait"
+                                          >
+                                            {checkingInId === pv.id ? (
+                                              <Loader2 className="w-3 h-3 animate-spin" />
+                                            ) : (
+                                              <DoorOpen className="w-3 h-3" />
+                                            )}
+                                            Mark Entry
+                                          </button>
+                                        )}
+                                      </td>
+                                    )}
                                     <td className="p-4 text-right" onClick={(e) => e.stopPropagation()}>
                                       <button
                                         onClick={() => {
@@ -4319,7 +4465,7 @@ export default function Home() {
       {/* Generated link Modal Overlay */}
       {isLinkModalOpen && (
         <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-[9000] select-none text-left">
-          <div className="bg-white border border-border rounded-xl max-w-md w-full p-5 shadow-xl animate-scale-up space-y-4.5">
+          <div role="dialog" aria-modal="true" className="bg-white border border-border rounded-xl max-w-md w-full p-5 shadow-xl animate-scale-up space-y-4.5">
             <div className="flex items-center gap-2.5">
               <div className="w-10 h-10 bg-sky-50 text-accent rounded-full flex items-center justify-center">
                 <LinkIcon className="w-5 h-5 text-accent" />
@@ -4426,32 +4572,6 @@ export default function Home() {
           onCancel={duplicatePrompt.onCancel}
         />
       )}
-
-      {/* Toast container */}
-      <div className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-2 max-w-sm pointer-events-none">
-        {toasts.map((toast) => (
-          <div
-            key={toast.id}
-            className={`flex items-center gap-3 p-3.5 rounded-lg shadow-lg text-xs font-semibold text-white animate-slide-up pointer-events-auto border ${toast.type === 'success'
-                ? 'bg-green-soft/90 border-green text-green'
-                : 'bg-red-soft/90 border-red text-red'
-              }`}
-          >
-            {toast.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 text-green shrink-0" />
-            ) : (
-              <AlertCircle className="w-4 h-4 text-red shrink-0" />
-            )}
-            <span className="flex-1">{toast.message}</span>
-            <button
-              onClick={() => setToasts((prev) => prev.filter((t) => t.id !== toast.id))}
-              className="text-text-secondary hover:text-text-primary p-0.5"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        ))}
-      </div>
     </AdminShell>
   );
 }

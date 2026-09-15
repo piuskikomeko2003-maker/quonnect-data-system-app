@@ -6,6 +6,7 @@ import { isTestEdition } from '@/lib/editions';
 import { useRegion } from '@/context/RegionContext';
 import { Button } from '../ui/Button';
 import { Badge } from '../ui/Badge';
+import { useToast } from '../ui/ToastProvider';
 import { 
   MapPin, 
   Store, 
@@ -16,8 +17,6 @@ import {
   Check, 
   X, 
   Loader2, 
-  AlertCircle, 
-  CheckCircle2, 
   ChevronRight, 
   ChevronLeft,
   ChevronDown,
@@ -50,17 +49,11 @@ interface Region {
   marketDays: MarketDay[];
 }
 
-interface Toast {
-  id: string;
-  message: string;
-  type: 'success' | 'error';
-}
-
 export const MarketConfigurationPanel: React.FC = () => {
   const { activeRegion, setActiveEdition, refreshRegions } = useRegion();
   const [regions, setRegions] = useState<Region[]>([]);
   const [loading, setLoading] = useState(true);
-  const [toasts, setToasts] = useState<Toast[]>([]);
+  const { addToast } = useToast();
 
   // Stepper State
   const [currentStep, setCurrentStep] = useState<1 | 2 | 3>(1);
@@ -103,14 +96,6 @@ export const MarketConfigurationPanel: React.FC = () => {
   const [editingMarketKey, setEditingMarketKey] = useState<string | null>(null); // format: `${regionId}_${marketName}`
   const [editMarketNameVal, setEditMarketNameVal] = useState('');
   const [isUpdatingMarketName, setIsUpdatingMarketName] = useState(false);
-
-  const addToast = (message: string, type: 'success' | 'error') => {
-    const id = crypto.randomUUID();
-    setToasts((prev) => [...prev, { id, message, type }]);
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 3000);
-  };
 
   const slugify = (text: string) => {
     return text
@@ -601,33 +586,6 @@ export const MarketConfigurationPanel: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-fade-in text-left select-none relative">
-      {/* Toast container */}
-      <div className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-2 max-w-sm pointer-events-none">
-        {toasts.map((toast) => (
-          <div
-            key={toast.id}
-            className={`flex items-center gap-3 p-3.5 rounded-lg shadow-lg text-xs font-semibold animate-slide-up pointer-events-auto border ${
-              toast.type === 'success' 
-                ? 'bg-emerald-50 border-emerald-300 text-emerald-700' 
-                : 'bg-red-50 border-red-300 text-red-700'
-            }`}
-          >
-            {toast.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 text-emerald-600 shrink-0" />
-            ) : (
-              <AlertCircle className="w-4 h-4 text-red-600 shrink-0" />
-            )}
-            <span className="flex-1">{toast.message}</span>
-            <button 
-              onClick={() => setToasts((prev) => prev.filter((t) => t.id !== toast.id))}
-              className="text-text-secondary hover:text-text-primary p-0.5"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        ))}
-      </div>
-
       {/* Header */}
       <div className="flex items-center gap-2">
         <div className="w-1.5 h-5 bg-accent rounded-full" />

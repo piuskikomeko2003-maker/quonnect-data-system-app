@@ -34,7 +34,7 @@ export const PendingApprovalView: React.FC<PendingApprovalViewProps> = ({
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-bg p-4">
+    <div className="min-h-dvh flex items-center justify-center bg-bg p-4">
       <div className="w-full max-w-md bg-white border border-border rounded-2xl p-8 shadow-elevated animate-fade-in text-center">
         {/* Header Branding */}
         <div className="mb-6">

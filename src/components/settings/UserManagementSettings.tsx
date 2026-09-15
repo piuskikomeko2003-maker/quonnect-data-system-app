@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+import { useToast } from '@/components/ui/ToastProvider';
 import type { UserProfile, UserRole } from '@/hooks/useAuth';
 import { ROLE_LABELS } from '@/hooks/useAuth';
 import {
@@ -12,11 +13,8 @@ import {
   ShieldAlert,
   ShieldCheck,
   Loader2,
-  X,
   Copy,
   Check,
-  CheckCircle2,
-  AlertCircle,
   Clock,
   ExternalLink,
   Users,
@@ -51,20 +49,12 @@ export const UserManagementSettings: React.FC<UserManagementSettingsProps> = ({
 }) => {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
-  const [toasts, setToasts] = useState<Array<{ id: string; message: string; type: 'success' | 'error' }>>([]);
+  const { addToast } = useToast();
   const canManage = currentUserRole === 'super_admin' || currentUserRole === 'admin';
 
   // Link Generator State
   const [recipientEmail, setRecipientEmail] = useState('');
   const [copiedLink, setCopiedLink] = useState(false);
-
-  const addToast = (message: string, type: 'success' | 'error') => {
-    const id = crypto.randomUUID();
-    setToasts((prev) => [...prev, { id, message, type }]);
-    setTimeout(() => {
-      setToasts((prev) => prev.filter((t) => t.id !== id));
-    }, 4000);
-  };
 
   const fetchUsers = useCallback(async () => {
     try {
@@ -77,7 +67,7 @@ export const UserManagementSettings: React.FC<UserManagementSettingsProps> = ({
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [addToast]);
 
   useEffect(() => {
     fetchUsers();
@@ -490,33 +480,6 @@ export const UserManagementSettings: React.FC<UserManagementSettingsProps> = ({
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Toast Notifications */}
-      <div className="fixed bottom-6 right-6 z-[9999] flex flex-col gap-2 max-w-sm pointer-events-none">
-        {toasts.map((toast) => (
-          <div
-            key={toast.id}
-            className={`flex items-center gap-3 p-3.5 rounded-lg shadow-lg text-xs font-semibold animate-slide-up pointer-events-auto border ${
-              toast.type === 'success'
-                ? 'bg-emerald-50 border-emerald-200 text-emerald-800'
-                : 'bg-red-50 border-red-200 text-red-800'
-            }`}
-          >
-            {toast.type === 'success' ? (
-              <CheckCircle2 className="w-4 h-4 shrink-0 text-emerald-600" />
-            ) : (
-              <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
-            )}
-            <span className="flex-1">{toast.message}</span>
-            <button
-              onClick={() => setToasts((prev) => prev.filter((t) => t.id !== toast.id))}
-              className="text-text-muted hover:text-text-primary p-0.5"
-            >
-              <X className="w-3.5 h-3.5" />
-            </button>
-          </div>
-        ))}
       </div>
     </div>
   );

@@ -45,6 +45,8 @@
   --color-accent-soft: #dbeafe;
   --color-accent-tint: #dbeafe;
   --color-sky-bright: #38bdf8;
+  --color-sky: #1d4ed8;
+  --color-sky-soft: #dbeafe;
 
   --color-ink-primary: #111827;
   --color-ink-secondary: #6b7280;
@@ -60,7 +62,7 @@
   --shadow-elevated: 0 4px 14px rgba(17, 24, 39, 0.06), 0 1px 3px rgba(17, 24, 39, 0.04);
   --shadow-modal: 0 20px 40px rgba(17, 24, 39, 0.12);
   
-  --font-sans: 'Inter', system-ui, -apple-system, sans-serif;
+  --font-sans: var(--font-geist-sans, ui-sans-serif), system-ui, -apple-system, sans-serif;
 }
 
 body {

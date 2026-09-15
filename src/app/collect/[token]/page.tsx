@@ -15,6 +15,7 @@ import {
 import type { Submission, CachedSchema } from '@/lib/db';
 import { DynamicQuickEntryForm, type FormDataCache } from '@/components/forms/DynamicQuickEntryForm';
 import { Users, Database, Footprints, Loader2, AlertCircle, WifiOff, CloudOff, RefreshCw, Clock, Lock, Ticket } from 'lucide-react';
+import { formatTicketCode } from '@/utils/ticket';
 
 // Change to 'latest_closed_edition' to look back only at completed editions
 type AutofillLookback = 'latest_any_edition' | 'latest_closed_edition';
@@ -550,7 +551,7 @@ export default function CollectPage() {
         .eq('market_day_id', edition.id);
 
       const ticketNumber = (earlierCount || 0) + 1;
-      const ticketCode = `TKT-${String(ticketNumber).padStart(3, '0')}`;
+      const ticketCode = formatTicketCode(ticketNumber);
 
       const phone = answers.phone || answers.phone_number || '';
       const contactName = answers.contact_name || answers.full_name || answers.name || '';
@@ -605,7 +606,7 @@ export default function CollectPage() {
           amount_paid: amountPaid,
           payment_status: paymentStatus,
           stall_number: ticketCode,
-          notes: `Ticket #${ticketNumber} (${ticketCode})`,
+          notes: `Ticket #${ticketNumber}`,
         };
         if (submissionId) payload.id = submissionId;
 
@@ -938,7 +939,7 @@ export default function CollectPage() {
 
   if (loading) {
     return (
-      <div className="min-h-screen bg-bg flex flex-col items-center justify-center space-y-4">
+      <div className="min-h-dvh bg-bg flex flex-col items-center justify-center space-y-4">
         <Loader2 className="w-8 h-8 animate-spin text-accent" />
         <p className="text-xs text-text-secondary">Loading collection form...</p>
       </div>
@@ -947,7 +948,7 @@ export default function CollectPage() {
 
   if (isLinkAlreadyUsed && !existingTicketData) {
     return (
-      <div className="min-h-screen bg-bg flex flex-col items-center justify-center p-6 text-center select-none">
+      <div className="min-h-dvh bg-bg flex flex-col items-center justify-center p-6 text-center select-none">
         <div className="bg-white border border-border rounded-xl max-w-md w-full p-8 shadow-modal relative overflow-hidden">
           <div className="w-16 h-16 bg-amber/10 border border-amber/20 rounded-full flex items-center justify-center mx-auto mb-4 text-amber">
             <Lock className="w-7 h-7" />
@@ -971,7 +972,7 @@ export default function CollectPage() {
 
   if (error) {
     return (
-      <div className="min-h-screen bg-bg flex flex-col items-center justify-center space-y-4 p-6">
+      <div className="min-h-dvh bg-bg flex flex-col items-center justify-center space-y-4 p-6">
         <AlertCircle className="w-10 h-10 text-red" />
         <h2 className="text-sm font-bold text-text-primary">Link Error</h2>
         <p className="text-xs text-text-secondary text-center max-w-md">{error}</p>
@@ -984,7 +985,7 @@ export default function CollectPage() {
   const config = FORM_CONFIG[linkData.form_slug];
 
   return (
-    <div className="min-h-screen bg-bg flex flex-col">
+    <div className="min-h-dvh bg-bg flex flex-col">
       <header className="border-b border-border bg-white px-4 sm:px-6 py-3 flex items-center justify-between gap-2 flex-wrap">
         <div className="flex items-center gap-3">
           <div className="w-8 h-8 bg-accent-soft border border-accent/30 rounded flex items-center justify-center">

@@ -70,7 +70,7 @@ async function registerOneVendor(token, editionId, index, batchPrefix) {
         .eq('market_day_id', editionId);
 
       const ticketNumber = (earlierCount || 0) + 1;
-      const ticketCode = `TKT-${String(ticketNumber).padStart(3, '0')}`;
+      const ticketCode = String(ticketNumber).padStart(3, '0');
 
       // 3. Upsert vendor atomically
       const phone = `+256788${batchPrefix}${String(index).padStart(4, '0')}`;

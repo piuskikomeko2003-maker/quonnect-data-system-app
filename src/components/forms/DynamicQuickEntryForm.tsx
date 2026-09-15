@@ -24,6 +24,7 @@ import {
   RequiredTicketField,
   REQUIRED_TICKET_FIELDS,
 } from '@/types/ticketTemplate';
+import { formatTicketCode, normalizeTicketCode } from '@/utils/ticket';
 
 function computeAdaptiveFontSize(
   text: string,
@@ -605,7 +606,7 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
     if (formSlug === 'paid_vendor_registration' || successState.ticketData) {
       const ticket = successState.ticketData || {
         ticketNumber: runningCount || 1,
-        ticketCode: `TKT-${String(runningCount || 1).padStart(3, '0')}`,
+        ticketCode: formatTicketCode(runningCount || 1),
         editionName: activeEdition?.name || 'Event Edition',
         vendorName: successState.name || 'Confirmed Vendor',
         businessName: '',
@@ -616,12 +617,14 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
         registeredAt: new Date().toISOString(),
       };
 
+      const ticketCode = normalizeTicketCode(ticket.ticketCode) || ticket.ticketCode;
+
       const fieldValues: Record<RequiredTicketField, string> = {
         vendor_name: ticket.vendorName || '',
         business_name: ticket.businessName || '',
         category: ticket.category || '',
         phone_number: ticket.phone || '',
-        ticket_number: ticket.ticketCode || '',
+                ticket_number: ticketCode,
         issued_at: new Date(ticket.registeredAt).toLocaleString([], {
           dateStyle: 'medium',
           timeStyle: 'short',
@@ -636,7 +639,7 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
             try {
               const params = new URLSearchParams({
                 edition_id: activeEdition?.id || '',
-                ticket_number: ticket.ticketCode || '',
+        ticket_number: ticketCode,
                 vendor_name: ticket.vendorName || '',
                 business_name: ticket.businessName || '',
                 category: ticket.category || '',
@@ -649,7 +652,7 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
                 const blob = await res.blob();
                 const blobUrl = window.URL.createObjectURL(blob);
                 const link = document.createElement('a');
-                link.download = `Vendor-Pass-${ticket.ticketCode || 'Ticket'}.png`;
+                link.download = `Vendor-Pass-${ticketCode || 'Ticket'}.png`;
                 link.href = blobUrl;
                 link.click();
                 window.URL.revokeObjectURL(blobUrl);
@@ -670,7 +673,7 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
             backgroundColor: '#161b22',
           });
           const link = document.createElement('a');
-          link.download = `Vendor-Pass-${ticket.ticketCode || 'Ticket'}.png`;
+          link.download = `Vendor-Pass-${ticketCode || 'Ticket'}.png`;
           link.href = dataUrl;
           link.click();
         } catch (err) {
@@ -769,7 +772,7 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
                   Admission Ticket Number
                 </span>
                 <div className="text-3xl sm:text-4xl font-extrabold font-mono text-accent tracking-wider my-1">
-                  {ticket.ticketCode}
+                  {ticketCode}
                 </div>
                 <p className="text-[11px] text-text-secondary">
                   Vendor #{ticket.ticketNumber} &middot; Registered for this edition
@@ -820,7 +823,7 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
                   ))}
                 </div>
                 <span className="font-mono text-[9px] tracking-widest text-text-tertiary mt-1">
-                  {ticket.ticketCode} &bull; QUONNECT ADMISSION PASS
+                  {ticketCode} &bull; QUONNECT ADMISSION PASS
                 </span>
               </div>
             </div>
@@ -863,7 +866,7 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
                 type="button"
                 variant="secondary"
                 onClick={() => {
-                  navigator.clipboard.writeText(ticket.ticketCode);
+                  navigator.clipboard.writeText(ticketCode);
                   setCopiedTicket(true);
                   setTimeout(() => setCopiedTicket(false), 2000);
                 }}

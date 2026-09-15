@@ -1,6 +1,8 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useScrollLock } from '@/hooks/useScrollLock';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { createClient } from '@/lib/supabase/client';
 import { DynamicQuickEntryForm, FormDataCache } from '@/components/forms/DynamicQuickEntryForm';
 import { Button } from '@/components/ui/Button';
@@ -440,11 +442,14 @@ export const EditVendorModal: React.FC<EditVendorModalProps> = ({
     if (onBack) onBack();
   };
 
+  useScrollLock(isOpen);
+  const focusTrapRef = useFocusTrap<HTMLDivElement>(isOpen);
+
   if (!isOpen) return null;
 
   return (
     <div 
-      className="fixed inset-0 z-[1100] flex items-center sm:items-start justify-center p-3 sm:p-4 select-none overflow-y-auto"
+      className="fixed inset-0 z-[1100] flex items-center sm:items-start justify-center p-3 sm:p-4 select-none"
       style={{
         paddingTop: 'max(1rem, env(safe-area-inset-top))',
         paddingBottom: 'max(1rem, env(safe-area-inset-bottom))',
@@ -455,7 +460,13 @@ export const EditVendorModal: React.FC<EditVendorModalProps> = ({
         onClick={handleClose}
       />
 
-      <div className="relative bg-white border border-border rounded-2xl shadow-xl z-10 w-full max-w-[600px] max-h-[90vh] sm:max-h-[85vh] overflow-y-auto animate-scale-up sm:mt-[4vh]">
+      <div
+        ref={focusTrapRef}
+        role="dialog"
+        aria-modal="true"
+        tabIndex={-1}
+        className="relative bg-white border border-border rounded-2xl shadow-xl z-10 w-full max-w-[600px] max-h-[90vh] sm:max-h-[85vh] overflow-y-auto animate-scale-up sm:mt-[4vh] outline-none"
+      >
         <div className="sticky top-0 bg-white border-b border-border p-4 flex items-center justify-between z-10 rounded-t-2xl">
           <div className="flex items-center gap-2">
             {onBack && (

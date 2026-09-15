@@ -171,7 +171,8 @@ export const QuickEntryPanel: React.FC<QuickEntryPanelProps> = ({
         </div>
       </div>
 
-      <div className={`transition-all duration-300 overflow-hidden ${isOpen ? 'max-h-[1200px] border-t-0' : 'max-h-0 pointer-events-none'}`}>
+      <div className={`grid transition-all duration-300 overflow-hidden ${isOpen ? 'grid-rows-[1fr] border-t-0' : 'grid-rows-[0fr] pointer-events-none'}`}>
+        <div className="min-h-0">
         <div className="flex border-b border-border p-1.5 bg-slate-50 gap-1">
           {(['paid', 'collection', 'walkin'] as QuickEntryTab[]).map((tab) => (
             <button
@@ -203,6 +204,7 @@ export const QuickEntryPanel: React.FC<QuickEntryPanelProps> = ({
             </div>
           )}
           <DynamicQuickEntryForm {...getFormProps(activeTab)} />
+        </div>
         </div>
       </div>
     </div>

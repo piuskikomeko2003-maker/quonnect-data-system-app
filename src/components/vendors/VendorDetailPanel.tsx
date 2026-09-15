@@ -3,6 +3,8 @@ import { X, Check, Edit2, Merge, Download, AlertTriangle, Phone } from 'lucide-r
 import { VendorStatusBadge, VendorStatus } from './VendorStatusBadge';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
+import { useScrollLock } from '@/hooks/useScrollLock';
+import { useFocusTrap } from '@/hooks/useFocusTrap';
 
 export interface AttendanceHistory {
   editionId: string;
@@ -51,6 +53,9 @@ export const VendorDetailPanel: React.FC<VendorDetailPanelProps> = ({
   onFlagMerge,
   onExport
 }) => {
+  useScrollLock(isOpen);
+  const focusTrapRef = useFocusTrap<HTMLDivElement>(isOpen);
+
   if (!isOpen || !vendor) return null;
 
   const getSourceBadgeColor = (source: AttributeSource['source']) => {
@@ -74,7 +79,13 @@ export const VendorDetailPanel: React.FC<VendorDetailPanelProps> = ({
       />
       
       {/* Slide-out Panel container */}
-      <div className="relative w-full max-w-[480px] h-full bg-white border-l border-border shadow-2xl z-10 flex flex-col animate-slide-in-right overflow-hidden">
+      <div
+        ref={focusTrapRef}
+        role="dialog"
+        aria-modal="true"
+        tabIndex={-1}
+        className="relative w-full max-w-[480px] h-dvh bg-white border-l border-border shadow-2xl z-10 flex flex-col animate-slide-in-right overflow-hidden outline-none"
+      >
         {/* Panel Header */}
         <div 
           className="p-4 sm:p-5 border-b border-border flex items-center justify-between shrink-0 bg-slate-50"

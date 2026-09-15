@@ -854,7 +854,7 @@ export const TicketTemplateSettings: React.FC = () => {
                 </p>
                 <p className="text-text-tertiary">
                   Ticket numbers will always follow the sequentially allocated format (e.g.{' '}
-                  <code>TKT-001</code>) issued during registration.
+                  <code>001</code>) issued during registration.
                 </p>
               </div>
             </div>

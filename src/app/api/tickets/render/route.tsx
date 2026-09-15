@@ -8,6 +8,7 @@ import {
   FieldPositionsMap,
   RequiredTicketField,
 } from '@/types/ticketTemplate';
+import { normalizeTicketCode } from '@/utils/ticket';
 
 export const runtime = 'nodejs';
 
@@ -64,7 +65,7 @@ export async function GET(request: NextRequest) {
             const v = reg.vendors as any;
             ticketData = {
               ticketNumber: reg.stall_number?.match(/\d+/)?.[0] || '1',
-              ticketCode: reg.ticket_number || reg.stall_number || link.ticket_number || 'TKT-001',
+              ticketCode: normalizeTicketCode(reg.ticket_number || reg.stall_number || link.ticket_number) || '001',
               editionName: (link.market_days as any)?.name || 'Event Edition',
               vendorName: v.contact_name || v.business_name || 'Vendor',
               businessName: v.business_name || '',
@@ -87,7 +88,7 @@ export async function GET(request: NextRequest) {
       ticketData.businessName = searchParams.get('business_name')!;
     }
     if (searchParams.get('ticket_number')) {
-      ticketData.ticketCode = searchParams.get('ticket_number')!;
+      ticketData.ticketCode = normalizeTicketCode(searchParams.get('ticket_number')) || searchParams.get('ticket_number')!;
     }
     if (searchParams.get('category')) {
       ticketData.category = searchParams.get('category')!;
@@ -163,7 +164,7 @@ export async function GET(request: NextRequest) {
         business_name: ticketData.businessName || (isPreview ? 'Business Name Here' : ''),
         category: ticketData.category || (isPreview ? 'Category Here' : ''),
         phone_number: ticketData.phone || (isPreview ? '+256 700 000 000' : ''),
-        ticket_number: ticketData.ticketCode || (isPreview ? 'TKT-000' : 'TKT-001'),
+        ticket_number: ticketData.ticketCode || (isPreview ? '000' : '001'),
         issued_at: formattedDate,
       };
 
