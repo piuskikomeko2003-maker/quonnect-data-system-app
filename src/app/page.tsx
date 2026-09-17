@@ -8,6 +8,7 @@ import { useToast } from '@/components/ui/ToastProvider';
 import { useScrollLock } from '@/hooks/useScrollLock';
 import { useRegion } from '@/context/RegionContext';
 import { AdminShell } from '@/components/layout/AdminShell';
+import { PageContainer } from '@/components/layout/PageContainer';
 import { SettingsView } from '@/components/settings/SettingsView';
 import { PendingApprovalView } from '@/components/auth/PendingApprovalView';
 import { importCSV } from '@/utils/csvImport';
@@ -3953,9 +3954,14 @@ export default function Home() {
           <FinanceDashboard />
         )}
 
-        {/* 4. QUICK ENTRY PANEL */}
+        {/* 4. QUICK ENTRY PANEL
+            Layout (width/centering) is owned by the shared <PageContainer>.
+            Do NOT add per-edition/route width or spacing overrides here. */}
         {activeNav === 'quick-entry' && (
-          <div className="space-y-5 animate-fade-in text-left max-w-2xl mx-auto">
+          <PageContainer
+            data-testid="quick-entry-page"
+            className="space-y-5 animate-fade-in text-left"
+          >
             <div className="flex items-center gap-2">
               <div className="w-1.5 h-5 bg-accent rounded-full" />
               <div>
@@ -4102,7 +4108,7 @@ export default function Home() {
                 )}
               </div>
             </div>
-          </div>
+          </PageContainer>
         )}
 
         {/* IMPORT/EXPORT PANEL */}
