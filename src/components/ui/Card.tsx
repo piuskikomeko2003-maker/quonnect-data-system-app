@@ -16,10 +16,10 @@ export const Card: React.FC<CardProps> = ({
   className = '',
   ...props
 }) => {
-  const baseStyle = 'bg-white border border-border rounded-xl p-5 transition-all duration-200 ease-out relative overflow-hidden';
+  const baseStyle = 'bg-white border border-border rounded-xl p-5 transition-all duration-300 ease-out relative overflow-hidden group';
   
   const hoverStyle = (hoverEffect || onClick) 
-    ? 'hover:border-accent/40 hover:shadow-elevated hover:-translate-y-0.5 cursor-pointer' 
+    ? 'hover:border-accent/40 hover:shadow-elevated hover:-translate-y-1 cursor-pointer' 
     : '';
 
   const activeStyle = isActive 

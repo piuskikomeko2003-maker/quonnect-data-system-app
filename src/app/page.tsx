@@ -34,6 +34,7 @@ import { VendorFormChoiceModal } from '@/components/vendors/VendorFormChoiceModa
 import { VendorFeeEditModal } from '@/components/vendors/VendorFeeEditModal';
 import { PaidVendorCsvImportModal } from '@/components/vendors/PaidVendorCsvImportModal';
 import { PaidVendorImportHistoryModal } from '@/components/vendors/PaidVendorImportHistoryModal';
+import { SyncSurveyVendorsModal } from '@/components/vendors/SyncSurveyVendorsModal';
 import { IncompleteVendorsPanel } from '@/components/vendors/IncompleteVendorsPanel';
 import { DuplicateConfirmModal } from '@/components/ui/DuplicateConfirmModal';
 import { QuickEntryPanel } from '@/components/forms/QuickEntryPanel';
@@ -44,6 +45,7 @@ import { FormPreview } from '@/components/formbuilder/FormPreview';
 import { MarketConfigurationPanel } from '@/components/dashboard/MarketConfigurationPanel';
 import { DataAuditPanel } from '@/components/dashboard/DataAuditPanel';
 import { JobsSupportedPanel } from '@/components/dashboard/JobsSupportedPanel';
+import { FinanceDashboard } from '@/components/finance/FinanceDashboard';
 import { Question, FormTemplate } from '@/components/formbuilder/types';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
@@ -81,6 +83,7 @@ import {
   Edit3,
   DoorOpen,
   ShieldCheck,
+  RefreshCw,
 } from 'lucide-react';
 
 const CustomGrowthTooltip = ({ active, payload, label }: any) => {
@@ -1470,6 +1473,9 @@ export default function Home() {
 
   // CSV Import History Modal State
   const [isImportHistoryOpen, setIsImportHistoryOpen] = useState(false);
+
+  // Sync Survey Vendors to Paid Modal State
+  const [isSyncVendorsModalOpen, setIsSyncVendorsModalOpen] = useState(false);
 
   // Incomplete Vendors Panel State
   const [showIncompleteVendors, setShowIncompleteVendors] = useState(false);
@@ -3537,6 +3543,16 @@ export default function Home() {
                     <Users className="w-3.5 h-3.5" />
                     Incomplete Vendors
                   </button>
+                  {/* Sync survey vendors to paid button */}
+                  <button
+                    onClick={() => setIsSyncVendorsModalOpen(true)}
+                    disabled={!activeEdition}
+                    title={!activeEdition ? 'Select an edition first' : 'Treat surveyed vendors as paid vendors for this edition'}
+                    className="flex items-center gap-2 text-xs font-bold text-emerald-700 bg-emerald-50 hover:bg-emerald-100 border border-emerald-200 disabled:opacity-40 disabled:cursor-not-allowed px-3 py-2 rounded-lg transition-colors cursor-pointer"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" />
+                    Sync Survey Vendors
+                  </button>
                   {/* CSV Import button */}
                   <button
                     onClick={() => setIsCsvImportModalOpen(true)}
@@ -3932,6 +3948,11 @@ export default function Home() {
           </div>
         )}
 
+        {/* FINANCE MODULE */}
+        {activeNav === 'finance' && (
+          <FinanceDashboard />
+        )}
+
         {/* 4. QUICK ENTRY PANEL */}
         {activeNav === 'quick-entry' && (
           <div className="space-y-5 animate-fade-in text-left max-w-2xl mx-auto">
@@ -4274,7 +4295,7 @@ export default function Home() {
         )}
 
         {/* 7. OTHER SYSTEM PLACES (PLACEHOLDERS) */}
-        {!['overview', 'vendors', 'walkins', 'quick-entry', 'formbuilder', 'import-export', 'markets', 'jobs', 'paid-vendors', 'settings'].includes(activeNav) && (
+        {!['overview', 'vendors', 'walkins', 'quick-entry', 'formbuilder', 'import-export', 'markets', 'jobs', 'paid-vendors', 'finance', 'settings'].includes(activeNav) && (
           <div className="py-24 text-center border border-dashed border-border rounded-lg select-none text-left animate-fade-in">
             <ClipboardList className="w-12 h-12 text-green mx-auto mb-3 opacity-80" />
             <h3 className="text-sm font-bold text-text-primary">Module Under Implementation</h3>
@@ -4545,6 +4566,19 @@ export default function Home() {
         isOpen={isImportHistoryOpen}
         onClose={() => setIsImportHistoryOpen(false)}
         onChanged={() => {
+          fetchPaidVendors();
+          fetchVendors();
+          fetchOverviewCounts();
+          fetchOverviewMetrics();
+        }}
+      />
+
+      {/* Sync Survey Vendors to Paid Modal */}
+      <SyncSurveyVendorsModal
+        isOpen={isSyncVendorsModalOpen}
+        onClose={() => setIsSyncVendorsModalOpen(false)}
+        activeEdition={activeEdition}
+        onSynced={() => {
           fetchPaidVendors();
           fetchVendors();
           fetchOverviewCounts();

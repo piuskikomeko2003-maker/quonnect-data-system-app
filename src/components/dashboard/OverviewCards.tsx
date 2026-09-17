@@ -93,11 +93,12 @@ export const OverviewCards: React.FC<OverviewCardsProps> = ({
         className="p-4.5 flex flex-col justify-between animate-card-entrance"
         style={{ animationDelay: '0ms' }}
       >
+        <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-accent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
         <div>
-          <div className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider flex items-center gap-1.5 mb-2">
-            <Users className="w-3.5 h-3.5 text-text-secondary" /> Total Vendors
+          <div className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider flex items-center gap-1.5 mb-2 group-hover:text-text-primary transition-colors">
+            <Users className="w-3.5 h-3.5 text-text-secondary transition-transform duration-200 group-hover:scale-110 group-hover:-rotate-3 group-hover:text-accent" /> Total Vendors
           </div>
-          <div className="text-2xl font-bold tracking-tight text-text-primary">
+          <div className="text-2xl font-bold tracking-tight text-text-primary group-hover:text-accent transition-colors">
             <AnimatedNumber value={data.totalVendors.value} />
           </div>
         </div>
@@ -114,11 +115,12 @@ export const OverviewCards: React.FC<OverviewCardsProps> = ({
         className="p-4.5 flex flex-col justify-between animate-card-entrance"
         style={{ animationDelay: '60ms' }}
       >
+        <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-accent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
         <div>
-          <div className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider flex items-center gap-1.5 mb-2">
-            <Footprints className="w-3.5 h-3.5 text-text-secondary" /> Walk-in Guests
+          <div className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider flex items-center gap-1.5 mb-2 group-hover:text-text-primary transition-colors">
+            <Footprints className="w-3.5 h-3.5 text-text-secondary transition-transform duration-200 group-hover:scale-110 group-hover:-rotate-3 group-hover:text-accent" /> Walk-in Guests
           </div>
-          <div className="text-2xl font-bold tracking-tight text-text-primary">
+          <div className="text-2xl font-bold tracking-tight text-text-primary group-hover:text-accent transition-colors">
             <AnimatedNumber value={data.walkinCustomers.value} />
           </div>
         </div>
@@ -200,11 +202,12 @@ export const OverviewCards: React.FC<OverviewCardsProps> = ({
         className="p-4.5 flex flex-col justify-between animate-card-entrance"
         style={{ animationDelay: '240ms' }}
       >
+        <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-accent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
         <div>
-          <div className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider flex items-center gap-1.5 mb-2">
-            <RotateCcw className="w-3.5 h-3.5 text-text-secondary" /> Return Rate
+          <div className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider flex items-center gap-1.5 mb-2 group-hover:text-text-primary transition-colors">
+            <RotateCcw className="w-3.5 h-3.5 text-text-secondary transition-transform duration-200 group-hover:scale-110 group-hover:-rotate-12 group-hover:text-accent" /> Return Rate
           </div>
-          <div className="text-2xl font-bold tracking-tight text-accent">
+          <div className="text-2xl font-bold tracking-tight text-accent transition-transform duration-200 group-hover:scale-[1.03] origin-left">
             <AnimatedNumber value={data.returnRate.value} suffix="%" />
           </div>
         </div>
@@ -220,11 +223,12 @@ export const OverviewCards: React.FC<OverviewCardsProps> = ({
         className="p-4.5 flex flex-col justify-between animate-card-entrance"
         style={{ animationDelay: '300ms' }}
       >
+        <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-accent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
         <div>
-          <div className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider flex items-center gap-1.5 mb-2">
-            <Percent className="w-3.5 h-3.5 text-text-secondary" /> Women-Owned
+          <div className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider flex items-center gap-1.5 mb-2 group-hover:text-text-primary transition-colors">
+            <Percent className="w-3.5 h-3.5 text-text-secondary transition-transform duration-200 group-hover:scale-110 group-hover:rotate-6 group-hover:text-accent" /> Women-Owned
           </div>
-          <div className="text-2xl font-bold tracking-tight text-text-primary">
+          <div className="text-2xl font-bold tracking-tight text-text-primary group-hover:text-accent transition-colors">
             <AnimatedNumber value={data.womenOwnedPct.value} suffix="%" />
           </div>
         </div>
@@ -240,11 +244,12 @@ export const OverviewCards: React.FC<OverviewCardsProps> = ({
         className="p-4.5 flex flex-col justify-between animate-card-entrance"
         style={{ animationDelay: '360ms' }}
       >
+        <div className="absolute top-0 left-0 right-0 h-[2px] bg-gradient-to-r from-transparent via-accent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-300" />
         <div>
-          <div className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider flex items-center gap-1.5 mb-2">
-            <Database className="w-3.5 h-3.5 text-text-secondary" /> Data Collected
+          <div className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider flex items-center gap-1.5 mb-2 group-hover:text-text-primary transition-colors">
+            <Database className="w-3.5 h-3.5 text-text-secondary transition-transform duration-200 group-hover:scale-110 group-hover:-rotate-3 group-hover:text-accent" /> Data Collected
           </div>
-          <div className={`text-2xl font-bold tracking-tight ${getDataCollectedColor(data.dataCollected.value)}`}>
+          <div className={`text-2xl font-bold tracking-tight ${getDataCollectedColor(data.dataCollected.value)} transition-transform duration-200 group-hover:scale-[1.03] origin-left`}>
             <AnimatedNumber value={data.dataCollected.value} suffix="%" />
           </div>
         </div>
