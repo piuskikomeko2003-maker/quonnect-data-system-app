@@ -101,6 +101,7 @@ export const QuickEntryPanel: React.FC<QuickEntryPanelProps> = ({
           formSubtitle: TAB_FORMS.paid.subtitle,
           countLabel: TAB_FORMS.paid.countLabel,
           lookupEnabled: true,
+          allowAddAnother: true,
         };
       case 'collection':
         return {

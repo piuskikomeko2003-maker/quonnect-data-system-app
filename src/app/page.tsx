@@ -85,6 +85,7 @@ import {
   DoorOpen,
   ShieldCheck,
   RefreshCw,
+  ArrowUpDown,
 } from 'lucide-react';
 
 const CustomGrowthTooltip = ({ active, payload, label }: any) => {
@@ -243,9 +244,17 @@ export default function Home() {
   /** 'registered' = vendor has survey response | 'pending' = no survey response yet */
   const [paidVendorTab, setPaidVendorTab] = useState<'registered' | 'pending'>('registered');
   const [paidVendorSearch, setPaidVendorSearch] = useState('');
+  /** Row ordering for the paid vendors table by ticket number. */
+  const [paidVendorTicketSort, setPaidVendorTicketSort] = useState<'none' | 'asc' | 'desc'>('none');
   /** 'all' = everyone | 'confirmed' = entered venue | 'awaiting' = not yet entered */
   const [paidVendorEntryFilter, setPaidVendorEntryFilter] = useState<'all' | 'confirmed' | 'awaiting'>('all');
   const [checkingInId, setCheckingInId] = useState<string | null>(null);
+
+  // Quick mark-entry from search: matches show in a dropdown with a Mark Entry button.
+  const [paidVendorMatches, setPaidVendorMatches] = useState<any[]>([]);
+  const [showPaidVendorDropdown, setShowPaidVendorDropdown] = useState(false);
+  const paidVendorDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const paidVendorSearchWrapRef = useRef<HTMLDivElement | null>(null);
 
   // Overview live counts
   const [overviewCounts, setOverviewCounts] = useState({ paidVendors: 0, walkins: 0, surveyResponses: 0 });
@@ -859,7 +868,7 @@ export default function Home() {
     }
   };
 
-  const fetchPaidVendors = async () => {
+  const fetchPaidVendors = async (silent = false) => {
     try {
       const supabase = createClient();
       if (!supabase || !activeEdition?.id) {
@@ -869,7 +878,9 @@ export default function Home() {
         return;
       }
 
-      setLoadingPaidVendors(true);
+      // Silent refreshes (e.g. realtime echo after a gate-entry mark) reconcile the
+      // data in the background without swapping the table for a loading spinner.
+      if (!silent) setLoadingPaidVendors(true);
 
       // Fetch all vendor_registrations for this edition (all statuses so paid/unpaid cards work)
       let regRows: any[] = [];
@@ -1059,6 +1070,55 @@ export default function Home() {
       setCheckingInId(null);
     }
   };
+
+  /** Debounced search: match paid vendors by business name, vendor name or ticket #. */
+  useEffect(() => {
+    if (paidVendorDebounceRef.current) clearTimeout(paidVendorDebounceRef.current);
+
+    const term = paidVendorSearch.trim().toLowerCase();
+    if (!term) {
+      setPaidVendorMatches([]);
+      setShowPaidVendorDropdown(false);
+      return;
+    }
+
+    paidVendorDebounceRef.current = setTimeout(() => {
+      const matches = paidVendors
+        .filter(pv => {
+          if (pv.payment_status !== 'paid') return false;
+          const hay = `${pv.business_name || ''} ${pv.contact_name || ''} ${pv.ticket_number || ''}`.toLowerCase();
+          return hay.includes(term);
+        })
+        .slice(0, 8);
+      setPaidVendorMatches(matches);
+      setShowPaidVendorDropdown(matches.length > 0);
+    }, 250);
+
+    return () => {
+      if (paidVendorDebounceRef.current) clearTimeout(paidVendorDebounceRef.current);
+    };
+  }, [paidVendorSearch, paidVendors]);
+
+  /** Mark entry straight from the search dropdown, then close it so work can continue. */
+  const handleMarkVendorFromSearch = (pv: any) => {
+    // Optimistic update inside handleToggleVendorEntry keeps the marking instant;
+    // close the dropdown right away rather than waiting on the network round-trip.
+    void handleToggleVendorEntry(pv);
+    setShowPaidVendorDropdown(false);
+    setPaidVendorSearch('');
+    setPaidVendorMatches([]);
+  };
+
+  // Close the dropdown when clicking outside the search box (keeps the Mark Entry click alive).
+  useEffect(() => {
+    const onPointerDown = (e: MouseEvent) => {
+      const target = e.target as HTMLElement | null;
+      if (target && paidVendorSearchWrapRef.current?.contains(target)) return;
+      setShowPaidVendorDropdown(false);
+    };
+    document.addEventListener('mousedown', onPointerDown);
+    return () => document.removeEventListener('mousedown', onPointerDown);
+  }, []);
 
   const fetchSurveyResponses = async () => {
     try {
@@ -1369,7 +1429,9 @@ export default function Home() {
             'postgres_changes',
             { event: '*', schema: 'public', table: 'vendor_registrations' },
             () => {
-              fetchPaidVendors();
+              // Silent reconcile: gate-entry marks are already applied optimistically in
+              // handleToggleVendorEntry, so we refresh counts/data without the loading flash.
+              fetchPaidVendors(true);
               fetchOverviewCounts();
             }
           )
@@ -3659,6 +3721,79 @@ export default function Home() {
                       })()}
                     </div>
 
+                    {/* Sticky search & sort — stays in reach while scrolling deep in the list.
+                        Search only drives the quick mark-entry dropdown; it never filters rows,
+                        so the list and scroll position you were working through stay put. */}
+                    <div className="sticky top-0 z-20 bg-white border border-border rounded-xl shadow-xs px-3.5 py-2.5 flex items-center gap-2">
+                      <div className="relative flex-1" ref={paidVendorSearchWrapRef}>
+                        <Search className="w-3.5 h-3.5 text-text-tertiary absolute left-3 top-1/2 -translate-y-1/2" />
+                        <input
+                          type="text"
+                          value={paidVendorSearch}
+                          onChange={e => setPaidVendorSearch(e.target.value)}
+                          onFocus={() => { if (paidVendorMatches.length > 0) setShowPaidVendorDropdown(true); }}
+                          placeholder="Search ticket #, business or vendor name..."
+                          className="w-full bg-white border border-border rounded-lg pl-9 pr-3 py-2 text-xs text-text-primary placeholder-text-tertiary focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-colors"
+                        />
+                        {showPaidVendorDropdown && paidVendorMatches.length > 0 && (
+                          <div className="absolute z-30 left-0 right-0 mt-1 bg-white border border-border rounded-lg shadow-elevated overflow-hidden text-left">
+                            {paidVendorMatches.map((m) => {
+                              const isConfirmed = !!m.check_in_time;
+                              const isBusy = checkingInId === m.id;
+                              return (
+                                <div
+                                  key={m.id}
+                                  className="flex items-center justify-between gap-3 px-3 py-2 border-b border-border/50 last:border-b-0"
+                                >
+                                  <span className="min-w-0">
+                                    <span className="block text-xs font-semibold text-text-primary truncate">
+                                      {m.business_name || m.contact_name || '—'}
+                                    </span>
+                                    <span className="block text-[10px] text-text-tertiary font-mono mt-0.5 truncate">
+                                      {m.contact_name || '—'}{m.ticket_number ? ` · #${m.ticket_number}` : ''}
+                                    </span>
+                                  </span>
+                                  <button
+                                    type="button"
+                                    onClick={() => handleMarkVendorFromSearch(m)}
+                                    disabled={isBusy}
+                                    title={isConfirmed ? 'Undo entry' : 'Confirm this vendor has entered the venue'}
+                                    className={`shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50 disabled:cursor-wait ${
+                                      isConfirmed
+                                        ? 'bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-200'
+                                        : 'text-text-secondary bg-white border-border hover:border-emerald-300 hover:text-emerald-700 hover:bg-emerald-50'
+                                    }`}
+                                  >
+                                    {isBusy ? (
+                                      <Loader2 className="w-3 h-3 animate-spin" />
+                                    ) : isConfirmed ? (
+                                      <ShieldCheck className="w-3 h-3" />
+                                    ) : (
+                                      <DoorOpen className="w-3 h-3" />
+                                    )}
+                                    {isConfirmed ? 'Confirmed' : 'Mark Entry'}
+                                  </button>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        )}
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => setPaidVendorTicketSort(s => s === 'none' ? 'asc' : s === 'asc' ? 'desc' : 'none')}
+                        title="Sort rows by ticket number"
+                        className={`shrink-0 inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-2 rounded-lg border transition-colors cursor-pointer whitespace-nowrap ${
+                          paidVendorTicketSort === 'none'
+                            ? 'bg-white border-border text-text-secondary hover:text-text-primary hover:border-border-light'
+                            : 'bg-accent-soft border-accent text-accent'
+                        }`}
+                      >
+                        <ArrowUpDown className="w-3.5 h-3.5" />
+                        {paidVendorTicketSort === 'none' ? 'Ticket #' : paidVendorTicketSort === 'asc' ? 'Ticket # ↑' : 'Ticket # ↓'}
+                      </button>
+                    </div>
+
                     {/* Paid Vendors — Two-tab view: Registered / Not Yet Registered */}
                     <div className="bg-white border border-border rounded-xl overflow-hidden shadow-xs">
                       {/* Tab header */}
@@ -3743,17 +3878,6 @@ export default function Home() {
                             </div>
                           );
                         })()}
-                        {/* Business name search */}
-                        <div className="relative">
-                          <Search className="w-3.5 h-3.5 text-text-tertiary absolute left-3 top-1/2 -translate-y-1/2" />
-                          <input
-                            type="text"
-                            value={paidVendorSearch}
-                            onChange={e => setPaidVendorSearch(e.target.value)}
-                            placeholder="Search ticket # or business name..."
-                            className="w-full bg-white border border-border rounded-lg pl-9 pr-3 py-2 text-xs text-text-primary placeholder-text-tertiary focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-colors"
-                          />
-                        </div>
                       </div>
 
                       {loadingPaidVendors ? (
@@ -3769,13 +3893,27 @@ export default function Home() {
                             if (paidVendorEntryFilter === 'confirmed' && !pv.check_in_time) return false;
                             if (paidVendorEntryFilter === 'awaiting' && pv.check_in_time) return false;
                           }
-                          if (paidVendorSearch) {
-                            const term = paidVendorSearch.toLowerCase().trim();
-                            const hay = `${pv.ticket_number || ''} ${pv.business_name || ''} ${pv.contact_name || ''}`.toLowerCase();
-                            if (!hay.includes(term)) return false;
-                          }
+                          // NOTE: paidVendorSearch deliberately does NOT filter rows. It only
+                          // drives the sticky quick mark-entry dropdown, so searching a walk-up
+                          // vendor never disturbs the list/scroll position you're working through.
                           return true;
                         });
+
+                        // Optional ordering by ticket number (rows without a ticket stay last).
+                        if (paidVendorTicketSort !== 'none') {
+                          const ticketNum = (t: any): number | null => {
+                            const n = parseInt(String(t || '').replace(/\D/g, ''), 10);
+                            return Number.isFinite(n) ? n : null;
+                          };
+                          tabVendors.sort((a, b) => {
+                            const av = ticketNum(a.ticket_number);
+                            const bv = ticketNum(b.ticket_number);
+                            if (av === null && bv === null) return 0;
+                            if (av === null) return 1;
+                            if (bv === null) return -1;
+                            return paidVendorTicketSort === 'asc' ? av - bv : bv - av;
+                          });
+                        }
                         return tabVendors.length === 0 ? (
                           <div className="p-12 text-center select-none">
                             {paidVendorTab === 'registered' ? (

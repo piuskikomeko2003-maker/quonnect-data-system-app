@@ -111,6 +111,8 @@ export interface DynamicQuickEntryFormProps {
   onFormDataCached?: (data: FormDataCache) => void;
   initialAnswers?: Record<string, string>;
   editMode?: boolean;
+  /** Admin quick-entry only: allow registering another entry right from the ticket screen. */
+  allowAddAnother?: boolean;
 }
 
 export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
@@ -129,6 +131,7 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
   onFormDataCached,
   initialAnswers,
   editMode = false,
+  allowAddAnother = false,
 }) => {
   const [questions, setQuestions] = useState<FormQuestion[]>(cachedData?.questions || []);
   const [sectionQuestions, setSectionQuestions] = useState<Record<string, FormQuestion[]>>({});
@@ -831,12 +834,14 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
 
           {/* Single-Use Warning & Actions (outside downloaded card) */}
           <div className="space-y-3">
-            <div className="p-3 bg-amber/10 border border-amber/20 rounded-md text-[11px] text-amber flex items-start gap-2">
-              <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
-              <span>
-                <strong>Single-Use Link Closed:</strong> This registration link has now expired and cannot be reused. Download or screenshot this pass for event day check-in.
-              </span>
-            </div>
+            {!allowAddAnother && (
+              <div className="p-3 bg-amber/10 border border-amber/20 rounded-md text-[11px] text-amber flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>
+                  <strong>Single-Use Link Closed:</strong> This registration link has now expired and cannot be reused. Download or screenshot this pass for event day check-in.
+                </span>
+              </div>
+            )}
 
             <div className="flex flex-wrap sm:flex-nowrap gap-2 pt-1">
               <Button
@@ -876,6 +881,18 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
                 <span>{copiedTicket ? 'Copied!' : 'Copy Code'}</span>
               </Button>
             </div>
+
+            {allowAddAnother && (
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={resetForm}
+                className="w-full py-3 flex items-center justify-center gap-2 text-xs font-bold text-accent border-accent/40 hover:bg-accent-soft cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Add Another Paid Vendor</span>
+              </Button>
+            )}
           </div>
         </div>
       );
