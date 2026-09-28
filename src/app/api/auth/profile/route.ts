@@ -34,6 +34,7 @@ export async function GET() {
     return NextResponse.json({
       id: user.id,
       email: user.email,
+      user_metadata: user.user_metadata || {},
       profile: profile || null,
     });
   } catch (err: any) {

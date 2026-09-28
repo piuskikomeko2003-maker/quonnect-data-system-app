@@ -24,6 +24,7 @@ export interface Market {
   vendorsCount: number;
 }
 import { isTestEdition } from '@/lib/editions';
+import { GreetingCard } from '@/components/dashboard/GreetingCard';
 import { AlertBanner } from '@/components/dashboard/AlertBanner';
 import { FilterBar, FilterState } from '@/components/dashboard/FilterBar';
 import { VendorTable, Vendor } from '@/components/vendors/VendorTable';
@@ -166,7 +167,7 @@ export default function Home() {
   const [mounted, setMounted] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
   const { activeRegion, activeEdition, regions: ctxRegions, switchRegion, loadingRegions, editions: ctxEditions, setActiveEdition } = useRegion();
-  const { email, role, profile, loading: authLoading, isPending, signOut, refreshProfile } = useAuth();
+  const { email, role, profile, firstName, name, loading: authLoading, isPending, signOut, refreshProfile } = useAuth();
 
   const { addToast } = useToast();
 
@@ -2996,29 +2997,17 @@ export default function Home() {
         {/* 1. OVERVIEW SCREEN */}
         {activeNav === 'overview' && (
           <div className="space-y-6 animate-fade-in text-left">
-            {/* Top Banner Row */}
-            <div className="flex justify-between items-center select-none">
-              <div>
-                <h1 className="text-xl font-bold tracking-tight text-text-primary">Operational Overview</h1>
-                <p className="text-xs text-text-secondary mt-0.5">Real-time indicators and metrics for {currentMarket.name}.</p>
-              </div>
-            </div>
+            {/* Top Greeting Card */}
+            <GreetingCard name={name ?? firstName} marketName={currentMarket.name} />
 
-            {/* Alert Banners */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {mergeProposals.length > 0 && (
-                <AlertBanner
-                  type="warning"
-                  title="Manual Verification Required"
-                  subtitle={`Flagged duplicate warning: ${mergeProposals.length} vendor profiles share identifiers.`}
-                />
-              )}
+            {/* Alert Banner for flagged duplicate profiles */}
+            {mergeProposals.length > 0 && (
               <AlertBanner
-                type="success"
-                title="Data Collection Status"
-                subtitle={`${overviewCounts.surveyResponses} survey responses collected${overviewCounts.paidVendors > 0 ? ` (${Math.round((overviewCounts.surveyResponses / overviewCounts.paidVendors) * 100)}% of paid vendors)` : ''}.`}
+                type="warning"
+                title="Manual Verification Required"
+                subtitle={`Flagged duplicate warning: ${mergeProposals.length} vendor profiles share identifiers.`}
               />
-            </div>
+            )}
 
             {/* SECTION 1 — Live Event Snapshot */}
             {overviewLoading ? (
