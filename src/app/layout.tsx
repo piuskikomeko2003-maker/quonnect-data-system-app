@@ -24,6 +24,13 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   title: "Quonnect Data System",
   description: "Field data collection for market editions",
+  icons: {
+    icon: [
+      { url: "/icon.svg", type: "image/svg+xml" },
+      { url: "/favicon.ico", sizes: "any" },
+    ],
+    apple: "/apple-icon.png",
+  },
 };
 
 export default function RootLayout({

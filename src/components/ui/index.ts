@@ -7,4 +7,5 @@ export * from './Select';
 export * from './Tooltip';
 export * from './AnimatedNumber';
 export * from './Skeleton';
+export * from './QuonnectIcon';
 

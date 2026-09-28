@@ -24,6 +24,7 @@ import {
   ChevronRight
 } from 'lucide-react';
 import { Badge } from '../ui/Badge';
+import { QuonnectIcon } from '../ui/QuonnectIcon';
 import { useRegion, Region, Edition } from '@/context/RegionContext';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '../ui/Button';
@@ -213,9 +214,12 @@ export const AdminShell: React.FC<AdminShellProps> = ({
       >
         {/* Brand logo */}
         <div className="p-4 sm:p-5 border-b border-border flex items-center justify-between">
-          <div className={`logo font-black text-xl tracking-tight select-none ${isMobileMenuOpen ? 'block' : 'hidden'} ${isDesktopCollapsed ? 'md:hidden' : 'md:block'}`}>
-            QUON<span className="text-accent">NECT</span>
-            <div className="text-[10px] text-text-tertiary tracking-widest font-semibold uppercase mt-0.5">Workspace Mode</div>
+          <div className="flex items-center gap-2.5 min-w-0">
+            <QuonnectIcon size={28} className="rounded-lg shrink-0 shadow-2xs" />
+            <div className={`logo font-black text-xl tracking-tight select-none ${isMobileMenuOpen ? 'block' : 'hidden'} ${isDesktopCollapsed ? 'md:hidden' : 'md:block'}`}>
+              QUON<span className="text-accent">NECT</span>
+              <div className="text-[10px] text-text-tertiary tracking-widest font-semibold uppercase mt-0.5">Workspace Mode</div>
+            </div>
           </div>
           {/* Mobile drawer close button */}
           <button 
@@ -463,6 +467,7 @@ export const AdminShell: React.FC<AdminShellProps> = ({
               <Menu className="w-5 h-5" />
             </button>
             <div className="flex items-center gap-1.5 sm:gap-2 text-xs font-bold text-text-primary min-w-0 flex-wrap">
+              <QuonnectIcon size={20} className="md:hidden rounded-md shrink-0 shadow-2xs" />
               <span className="hidden sm:inline">Quonnect Data Hub</span>
               <span className="sm:hidden text-[11px] font-black text-text-primary">QDH</span>
               {activeRegion && (

@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { createClient } from '@/lib/supabase/client';
+import { QuonnectIcon } from '@/components/ui/QuonnectIcon';
 import { Eye, EyeOff, CheckCircle2, AlertCircle, ArrowRight, Loader2, UserCheck, LogOut } from 'lucide-react';
 
 export default function SignupPage() {
@@ -142,6 +143,7 @@ export default function SignupPage() {
     <div className="min-h-dvh flex items-center justify-center bg-bg p-4">
       <div className="w-full max-w-md p-8 bg-white border border-border rounded-2xl shadow-elevated">
         <div className="mb-6 text-center">
+          <QuonnectIcon size={44} className="mx-auto mb-3.5 rounded-xl shadow-xs" />
           <div className="text-2xl font-black tracking-tight text-text-primary">
             QUON<span className="text-sky-500">NECT</span>
           </div>
