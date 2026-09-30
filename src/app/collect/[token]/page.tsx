@@ -15,7 +15,7 @@ import {
 import type { Submission, CachedSchema } from '@/lib/db';
 import { DynamicQuickEntryForm, type FormDataCache } from '@/components/forms/DynamicQuickEntryForm';
 import { Users, Database, Footprints, Loader2, AlertCircle, WifiOff, CloudOff, RefreshCw, Clock, Lock, Ticket } from 'lucide-react';
-import { formatTicketCode } from '@/utils/ticket';
+import { registerPaidVendorAtomic } from '@/lib/paidRegistration';
 
 // Change to 'latest_closed_edition' to look back only at completed editions
 type AutofillLookback = 'latest_any_edition' | 'latest_closed_edition';
@@ -273,6 +273,11 @@ export default function CollectPage() {
         const isExpired = linkResult.expires_at && new Date(linkResult.expires_at) <= new Date();
         if (isExpired) {
           setIsLinkAlreadyUsed(true);
+
+          // Only the device that completed registration can reopen the pass:
+          // the ticket is read from this browser's local cache. Any other
+          // device sees the "link already redeemed" screen and can never
+          // register again with this token.
           try {
             const saved = localStorage.getItem(`ticket_${token}`);
             if (saved) {
@@ -287,13 +292,14 @@ export default function CollectPage() {
             }
           } catch {}
 
-          // Also fetch edition data so ticket header renders nicely
+          // Fetch edition data so the ticket header renders nicely
           const { data: editionData } = await supabase
             .from('market_days')
             .select('id, name')
             .eq('id', linkResult.edition_id)
             .single();
           if (editionData) setEdition(editionData);
+
           setLinkData(linkResult);
           setLoading(false);
           return;
@@ -486,7 +492,25 @@ export default function CollectPage() {
     async (answers: Record<string, string>, submissionId?: string): Promise<{ synced: boolean; message?: string; name?: string; ticketData?: any }> => {
       if (!edition) throw new Error('No edition');
 
-      // 1. Try atomic server-side endpoint with mutex / advisory locking (handles 300+ concurrent registrations safely)
+      const applyTicket = (ticketData: any) => {
+        try {
+          localStorage.setItem(`ticket_${token}`, JSON.stringify(ticketData));
+        } catch {}
+        setRunningCount(c => c + 1);
+        setSuccessState({
+          show: true,
+          name: ticketData.vendorName || ticketData.businessName,
+          ticketData,
+          onAddAnother: () => {},
+        });
+        return {
+          synced: true,
+          name: ticketData.businessName || ticketData.vendorName,
+          ticketData,
+        };
+      };
+
+      // 1. Prefer the atomic server-side endpoint (service role).
       try {
         const res = await fetch('/api/collect/paid-register', {
           method: 'POST',
@@ -500,182 +524,37 @@ export default function CollectPage() {
           }),
         });
 
-        const data = await res.json();
+        const data = await res.json().catch(() => ({} as any));
         if (res.ok && data.success && data.ticketData) {
-          try {
-            localStorage.setItem(`ticket_${token}`, JSON.stringify(data.ticketData));
-          } catch {}
-
-          setRunningCount(c => c + 1);
-          setSuccessState({
-            show: true,
-            name: data.ticketData.vendorName || data.ticketData.businessName,
-            ticketData: data.ticketData,
-            onAddAnother: () => {},
-          });
-
-          return {
-            synced: true,
-            name: data.ticketData.businessName || data.ticketData.vendorName,
-            ticketData: data.ticketData,
-          };
-        } else if (!res.ok) {
+          return applyTicket(data.ticketData);
+        }
+        if (res.status === 400) {
           throw new Error(data.error || 'Registration failed');
         }
+        // 503 / other server error → fall through to the client-side atomic path.
       } catch (apiErr: any) {
-        if (apiErr?.message?.includes('already been used') || apiErr?.message?.includes('Invalid registration link')) {
-          throw apiErr;
-        }
-        const isNetwork = apiErr instanceof TypeError || apiErr?.message?.includes('fetch') || apiErr?.message?.includes('network');
+        const msg = apiErr?.message || '';
+        const isNetwork =
+          apiErr instanceof TypeError ||
+          msg.includes('fetch') ||
+          msg.includes('network') ||
+          msg.includes('Failed to fetch');
         if (!isNetwork) throw apiErr;
       }
 
-      // 2. Direct client-side fallback (used for offline or direct DB access)
+      // 2. Client-side atomic fallback: same DB function, so concurrency and
+      //    idempotency guarantees hold even when the API route is unreachable.
       const supabase = createClient();
       if (!supabase) throw new Error('Client not initialized');
 
-      // Atomic check: ensure link has not already been used
-      const { data: currentLink } = await supabase
-        .from('form_links')
-        .select('expires_at')
-        .eq('token', token)
-        .single();
-      if (currentLink?.expires_at && new Date(currentLink.expires_at) <= new Date()) {
-        throw new Error('This registration link has already been used and is closed.');
-      }
-
-      // Count earlier registrations for this edition to determine sequential ticket number
-      const { count: earlierCount } = await supabase
-        .from('vendor_registrations')
-        .select('id', { count: 'exact', head: true })
-        .eq('market_day_id', edition.id);
-
-      const ticketNumber = (earlierCount || 0) + 1;
-      const ticketCode = formatTicketCode(ticketNumber);
-
-      const phone = answers.phone || answers.phone_number || '';
-      const contactName = answers.contact_name || answers.full_name || answers.name || '';
-      const businessName = answers.business_name || '';
-      const category = answers.category || answers.business_category || '';
-      const amountPaid = answers.amount_paid ? parseFloat(answers.amount_paid) : 0;
-      const paymentStatus = answers.payment_status || 'paid';
-
-      // Upsert vendor record atomically
-      const { data: upserted, error: insErr } = await supabase
-        .from('vendors')
-        .upsert(
-          {
-            business_name: businessName || contactName || 'Unknown Vendor',
-            contact_name: contactName,
-            phone,
-            email: answers.email || '',
-            category,
-            is_active: true,
-          },
-          { onConflict: 'phone' }
-        )
-        .select('id')
-        .single();
-
-      if (insErr || !upserted) {
-        throw new Error('Failed to create vendor: ' + (insErr?.message || 'no row returned'));
-      }
-      const vendorId = upserted.id;
-
-      const { data: existingReg } = await supabase
-        .from('vendor_registrations')
-        .select('id, stall_number, notes')
-        .eq('vendor_id', vendorId)
-        .eq('market_day_id', edition.id)
-        .limit(1);
-
-      let finalTicketNumber = ticketNumber;
-      let finalTicketCode = ticketCode;
-
-      if (existingReg && existingReg.length > 0) {
-        // Vendor was already registered; preserve their existing stall / ticket if present
-        if (existingReg[0].stall_number) {
-          finalTicketCode = existingReg[0].stall_number;
-          const matchNum = existingReg[0].stall_number.match(/\d+/);
-          if (matchNum) finalTicketNumber = parseInt(matchNum[0], 10);
-        }
-      } else {
-        const payload: Record<string, unknown> = {
-          market_day_id: edition.id,
-          vendor_id: vendorId,
-          amount_paid: amountPaid,
-          payment_status: paymentStatus,
-          stall_number: ticketCode,
-          notes: `Ticket #${ticketNumber}`,
-        };
-        if (submissionId) payload.id = submissionId;
-
-        try {
-          const { error: regErr } = await supabase.from('vendor_registrations').insert({
-            ...payload,
-            ticket_number: ticketCode,
-          });
-          if (regErr) {
-            if (regErr.code === '42703' || regErr.message?.includes('ticket_number')) {
-              const { error: fallbackErr } = await supabase.from('vendor_registrations').insert(payload);
-              if (fallbackErr && fallbackErr.code !== '23505') throw fallbackErr;
-            } else if (regErr.code !== '23505') {
-              throw regErr;
-            }
-          }
-        } catch {
-          const { error: fallbackErr } = await supabase.from('vendor_registrations').insert(payload);
-          if (fallbackErr && fallbackErr.code !== '23505') throw fallbackErr;
-        }
-      }
-
-      // Mark the link as used / closed immediately so it can never be used again
-      const nowIso = new Date().toISOString();
-      try {
-        await supabase
-          .from('form_links')
-          .update({
-            expires_at: nowIso,
-            used_at: nowIso,
-            ticket_number: finalTicketCode,
-            used_by_vendor_id: vendorId,
-          })
-          .eq('token', token);
-      } catch {
-        await supabase
-          .from('form_links')
-          .update({
-            expires_at: nowIso,
-          })
-          .eq('token', token);
-      }
-
-      const ticketData = {
-        ticketNumber: finalTicketNumber,
-        ticketCode: finalTicketCode,
+      const ticketData = await registerPaidVendorAtomic(supabase, {
+        token,
+        editionId: edition.id,
         editionName: edition.name,
-        vendorName: contactName,
-        businessName,
-        phone,
-        category,
-        amountPaid,
-        paymentStatus,
-        registeredAt: nowIso,
-      };
-
-      try {
-        localStorage.setItem(`ticket_${token}`, JSON.stringify(ticketData));
-      } catch {}
-
-      setRunningCount(c => c + 1);
-      setSuccessState({
-        show: true,
-        name: contactName,
-        ticketData,
-        onAddAnother: () => {},
+        answers,
       });
 
-      return { synced: true, name: businessName || contactName, ticketData };
+      return applyTicket(ticketData);
     },
     [edition, token]
   );
@@ -1150,65 +1029,19 @@ async function replaySubmission(
 
   switch (submission.form_slug) {
     case 'paid_vendor_registration': {
-      const phone = answers.phone || answers.phone_number || '';
-      const contactName = answers.contact_name || '';
-      const businessName = answers.business_name || '';
-      const category = answers.category || '';
-      const amountPaid = answers.amount_paid ? parseFloat(answers.amount_paid) : 0;
-      const paymentStatus = answers.payment_status || 'paid';
-
-      const { data: existing } = await supabase
-        .from('vendors')
-        .select('id')
-        .eq('phone', phone)
-        .limit(1);
-
-      let vendorId: string;
-      if (existing && existing.length > 0) {
-        vendorId = existing[0].id;
-        await supabase
-          .from('vendors')
-          .update({
-            business_name: businessName,
-            contact_name: contactName,
-            email: answers.email || '',
-            category,
-            is_active: true,
-          })
-          .eq('id', vendorId);
-      } else {
-        const { data: inserted } = await supabase
-          .from('vendors')
-          .insert({
-            business_name: businessName,
-            contact_name: contactName,
-            phone,
-            email: answers.email || '',
-            category,
-            is_active: true,
-          })
-          .select();
-        if (!inserted || inserted.length === 0) throw new Error('Replay: failed to create vendor');
-        vendorId = inserted[0].id;
-      }
-
-      const { data: existingReg } = await supabase
-        .from('vendor_registrations')
-        .select('id')
-        .eq('vendor_id', vendorId)
-        .eq('market_day_id', edition.id)
-        .limit(1);
-
-      if (!existingReg || existingReg.length === 0) {
-        const payload: Record<string, unknown> = {
-          market_day_id: edition.id,
-          vendor_id: vendorId,
-          amount_paid: amountPaid,
-          payment_status: paymentStatus,
-        };
-        const { error: regErr } = await supabase.from('vendor_registrations').insert(payload);
-        if (regErr && regErr.code !== '23505') throw new Error('Replay: ' + regErr.message);
-      }
+      // Same atomic issuance used online, so an offline queue replay can never
+      // create a duplicate or a gap in ticket numbers.
+      const ticket = await registerPaidVendorAtomic(supabase, {
+        token: submission.token,
+        editionId: edition.id,
+        editionName: edition.name,
+        answers,
+      });
+      // Cache the issued ticket on this device so the vendor can reopen the
+      // (now used) link and view/download the pass again.
+      try {
+        localStorage.setItem(`ticket_${submission.token}`, JSON.stringify(ticket));
+      } catch {}
       break;
     }
 

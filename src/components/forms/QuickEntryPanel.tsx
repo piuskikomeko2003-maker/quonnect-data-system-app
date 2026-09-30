@@ -56,7 +56,23 @@ export interface QuickEntryPanelProps {
   paidCount: number;
   collectionCount: number;
   walkinCount: number;
-  paidSuccessState: { show: boolean; name?: string; onAddAnother: () => void };
+  paidSuccessState: {
+    show: boolean;
+    name?: string;
+    ticketData?: {
+      ticketNumber: number;
+      ticketCode: string;
+      editionName: string;
+      vendorName: string;
+      businessName?: string;
+      phone: string;
+      category?: string;
+      amountPaid?: number;
+      paymentStatus?: string;
+      registeredAt: string;
+    };
+    onAddAnother: () => void;
+  };
   collectionSuccessState: { show: boolean; name?: string; onAddAnother: () => void };
   walkinSuccessState: { show: boolean; name?: string; onAddAnother: () => void };
 }

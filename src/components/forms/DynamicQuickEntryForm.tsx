@@ -147,7 +147,7 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
   const ticketCardRef = useRef<HTMLDivElement>(null);
   const customTicketCardRef = useRef<HTMLDivElement>(null);
   const [ticketTemplate, setTicketTemplate] = useState<TicketTemplate | null>(null);
-  const [templateScale, setTemplateScale] = useState<number>(1);
+  const [loadedTicketBgUrl, setLoadedTicketBgUrl] = useState<string | null>(null);
 
   // Fetch ticket template for current edition
   useEffect(() => {
@@ -169,23 +169,27 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
       });
   }, [activeEdition?.id]);
 
-  // Update scaling ratio when container resizes
+  // Preload the ticket background so the pass paints complete (no half-rendered flash).
+  // State is only set from the async image callbacks, so no cascade on mount.
   useEffect(() => {
-    const updateScale = () => {
-      if (customTicketCardRef.current && ticketTemplate?.canvas_width) {
-        const containerWidth = customTicketCardRef.current.clientWidth;
-        if (containerWidth > 0) {
-          setTemplateScale(containerWidth / ticketTemplate.canvas_width);
-        }
-      }
+    const url = ticketTemplate?.background_image_url;
+    if (!url) return;
+    let cancelled = false;
+    const img = new window.Image();
+    const markLoaded = () => {
+      if (!cancelled) setLoadedTicketBgUrl(url);
     };
-    updateScale();
-    window.addEventListener('resize', updateScale);
-    return () => window.removeEventListener('resize', updateScale);
-  }, [ticketTemplate]);
+    img.onload = markLoaded;
+    img.onerror = markLoaded;
+    img.src = url;
+    return () => {
+      cancelled = true;
+    };
+  }, [ticketTemplate?.background_image_url]);
   const [lookupStatus, setLookupStatus] = useState<'idle' | 'searching' | 'returning' | 'new'>('idle');
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [touchedFields, setTouchedFields] = useState<Set<string>>(new Set());
+  const touchedFieldsRef = useRef<Set<string>>(new Set());
   const [autofilledFields, setAutofilledFields] = useState<Set<string>>(
     new Set(initialAnswers ? Object.keys(initialAnswers) : [])
   );
@@ -424,11 +428,8 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
   const handleAnswerChange = (csvColumn: string, value: string) => {
     setAnswers(prev => ({ ...prev, [csvColumn]: value }));
     setValidationErrors([]);
-    setTouchedFields(prev => {
-      const next = new Set(prev);
-      next.add(csvColumn);
-      return next;
-    });
+    touchedFieldsRef.current = new Set(touchedFieldsRef.current).add(csvColumn);
+    setTouchedFields(new Set(touchedFieldsRef.current));
     setAutofilledFields(prev => {
       const next = new Set(prev);
       next.delete(csvColumn);
@@ -447,8 +448,22 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
         onPhoneLookup(digits).then(result => {
           if (result) {
             setLookupStatus('returning');
-            setAnswers(prev => ({ ...prev, ...result.data }));
-            setAutofilledFields(new Set(result.autofilledFields));
+            // Only apply looked-up values to fields the user has not already
+            // edited, so a returning vendor's stored details (e.g. an old
+            // category) never overwrite a value entered on this form.
+            setAnswers(prev => {
+              const next = { ...prev };
+              for (const [key, val] of Object.entries(result.data)) {
+                if (key === csvColumn) {
+                  next[key] = val;
+                  continue;
+                }
+                if (touchedFieldsRef.current.has(key)) continue;
+                next[key] = val;
+              }
+              return next;
+            });
+            setAutofilledFields(new Set(result.autofilledFields.filter(f => !touchedFieldsRef.current.has(f))));
           } else {
             setLookupStatus('new');
           }
@@ -472,6 +487,8 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
     }
     setAnswers(prev => ({ ...prev, [csvColumn]: updated.join('||') }));
     setValidationErrors([]);
+    touchedFieldsRef.current = new Set(touchedFieldsRef.current).add(csvColumn);
+    setTouchedFields(new Set(touchedFieldsRef.current));
     setDefaultedFields(prev => {
       const next = new Set(prev);
       next.delete(csvColumn);
@@ -480,11 +497,8 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
   };
 
   const handleFieldBlur = (csvColumn: string) => {
-    setTouchedFields(prev => {
-      const next = new Set(prev);
-      next.add(csvColumn);
-      return next;
-    });
+    touchedFieldsRef.current = new Set(touchedFieldsRef.current).add(csvColumn);
+    setTouchedFields(new Set(touchedFieldsRef.current));
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -566,6 +580,7 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
     setLookupStatus('idle');
     setSyncFeedback(null);
     setOfflineSave({ show: false });
+    touchedFieldsRef.current = new Set();
     setTouchedFields(new Set());
     setAutofilledFields(new Set());
     setDefaultedFields(new Set());
@@ -578,6 +593,7 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
     setLookupStatus('idle');
     setSyncFeedback(null);
     setOfflineSave({ show: false });
+    touchedFieldsRef.current = new Set();
     setTouchedFields(new Set());
     setAutofilledFields(new Set());
     setDefaultedFields(new Set());
@@ -633,6 +649,14 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
           timeStyle: 'short',
         }),
       };
+
+      // Design-space dimensions of the custom ticket template (background + field coords)
+      const canvasWidth = ticketTemplate?.canvas_width || 1920;
+      const canvasHeight = ticketTemplate?.canvas_height || 1080;
+
+      // Derived on every render — true only once this exact template's background has decoded.
+      const ticketBgUrl = ticketTemplate?.background_image_url || null;
+      const ticketBgLoaded = !!ticketBgUrl && loadedTicketBgUrl === ticketBgUrl;
 
       const handleDownloadImage = async () => {
         setDownloadingImage(true);
@@ -694,7 +718,8 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
               ref={customTicketCardRef}
               className="relative rounded-xl overflow-hidden shadow-2xl border border-border/80 w-full select-none"
               style={{
-                height: `${(ticketTemplate.canvas_height || 1080) * templateScale}px`,
+                containerType: 'inline-size',
+                aspectRatio: `${canvasWidth} / ${canvasHeight}`,
               }}
             >
               {/* Background Art */}
@@ -705,44 +730,49 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
                 className="absolute inset-0 w-full h-full object-cover pointer-events-none"
               />
 
-              {/* Dynamic Vendor Fields */}
-              {REQUIRED_TICKET_FIELDS.map((field) => {
-                const pos = ticketTemplate.field_positions?.[field];
-                if (!pos) return null;
-                const text = fieldValues[field];
-                if (!text) return null;
+              {/* Dynamic Vendor Fields (positioned in % and sized in container units — no JS scaling) */}
+              {ticketBgLoaded &&
+                REQUIRED_TICKET_FIELDS.map((field) => {
+                  const pos = ticketTemplate.field_positions?.[field];
+                  if (!pos) return null;
+                  const text = fieldValues[field];
+                  if (!text) return null;
 
-                const scaledX = pos.x * templateScale;
-                const scaledY = pos.y * templateScale;
-                const adaptiveSize = computeAdaptiveFontSize(text, pos.fontSize || 18, pos.maxWidth);
-                const scaledFontSize = Math.max(8, adaptiveSize * templateScale);
-                const scaledMaxWidth = pos.maxWidth ? pos.maxWidth * templateScale : undefined;
+                  const adaptiveSize = computeAdaptiveFontSize(text, pos.fontSize || 18, pos.maxWidth);
 
-                return (
-                  <div
-                    key={field}
-                    style={{
-                      position: 'absolute',
-                      left: `${scaledX}px`,
-                      top: `${scaledY}px`,
-                      fontSize: `${scaledFontSize}px`,
-                      color: pos.color || '#000000',
-                      fontWeight: (pos.fontWeight === 'bold' || pos.fontWeight === '700'
-                        ? 700
-                        : pos.fontWeight === 'semibold' || pos.fontWeight === '600'
-                        ? 600
-                        : 400) as any,
-                      maxWidth: scaledMaxWidth ? `${scaledMaxWidth}px` : undefined,
-                      lineHeight: 1.25,
-                      wordBreak: 'break-word',
-                      display: 'flex',
-                      flexWrap: 'wrap',
-                    }}
-                  >
-                    {text}
-                  </div>
-                );
-              })}
+                  return (
+                    <div
+                      key={field}
+                      style={{
+                        position: 'absolute',
+                        left: `${(pos.x / canvasWidth) * 100}%`,
+                        top: `${(pos.y / canvasHeight) * 100}%`,
+                        fontSize: `max(8px, ${(adaptiveSize / canvasWidth) * 100}cqw)`,
+                        color: pos.color || '#000000',
+                        fontWeight: (pos.fontWeight === 'bold' || pos.fontWeight === '700'
+                          ? 700
+                          : pos.fontWeight === 'semibold' || pos.fontWeight === '600'
+                          ? 600
+                          : 400) as any,
+                        maxWidth: pos.maxWidth ? `${(pos.maxWidth / canvasWidth) * 100}%` : undefined,
+                        lineHeight: 1.25,
+                        wordBreak: 'break-word',
+                        display: 'flex',
+                        flexWrap: 'wrap',
+                      }}
+                    >
+                      {text}
+                    </div>
+                  );
+                })}
+
+              {/* Placeholder until the background art has decoded — reserves the correct height, no layout shift */}
+              {!ticketBgLoaded && (
+                <div className="absolute inset-0 bg-bg-surface flex flex-col items-center justify-center gap-2">
+                  <Loader2 className="w-6 h-6 animate-spin text-green" />
+                  <span className="text-[11px] text-text-secondary">Generating your ticket…</span>
+                </div>
+              )}
             </div>
           ) : (
             <div

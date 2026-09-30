@@ -1568,7 +1568,23 @@ export default function Home() {
   const [isQuickEntryOpen, setIsQuickEntryOpen] = useState(true);
 
   // Quick Entry Success States
-  const [paidSuccessState, setPaidSuccessState] = useState<{ show: boolean; vendorName?: string; onAddAnother: () => void }>({
+  const [paidSuccessState, setPaidSuccessState] = useState<{
+    show: boolean;
+    vendorName?: string;
+    ticketData?: {
+      ticketNumber: number;
+      ticketCode: string;
+      editionName: string;
+      vendorName: string;
+      businessName?: string;
+      phone: string;
+      category?: string;
+      amountPaid?: number;
+      paymentStatus?: string;
+      registeredAt: string;
+    };
+    onAddAnother: () => void;
+  }>({
     show: false,
     vendorName: undefined,
     onAddAnother: () => { }
@@ -1759,100 +1775,29 @@ export default function Home() {
       const amountPaid = answers.amount_paid ? parseFloat(answers.amount_paid) : 0;
       const paymentStatus = answers.payment_status || 'paid';
 
-      const { data: existing, error: findError } = await supabase
-        .from('vendors')
-        .select('id')
-        .eq('phone', phone)
-        .limit(1);
+      // Atomic per-edition allocation shared with the single-use link flow.
+      // Guarantees a unique, sequential ticket even if several admins register
+      // vendors at the same moment.
+      const { data: rpcData, error: rpcError } = await supabase.rpc('register_paid_vendor_admin', {
+        p_edition_id: activeEdition.id,
+        p_phone: phone,
+        p_contact_name: contactName,
+        p_business_name: businessName,
+        p_category: category,
+        p_email: answers.email || '',
+        p_amount_paid: Number.isFinite(amountPaid) ? amountPaid : 0,
+        p_payment_status: paymentStatus,
+      });
 
-      if (findError) throw findError;
+      if (rpcError) throw new Error(rpcError.message);
 
-      let vendorId;
-      if (existing && existing.length > 0) {
-        vendorId = existing[0].id;
-        const { error: updateError } = await supabase
-          .from('vendors')
-          .update({
-            business_name: businessName,
-            contact_name: contactName,
-            email: answers.email || '',
-            category: category,
-            is_active: true
-          })
-          .eq('id', vendorId);
-
-        if (updateError) throw updateError;
-      } else {
-        const { data: inserted, error: insertError } = await supabase
-          .from('vendors')
-          .insert({
-            business_name: businessName,
-            contact_name: contactName,
-            phone: phone,
-            email: answers.email || '',
-            category: category,
-            is_active: true
-          })
-          .select();
-
-        if (insertError) throw insertError;
-        if (!inserted || inserted.length === 0) throw new Error("Failed to insert vendor profile.");
-        vendorId = inserted[0].id;
+      const rpcRow = Array.isArray(rpcData) ? rpcData[0] : rpcData;
+      if (!rpcRow || rpcRow.ticket_number == null) {
+        throw new Error('Could not issue ticket. Please retry.');
       }
 
-      if (activeEdition && vendorId) {
-        const { data: existingReg } = await supabase
-          .from('vendor_registrations')
-          .select('id')
-          .eq('vendor_id', vendorId)
-          .eq('market_day_id', activeEdition.id)
-          .limit(1);
-
-        if (!existingReg || existingReg.length === 0) {
-          const { count: earlierCount } = await supabase
-            .from('vendor_registrations')
-            .select('id', { count: 'exact', head: true })
-            .eq('market_day_id', activeEdition.id);
-
-          const ticketNumber = (earlierCount || 0) + 1;
-          const ticketCode = formatTicketCode(ticketNumber);
-
-          const payload: Record<string, unknown> = {
-            market_day_id: activeEdition.id,
-            vendor_id: vendorId,
-            amount_paid: amountPaid,
-            payment_status: paymentStatus,
-            stall_number: ticketCode,
-            notes: `Ticket #${ticketNumber}`,
-          };
-
-          try {
-            const { error: regError } = await supabase
-              .from('vendor_registrations')
-              .insert({ ...payload, ticket_number: ticketCode });
-            if (regError) {
-              if (regError.code === '42703' || regError.message?.includes('ticket_number')) {
-                const { error: fallbackErr } = await supabase.from('vendor_registrations').insert(payload);
-                if (fallbackErr) throw fallbackErr;
-              } else {
-                throw regError;
-              }
-            }
-          } catch {
-            const { error: fallbackErr } = await supabase.from('vendor_registrations').insert(payload);
-            if (fallbackErr) throw fallbackErr;
-          }
-        } else {
-          const { error: regUpdateError } = await supabase
-            .from('vendor_registrations')
-            .update({
-              amount_paid: amountPaid,
-              payment_status: paymentStatus,
-            })
-            .eq('id', existingReg[0].id);
-          if (regUpdateError) throw regUpdateError;
-        }
-      }
+      const finalTicketNumber = Number(rpcRow.ticket_number) || 1;
+      const finalTicketCode = rpcRow.ticket_code || formatTicketCode(finalTicketNumber);
 
       fetchPaidVendors();
       fetchVendors();
@@ -1872,6 +1817,18 @@ export default function Home() {
       setPaidSuccessState({
         show: true,
         vendorName: contactName,
+        ticketData: {
+          ticketNumber: finalTicketNumber,
+          ticketCode: finalTicketCode,
+          editionName: activeEdition.name,
+          vendorName: contactName,
+          businessName,
+          phone,
+          category,
+          amountPaid,
+          paymentStatus,
+          registeredAt: rpcRow.registered_at || new Date().toISOString(),
+        },
         onAddAnother: () => resetPaidForm()
       });
 
@@ -4135,6 +4092,7 @@ export default function Home() {
               paidSuccessState={{
                 show: paidSuccessState.show,
                 name: paidSuccessState.vendorName,
+                ticketData: paidSuccessState.ticketData,
                 onAddAnother: () => resetPaidForm()
               }}
               collectionSuccessState={{
