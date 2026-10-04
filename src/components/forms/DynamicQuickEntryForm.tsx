@@ -25,6 +25,15 @@ import {
   REQUIRED_TICKET_FIELDS,
 } from '@/types/ticketTemplate';
 import { formatTicketCode, normalizeTicketCode } from '@/utils/ticket';
+import { AmountQuickChips, isAmountQuestion } from './AmountQuickChips';
+
+// Applied on the field collection form when a phone lookup finds no existing
+// vendor (a brand-new / first-time vendor). Questions the collector has already
+// answered manually are never overwritten. Business growth is NOT set here —
+// it is derived from the "first time at Quonnect" answer below.
+const NEW_VENDOR_AUTO_ANSWERS: Record<string, string> = {
+  first_time_at_quonnect: 'Yes',
+};
 
 function computeAdaptiveFontSize(
   text: string,
@@ -425,6 +434,46 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
     });
   }, [questions, prefillDefaults, answers, touchedFields, isQuestionVisible]);
 
+  // Business growth is derived from the "first time at Quonnect" answer:
+  //   - "Yes" (first-timer) -> "First time" (nothing to compare against).
+  //   - "No" on a brand-new phone with no autofill -> "Improved" (they have
+  //     attended before, so growth is presumed). Returning vendors whose phone
+  //     matched keep their previously recorded growth.
+  useEffect(() => {
+    if (touchedFieldsRef.current.has('business_growth')) return;
+    if (!questions.some(q => q.csv_column === 'business_growth')) return;
+
+    const firstTime = answers.first_time_at_quonnect;
+    let target: string | null = null;
+    if (firstTime === 'Yes') {
+      target = 'First time';
+    } else if (firstTime === 'No' && lookupStatus === 'new') {
+      target = 'Improved';
+    }
+
+    if (!target || answers.business_growth === target) return;
+    setAnswers(prev => ({ ...prev, business_growth: target }));
+  }, [answers.first_time_at_quonnect, answers.business_growth, lookupStatus, questions]);
+
+  // Auto-answer the field collection form's "first-time vendor" questions when
+  // a phone lookup finds no existing vendor. Any question the collector already
+  // answered manually is left untouched.
+  const applyNewVendorDefaults = () => {
+    if (formSlug !== 'vendor_data_collection') return;
+    const applicable = Object.entries(NEW_VENDOR_AUTO_ANSWERS).filter(
+      ([column]) =>
+        questions.some(q => q.csv_column === column) &&
+        !touchedFieldsRef.current.has(column)
+    );
+    if (applicable.length === 0) return;
+    setAnswers(prev => {
+      const next = { ...prev };
+      for (const [column, val] of applicable) next[column] = val;
+      return next;
+    });
+    setAutofilledFields(prev => new Set([...prev, ...applicable.map(([column]) => column)]));
+  };
+
   const handleAnswerChange = (csvColumn: string, value: string) => {
     setAnswers(prev => ({ ...prev, [csvColumn]: value }));
     setValidationErrors([]);
@@ -448,6 +497,14 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
         onPhoneLookup(digits).then(result => {
           if (result) {
             setLookupStatus('returning');
+            // A matched phone number means this is a known vendor, so they are
+            // not a first-timer. Auto-answer "No" on the field collection form
+            // unless the collector already answered it manually.
+            const firstTimeColumn = 'first_time_at_quonnect';
+            const autoAnswerFirstTime =
+              formSlug === 'vendor_data_collection' &&
+              questions.some(q => q.csv_column === firstTimeColumn) &&
+              !touchedFieldsRef.current.has(firstTimeColumn);
             // Only apply looked-up values to fields the user has not already
             // edited, so a returning vendor's stored details (e.g. an old
             // category) never overwrite a value entered on this form.
@@ -461,14 +518,31 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
                 if (touchedFieldsRef.current.has(key)) continue;
                 next[key] = val;
               }
+              if (autoAnswerFirstTime) {
+                next[firstTimeColumn] = 'No';
+                // A vendor who attended before cannot report "First time" growth.
+                // If last edition's autofilled value still says so, refresh it
+                // to the non-first-timer default.
+                if (
+                  next.business_growth === 'First time' &&
+                  !touchedFieldsRef.current.has('business_growth')
+                ) {
+                  next.business_growth = 'Improved';
+                }
+              }
               return next;
             });
-            setAutofilledFields(new Set(result.autofilledFields.filter(f => !touchedFieldsRef.current.has(f))));
+            setAutofilledFields(new Set([
+              ...result.autofilledFields.filter(f => !touchedFieldsRef.current.has(f)),
+              ...(autoAnswerFirstTime ? [firstTimeColumn] : []),
+            ]));
           } else {
             setLookupStatus('new');
+            applyNewVendorDefaults();
           }
         }).catch(() => {
           setLookupStatus('new');
+          applyNewVendorDefaults();
         });
       } else {
         setLookupStatus('idle');
@@ -1028,17 +1102,27 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
         );
       }
 
-      case 'number':
+      case 'number': {
+        const showAmountChips = isAmountQuestion(q.csv_column, q.question_text);
         return (
-          <input
-            type="number"
-            placeholder={`Enter ${q.question_text.toLowerCase()}`}
-            value={value}
-            onChange={(e) => handleAnswerChange(q.csv_column, e.target.value)}
-            className="w-full bg-white border border-border focus:border-accent focus:ring-1 focus:ring-accent rounded-md px-3.5 py-2.5 text-text-primary text-sm font-sans placeholder-text-muted transition-colors outline-none"
-            required={q.is_required}
-          />
+          <div className="space-y-2">
+            <input
+              type="number"
+              placeholder={`Enter ${q.question_text.toLowerCase()}`}
+              value={value}
+              onChange={(e) => handleAnswerChange(q.csv_column, e.target.value)}
+              className="w-full bg-white border border-border focus:border-accent focus:ring-1 focus:ring-accent rounded-md px-3.5 py-2.5 text-text-primary text-sm font-sans placeholder-text-muted transition-colors outline-none"
+              required={q.is_required}
+            />
+            {showAmountChips && (
+              <AmountQuickChips
+                value={value}
+                onSelect={(raw) => handleAnswerChange(q.csv_column, raw)}
+              />
+            )}
+          </div>
         );
+      }
 
       case 'date':
         return (

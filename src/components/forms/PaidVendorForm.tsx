@@ -2,6 +2,7 @@ import React, { useEffect } from 'react';
 import { Phone, User, Building, Mail, Sparkles, Check, Plus, AlertCircle, Calendar } from 'lucide-react';
 import { Button } from '../ui/Button';
 import { Input, Select, Badge } from '../ui';
+import { AmountQuickChips } from './AmountQuickChips';
 
 export interface PaidVendorFormValues {
   phone: string;
@@ -175,16 +176,23 @@ export const PaidVendorForm: React.FC<PaidVendorFormProps> = ({
               onChange={(e) => onChange({ dob: e.target.value })}
             />
             {/* Amount Paid */}
-            <Input
-              label="Amount Paid (UGX)"
-              type="number"
-              prefixText="UGX"
-              placeholder="e.g. 50000"
-              value={values.amountPaid}
-              onChange={(e) => onChange({ amountPaid: e.target.value })}
-              requiredAsterisk
-              required
-            />
+            <div>
+              <Input
+                label="Amount Paid (UGX)"
+                type="number"
+                prefixText="UGX"
+                placeholder="e.g. 50000"
+                value={values.amountPaid}
+                onChange={(e) => onChange({ amountPaid: e.target.value })}
+                requiredAsterisk
+                required
+              />
+              <AmountQuickChips
+                className="mt-2"
+                value={values.amountPaid}
+                onSelect={(raw) => onChange({ amountPaid: raw })}
+              />
+            </div>
           </div>
         </div>
 
