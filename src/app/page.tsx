@@ -24,6 +24,7 @@ export interface Market {
   vendorsCount: number;
 }
 import { isTestEdition } from '@/lib/editions';
+import { isAdmin } from '@/lib/auth/permissions';
 import { GreetingCard } from '@/components/dashboard/GreetingCard';
 import { AlertBanner } from '@/components/dashboard/AlertBanner';
 import { FilterBar, FilterState } from '@/components/dashboard/FilterBar';
@@ -87,6 +88,7 @@ import {
   ShieldCheck,
   RefreshCw,
   ArrowUpDown,
+  LayoutGrid,
 } from 'lucide-react';
 
 const CustomGrowthTooltip = ({ active, payload, label }: any) => {
@@ -249,7 +251,16 @@ export default function Home() {
   const [paidVendorTicketSort, setPaidVendorTicketSort] = useState<'none' | 'asc' | 'desc'>('none');
   /** 'all' = everyone | 'confirmed' = entered venue | 'awaiting' = not yet entered */
   const [paidVendorEntryFilter, setPaidVendorEntryFilter] = useState<'all' | 'confirmed' | 'awaiting'>('all');
+  /** Business category filter for the paid vendors table. 'All' = no category filtering. */
+  const [paidVendorCategoryFilter, setPaidVendorCategoryFilter] = useState('All');
   const [checkingInId, setCheckingInId] = useState<string | null>(null);
+
+  // Inline "tables" editing on the paid vendors list (admin only).
+  const [editingTablesId, setEditingTablesId] = useState<string | null>(null);
+  const [tablesDraft, setTablesDraft] = useState('');
+  const [savingTablesId, setSavingTablesId] = useState<string | null>(null);
+  const [tablesEditError, setTablesEditError] = useState<string | null>(null);
+  const canEditTables = isAdmin(role);
 
   // Quick mark-entry from search: matches show in a dropdown with a Mark Entry button.
   const [paidVendorMatches, setPaidVendorMatches] = useState<any[]>([]);
@@ -898,6 +909,7 @@ export default function Home() {
               notes,
               check_in_time,
               created_at,
+              tables,
               vendors (
                 id,
                 business_name,
@@ -916,8 +928,10 @@ export default function Home() {
         ]);
 
         if (regResult.error) {
-          // Fallback if fee_source column is not yet queried
-          const fallbackReg = await supabase
+          // Schema may be missing optional columns until their migrations are
+          // applied (this DB has no fee_source yet). Try with `tables`, then
+          // degrade to a select without it so the list still loads pre-migration.
+          let fallbackReg: any = await supabase
             .from('vendor_registrations')
             .select(`
               id,
@@ -927,6 +941,7 @@ export default function Home() {
               notes,
               check_in_time,
               created_at,
+              tables,
               vendors (
                 id,
                 business_name,
@@ -938,6 +953,30 @@ export default function Home() {
             `)
             .eq('market_day_id', activeEdition.id)
             .order('created_at', { ascending: false });
+
+          if (fallbackReg.error) {
+            fallbackReg = await supabase
+              .from('vendor_registrations')
+              .select(`
+                id,
+                payment_status,
+                amount_paid,
+                stall_number,
+                notes,
+                check_in_time,
+                created_at,
+                vendors (
+                  id,
+                  business_name,
+                  contact_name,
+                  phone,
+                  email,
+                  category
+                )
+              `)
+              .eq('market_day_id', activeEdition.id)
+              .order('created_at', { ascending: false });
+          }
 
           if (fallbackReg.error) throw fallbackReg.error;
           regRows = fallbackReg.data || [];
@@ -963,6 +1002,7 @@ export default function Home() {
             ticket_number: ticketNumber,
             check_in_time: r.check_in_time || null,
             created_at: r.created_at,
+            tables: Number.isFinite(Number(r.tables)) ? Math.max(1, Number(r.tables)) : 1,
             business_name: r.vendors?.business_name || '',
             contact_name: r.vendors?.contact_name || '',
             phone: r.vendors?.phone || '',
@@ -1069,6 +1109,58 @@ export default function Home() {
       window.alert(`Failed to ${isConfirmed ? 'undo' : 'confirm'} entry: ${err?.message || err}`);
     } finally {
       setCheckingInId(null);
+    }
+  };
+
+  /** Begin inline editing of a row's tables count (admin only). */
+  const startEditingTables = (pv: { id: string; tables?: number }) => {
+    if (!canEditTables) return;
+    setEditingTablesId(pv.id);
+    setTablesDraft(String(Number(pv.tables) || 1));
+    setTablesEditError(null);
+  };
+
+  const cancelEditingTables = () => {
+    setEditingTablesId(null);
+    setTablesDraft('');
+    setTablesEditError(null);
+  };
+
+  /** Validate + persist the tables count via the admin-checked API route. */
+  const saveVendorTables = async (pv: { id: string; tables?: number }) => {
+    const raw = tablesDraft.trim();
+    const next = Number(raw);
+    if (!/^\d+$/.test(raw) || !Number.isInteger(next)) {
+      setTablesEditError('Enter a whole number.');
+      return;
+    }
+    if (next < 1 || next > 5) {
+      setTablesEditError('Tables must be between 1 and 5.');
+      return;
+    }
+    if (next === (Number(pv.tables) || 1)) {
+      cancelEditingTables();
+      return;
+    }
+
+    setSavingTablesId(pv.id);
+    setTablesEditError(null);
+    try {
+      const res = await fetch('/api/vendors/tables', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ registrationId: pv.id, tables: next }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || 'Failed to update tables');
+      const savedTables = Number(data?.registration?.tables) || next;
+      setPaidVendors(prev => prev.map(p => (p.id === pv.id ? { ...p, tables: savedTables } : p)));
+      cancelEditingTables();
+      addToast(`Tables updated to ${savedTables}.`, 'success');
+    } catch (err: any) {
+      setTablesEditError(err?.message || 'Failed to update tables');
+    } finally {
+      setSavingTablesId(null);
     }
   };
 
@@ -3824,6 +3916,63 @@ export default function Home() {
                             </div>
                           );
                         })()}
+                        {/* Business category filter — narrows both tabs by vendor category */}
+                        {(() => {
+                          // Pool reflects the current tab + gate-entry view, so counts are what you'd actually see.
+                          const catPool = paidVendors.filter(pv => {
+                            if (pv.payment_status !== 'paid') return false;
+                            if (paidVendorTab === 'registered' ? !pv.hasFormData : pv.hasFormData) return false;
+                            if (paidVendorTab === 'registered') {
+                              if (paidVendorEntryFilter === 'confirmed' && !pv.check_in_time) return false;
+                              if (paidVendorEntryFilter === 'awaiting' && pv.check_in_time) return false;
+                            }
+                            return true;
+                          });
+                          const counts: Record<string, number> = {};
+                          catPool.forEach(pv => {
+                            const key = (pv.category || '').trim();
+                            if (!key) return;
+                            counts[key] = (counts[key] || 0) + 1;
+                          });
+                          const categories = Object.keys(counts).sort((a, b) => a.localeCompare(b));
+                          if (categories.length === 0) return null;
+                          const selectedCount = paidVendorCategoryFilter === 'All'
+                            ? catPool.length
+                            : (counts[paidVendorCategoryFilter] || 0);
+                          return (
+                            <div className="flex items-center gap-2 flex-wrap">
+                              <span className="flex items-center gap-1 text-[10px] font-semibold text-text-tertiary uppercase tracking-widest">
+                                <Tag className="w-3 h-3" />
+                                Category
+                              </span>
+                              <select
+                                value={paidVendorCategoryFilter}
+                                onChange={(e) => setPaidVendorCategoryFilter(e.target.value)}
+                                className="bg-white border border-border text-text-primary text-xs rounded-md px-3 py-1.5 cursor-pointer outline-none focus:border-accent appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%209l3%203%203-3%22%20stroke%3D%22%238b949e%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[right_10px_center] bg-no-repeat pr-8 min-w-[140px]"
+                              >
+                                <option value="All">All Categories ({catPool.length})</option>
+                                {categories.map((c) => (
+                                  <option key={c} value={c}>{c} ({counts[c]})</option>
+                                ))}
+                              </select>
+                              <span className={`inline-flex items-center gap-1 text-[10px] font-bold px-2.5 py-1.5 rounded-md border ${paidVendorCategoryFilter !== 'All'
+                                  ? 'bg-accent-soft border-accent/30 text-accent'
+                                  : 'bg-slate-50 border-border text-text-secondary'
+                                }`}>
+                                {selectedCount} {selectedCount === 1 ? 'vendor' : 'vendors'}
+                              </span>
+                              {paidVendorCategoryFilter !== 'All' && (
+                                <button
+                                  onClick={() => setPaidVendorCategoryFilter('All')}
+                                  className="inline-flex items-center gap-1 text-[10px] font-bold text-text-secondary hover:text-text-primary bg-white border border-border hover:border-border-light px-2.5 py-1.5 rounded-md transition-colors cursor-pointer"
+                                >
+                                  <RotateCcw className="w-3 h-3" />
+                                  Clear
+                                </button>
+                              )}
+                            </div>
+                          );
+                        })()}
                       </div>
 
                       {loadingPaidVendors ? (
@@ -3838,6 +3987,10 @@ export default function Home() {
                           if (paidVendorTab === 'registered') {
                             if (paidVendorEntryFilter === 'confirmed' && !pv.check_in_time) return false;
                             if (paidVendorEntryFilter === 'awaiting' && pv.check_in_time) return false;
+                          }
+                          if (paidVendorCategoryFilter !== 'All' &&
+                              (pv.category || '').trim().toLowerCase() !== paidVendorCategoryFilter.trim().toLowerCase()) {
+                            return false;
                           }
                           // NOTE: paidVendorSearch deliberately does NOT filter rows. It only
                           // drives the sticky quick mark-entry dropdown, so searching a walk-up
@@ -3862,7 +4015,13 @@ export default function Home() {
                         }
                         return tabVendors.length === 0 ? (
                           <div className="p-12 text-center select-none">
-                            {paidVendorTab === 'registered' ? (
+                            {paidVendorCategoryFilter !== 'All' ? (
+                              <>
+                                <Tag className="w-10 h-10 text-text-tertiary mx-auto mb-3" />
+                                <p className="text-sm text-text-primary font-semibold">No {paidVendorCategoryFilter} vendors in this view.</p>
+                                <p className="text-xs text-text-secondary mt-1">Try another category or clear the filter to see all vendors.</p>
+                              </>
+                            ) : paidVendorTab === 'registered' ? (
                               paidVendorEntryFilter !== 'all' ? (
                                 <>
                                   <DoorOpen className="w-10 h-10 text-text-tertiary mx-auto mb-3" />
@@ -3892,7 +4051,7 @@ export default function Home() {
                           </div>
                         ) : (
                           <div className="w-full overflow-x-auto">
-                            <table className="w-full min-w-[900px] border-collapse text-left text-xs">
+                            <table className="w-full min-w-[1000px] border-collapse text-left text-xs">
                               <thead>
                                 <tr className="bg-slate-50/80 border-b border-border">
                                   <th className="p-4 text-[10px] font-semibold text-text-secondary uppercase tracking-widest text-center">Ticket #</th>
@@ -3900,6 +4059,7 @@ export default function Home() {
                                   <th className="p-4 text-[10px] font-semibold text-text-secondary uppercase tracking-widest">Contact Name</th>
                                   <th className="p-4 text-[10px] font-semibold text-text-secondary uppercase tracking-widest">Phone</th>
                                   <th className="p-4 text-[10px] font-semibold text-text-secondary uppercase tracking-widest">Category</th>
+                                  <th className="p-4 text-[10px] font-semibold text-text-secondary uppercase tracking-widest text-center">Tables</th>
                                   <th className="p-4 text-[10px] font-semibold text-text-secondary uppercase tracking-widest text-center">Status</th>
                                   {paidVendorTab === 'registered' && (
                                     <th className="p-4 text-[10px] font-semibold text-text-secondary uppercase tracking-widest text-center">Entry</th>
@@ -3936,6 +4096,73 @@ export default function Home() {
                                     <td className="p-4 text-text-secondary font-medium">{pv.contact_name || '—'}</td>
                                     <td className="p-4 text-text-tertiary font-mono text-[11px]">{pv.phone || <span className="text-text-tertiary italic">No phone</span>}</td>
                                     <td className="p-4 text-text-secondary font-medium">{pv.category || '—'}</td>
+                                    <td className="p-4 text-center" onClick={(e) => { if (canEditTables || editingTablesId === pv.id) e.stopPropagation(); }}>
+                                      {editingTablesId === pv.id ? (
+                                        <div className="inline-flex flex-col items-center gap-1">
+                                          <div className="inline-flex items-center gap-1">
+                                            <input
+                                              autoFocus
+                                              type="number"
+                                              min={1}
+                                              max={5}
+                                              value={tablesDraft}
+                                              onChange={(e) => { setTablesDraft(e.target.value); setTablesEditError(null); }}
+                                              onKeyDown={(e) => {
+                                                if (e.key === 'Enter') saveVendorTables(pv);
+                                                if (e.key === 'Escape') cancelEditingTables();
+                                              }}
+                                              disabled={savingTablesId === pv.id}
+                                              className="w-14 bg-white border border-accent rounded-md px-2 py-1 text-text-primary text-xs font-mono text-center outline-none focus:ring-1 focus:ring-accent"
+                                            />
+                                            <button
+                                              onClick={() => saveVendorTables(pv)}
+                                              disabled={savingTablesId === pv.id}
+                                              title="Save tables"
+                                              className="inline-flex items-center justify-center w-6 h-6 rounded-md text-white bg-accent hover:bg-accent-hover disabled:opacity-50 transition-colors cursor-pointer"
+                                            >
+                                              {savingTablesId === pv.id ? <Loader2 className="w-3 h-3 animate-spin" /> : <Check className="w-3 h-3" />}
+                                            </button>
+                                            <button
+                                              onClick={cancelEditingTables}
+                                              disabled={savingTablesId === pv.id}
+                                              title="Cancel"
+                                              className="inline-flex items-center justify-center w-6 h-6 rounded-md text-text-secondary bg-white border border-border hover:text-text-primary hover:border-border-light disabled:opacity-50 transition-colors cursor-pointer"
+                                            >
+                                              <X className="w-3 h-3" />
+                                            </button>
+                                          </div>
+                                          {tablesEditError && (
+                                            <span className="text-[9px] text-red-600 font-semibold whitespace-nowrap">{tablesEditError}</span>
+                                          )}
+                                        </div>
+                                      ) : (
+                                        (() => {
+                                          const tablesDisplay = Number(pv.tables) > 1 ? (
+                                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-accent-soft text-accent border border-accent/20 whitespace-nowrap">
+                                              <LayoutGrid className="w-3 h-3" />
+                                              {Number(pv.tables)} tables
+                                            </span>
+                                          ) : (
+                                            <span className="text-text-secondary font-medium font-mono text-xs">{Number(pv.tables) || 1}</span>
+                                          );
+                                          // Admins get a clickable editor; everyone else gets a plain
+                                          // span so the click still bubbles to the row and opens details.
+                                          return canEditTables ? (
+                                            <button
+                                              type="button"
+                                              onClick={() => startEditingTables(pv)}
+                                              title="Click to change the number of tables"
+                                              className="group inline-flex items-center gap-1.5 px-2 py-1 rounded-md transition-colors hover:bg-slate-100 cursor-pointer"
+                                            >
+                                              {tablesDisplay}
+                                              <Edit3 className="w-3 h-3 text-text-tertiary opacity-0 group-hover:opacity-100 transition-opacity" />
+                                            </button>
+                                          ) : (
+                                            <span className="inline-flex items-center gap-1.5 px-2 py-1">{tablesDisplay}</span>
+                                          );
+                                        })()
+                                      )}
+                                    </td>
                                     <td className="p-4 text-center">
                                       <span className={`inline-block px-2.5 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider ${pv.payment_status === 'paid' ? 'bg-emerald-50 text-emerald-700 border border-emerald-200' :
                                           pv.payment_status === 'waived' ? 'bg-slate-100 text-slate-700 border border-slate-200' :

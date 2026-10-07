@@ -19,6 +19,7 @@ import {
   User,
   Tag,
   BadgeCheck,
+  LayoutGrid,
 } from 'lucide-react';
 
 // ─── Types ─────────────────────────────────────────────────────────────────────
@@ -36,6 +37,7 @@ export interface PaidVendorDetailsVendor {
   fee_source?: string;
   ticket_number?: string;
   stall_number?: string;
+  tables?: number;
   [key: string]: any;
 }
 
@@ -336,6 +338,24 @@ export const PaidVendorDetailsModal: React.FC<PaidVendorDetailsModalProps> = ({
                   <option key={c} value={c}>{c}</option>
                 ))}
               </select>
+            </div>
+
+            {/* Tables — read-only here; admins edit it inline on the Paid Vendors list */}
+            <div>
+              <label className="flex items-center gap-1 text-[10px] font-bold text-text-tertiary uppercase tracking-wider mb-1.5">
+                <LayoutGrid className="w-3 h-3" /> Tables
+              </label>
+              <div className="flex items-center gap-2">
+                {Number(vendor.tables) > 1 ? (
+                  <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-accent-soft text-accent border border-accent/20">
+                    <LayoutGrid className="w-3 h-3" />
+                    {Number(vendor.tables)} tables
+                  </span>
+                ) : (
+                  <span className="text-text-primary text-xs font-mono font-semibold">{Number(vendor.tables) || 1}</span>
+                )}
+                <span className="text-[10px] text-text-tertiary">Edit this from the Paid Vendors list.</span>
+              </div>
             </div>
           </div>
 
