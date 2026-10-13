@@ -5,8 +5,9 @@ import { UserManagementSettings } from './UserManagementSettings';
 import { StandardFeeSettings } from './StandardFeeSettings';
 import { WalkinEstimateSettings } from './WalkinEstimateSettings';
 import { TicketTemplateSettings } from './TicketTemplateSettings';
+import { StickerTemplateSettings } from './StickerTemplateSettings';
 import type { UserRole } from '@/hooks/useAuth';
-import { Users, DollarSign, Footprints, Settings as SettingsIcon, Ticket } from 'lucide-react';
+import { Users, DollarSign, Footprints, Settings as SettingsIcon, Ticket, Sticker } from 'lucide-react';
 
 interface SettingsViewProps {
   currentUserRole: UserRole | null;
@@ -17,9 +18,12 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
   currentUserRole,
   currentUserId,
 }) => {
-  const [activeTab, setActiveTab] = useState<'standard-fees' | 'ticket-templates' | 'walkin-estimates' | 'users'>('standard-fees');
+  const [activeTab, setActiveTab] = useState<'standard-fees' | 'ticket-templates' | 'sticker-templates' | 'walkin-estimates' | 'users'>('standard-fees');
   const isSuperAdmin = currentUserRole === 'super_admin';
-  const visibleTab = !isSuperAdmin && activeTab === 'ticket-templates' ? 'standard-fees' : activeTab;
+  const visibleTab =
+    !isSuperAdmin && (activeTab === 'ticket-templates' || activeTab === 'sticker-templates')
+      ? 'standard-fees'
+      : activeTab;
 
   return (
     <div className="space-y-6 text-left animate-fade-in max-w-6xl mx-auto">
@@ -65,6 +69,20 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
           </button>
         )}
 
+        {isSuperAdmin && (
+          <button
+            onClick={() => setActiveTab('sticker-templates')}
+            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-lg transition-all border-b-2 -mb-px cursor-pointer whitespace-nowrap ${
+              visibleTab === 'sticker-templates'
+                ? 'text-accent border-accent bg-accent-soft/40'
+                : 'text-text-muted border-transparent hover:text-text-primary hover:bg-slate-100'
+            }`}
+          >
+            <Sticker className="w-4 h-4" />
+            Sticker Templates
+          </button>
+        )}
+
         <button
           onClick={() => setActiveTab('users')}
           className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-lg transition-all border-b-2 -mb-px cursor-pointer whitespace-nowrap ${
@@ -94,6 +112,7 @@ export const SettingsView: React.FC<SettingsViewProps> = ({
       <div className="pt-2">
         {visibleTab === 'standard-fees' && <StandardFeeSettings />}
         {visibleTab === 'ticket-templates' && isSuperAdmin && <TicketTemplateSettings />}
+        {visibleTab === 'sticker-templates' && isSuperAdmin && <StickerTemplateSettings />}
         {visibleTab === 'walkin-estimates' && <WalkinEstimateSettings />}
         {visibleTab === 'users' && (
           <UserManagementSettings

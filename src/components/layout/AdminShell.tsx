@@ -21,7 +21,9 @@ import {
   Briefcase,
   Wallet,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Sticker,
+  Star
 } from 'lucide-react';
 import { Badge } from '../ui/Badge';
 import { QuonnectIcon } from '../ui/QuonnectIcon';
@@ -43,6 +45,7 @@ export interface AdminShellProps {
   onLogout?: () => void;
   children: React.ReactNode;
   vendorAlertCount?: number;
+  isSuperAdmin?: boolean;
 }
 
 export const AdminShell: React.FC<AdminShellProps> = ({
@@ -51,7 +54,8 @@ export const AdminShell: React.FC<AdminShellProps> = ({
   user,
   onLogout,
   children,
-  vendorAlertCount = 0
+  vendorAlertCount = 0,
+  isSuperAdmin = false
 }) => {
   const { 
     activeRegion, 
@@ -95,6 +99,7 @@ export const AdminShell: React.FC<AdminShellProps> = ({
         { id: 'paid-vendors', name: 'Paid Vendors', icon: <CreditCard className="w-5 h-5" /> },
         { id: 'finance', name: 'Finance', icon: <Wallet className="w-5 h-5" /> },
         { id: 'quick-entry', name: 'Quick Entry', icon: <Zap className="w-5 h-5" /> },
+        { id: 'ratings', name: 'Ratings & Export', icon: <Star className="w-5 h-5" /> },
         { id: 'import-export', name: 'Import/Export', icon: <UploadCloud className="w-5 h-5" /> },
       ]
     },
@@ -109,6 +114,7 @@ export const AdminShell: React.FC<AdminShellProps> = ({
       items: [
         { id: 'formbuilder', name: 'Form Builder', icon: <ClipboardList className="w-5 h-5" /> },
         { id: 'markets', name: 'Create Market', icon: <Store className="w-5 h-5" /> },
+        { id: 'stickers', name: 'Stickers', icon: <Sticker className="w-5 h-5" />, superAdminOnly: true },
         { id: 'settings', name: 'Settings', icon: <Settings className="w-5 h-5" /> },
       ]
     }
@@ -118,6 +124,7 @@ export const AdminShell: React.FC<AdminShellProps> = ({
     switch (id) {
       case 'overview': return <LayoutDashboard className="w-5 h-5" />;
       case 'vendors': return <Users className="w-5 h-5" />;
+      case 'ratings': return <Star className="w-5 h-5" />;
       case 'walkins': return <Footprints className="w-5 h-5" />;
       case 'paid-vendors': return <CreditCard className="w-5 h-5" />;
       case 'finance': return <Wallet className="w-5 h-5" />;
@@ -125,6 +132,7 @@ export const AdminShell: React.FC<AdminShellProps> = ({
       case 'import-export': return <UploadCloud className="w-5 h-5" />;
       case 'formbuilder': return <ClipboardList className="w-5 h-5" />;
       case 'markets': return <Store className="w-5 h-5" />;
+      case 'stickers': return <Sticker className="w-5 h-5" />;
       case 'jobs': return <Briefcase className="w-5 h-5" />;
       case 'settings': return <Settings className="w-5 h-5" />;
       default: return <Building2 className="w-5 h-5" />;
@@ -382,7 +390,9 @@ export const AdminShell: React.FC<AdminShellProps> = ({
                 {section.label}
               </div>
               <div className="mt-1 flex flex-col gap-0.5">
-                {section.items.map((item) => {
+                {section.items
+                  .filter((item: any) => !item.superAdminOnly || isSuperAdmin)
+                  .map((item: any) => {
                   const isActive = activeNav === item.id;
                   return (
                     <button

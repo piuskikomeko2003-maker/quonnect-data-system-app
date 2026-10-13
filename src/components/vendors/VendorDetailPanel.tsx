@@ -1,10 +1,11 @@
 import React from 'react';
-import { X, Check, Edit2, Merge, Download, AlertTriangle, Phone } from 'lucide-react';
+import { X, Check, Edit2, Merge, Download, AlertTriangle, Phone, Star, MessageSquare } from 'lucide-react';
 import { VendorStatusBadge, VendorStatus } from './VendorStatusBadge';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 import { useScrollLock } from '@/hooks/useScrollLock';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
+import { MarketingPowerStars } from './MarketingPowerStars';
 
 export interface AttendanceHistory {
   editionId: string;
@@ -36,6 +37,11 @@ export interface VendorDetailPanelProps {
     phone: string;
     status: VendorStatus;
     avatarInitials: string;
+    businessName?: string;
+    rating?: number | null;
+    ratingNote?: string | null;
+    avgRating?: number | null;
+    ratedEditionsCount?: number;
     attendanceHistory: AttendanceHistory[];
     editionAttributes: EditionAttributes[];
     dataGaps?: string[];
@@ -43,6 +49,8 @@ export interface VendorDetailPanelProps {
   onEdit?: (vendorId: string) => void;
   onFlagMerge?: (vendorId: string) => void;
   onExport?: (vendorId: string) => void;
+  onRateVendor?: (vendorId: string) => void;
+  isAdmin?: boolean;
 }
 
 export const VendorDetailPanel: React.FC<VendorDetailPanelProps> = ({
@@ -51,7 +59,9 @@ export const VendorDetailPanel: React.FC<VendorDetailPanelProps> = ({
   vendor,
   onEdit,
   onFlagMerge,
-  onExport
+  onExport,
+  onRateVendor,
+  isAdmin = true,
 }) => {
   useScrollLock(isOpen);
   const focusTrapRef = useFocusTrap<HTMLDivElement>(isOpen);
@@ -96,7 +106,10 @@ export const VendorDetailPanel: React.FC<VendorDetailPanelProps> = ({
               {vendor.avatarInitials}
             </div>
             <div className="min-w-0">
-              <h3 className="text-sm font-bold text-text-primary truncate">{vendor.name}</h3>
+              <h3 className="text-sm font-bold text-text-primary truncate">{vendor.businessName || vendor.name}</h3>
+              {vendor.businessName && vendor.name && (
+                <div className="text-[11px] text-text-secondary truncate">{vendor.name}</div>
+              )}
               <div className="flex items-center gap-2 mt-0.5 flex-wrap">
                 <a 
                   href={`tel:${vendor.phone}`}
@@ -133,6 +146,59 @@ export const VendorDetailPanel: React.FC<VendorDetailPanelProps> = ({
               </div>
             </div>
           )}
+
+          {/* Marketing Power Rating Card */}
+          <div className="bg-gradient-to-br from-amber-50/60 to-orange-50/30 border border-amber-200/80 rounded-xl p-4 text-left space-y-3">
+            <div className="flex items-center justify-between">
+              <h4 className="text-[10px] font-bold text-amber-900 uppercase tracking-wider flex items-center gap-1.5">
+                <Star className="w-3.5 h-3.5 text-amber-500 fill-amber-500" />
+                <span>Marketing Power Rating</span>
+              </h4>
+              {isAdmin && onRateVendor && (
+                <button
+                  type="button"
+                  onClick={() => onRateVendor(vendor.id)}
+                  className="text-[11px] text-amber-700 hover:text-amber-800 font-semibold hover:underline cursor-pointer flex items-center gap-1"
+                >
+                  <span>{vendor.rating !== null && vendor.rating !== undefined ? 'Edit rating' : 'Rate vendor'}</span>
+                  <span>→</span>
+                </button>
+              )}
+            </div>
+
+            <div className="flex items-center justify-between gap-3 bg-white/80 border border-amber-200/60 rounded-lg p-3">
+              <div>
+                <span className="text-[10px] text-text-tertiary block font-semibold uppercase tracking-wider mb-1">Current Edition</span>
+                <MarketingPowerStars
+                  rating={vendor.rating}
+                  size="md"
+                  showNumber={true}
+                />
+              </div>
+
+              {vendor.avgRating !== null && vendor.avgRating !== undefined && (
+                <div className="text-right border-l border-amber-200/60 pl-3">
+                  <span className="text-[10px] text-text-tertiary block font-semibold uppercase tracking-wider">All-Edition Avg</span>
+                  <div className="text-sm font-mono font-bold text-amber-800 mt-0.5">
+                    {vendor.avgRating}/10
+                  </div>
+                  {vendor.ratedEditionsCount ? (
+                    <span className="text-[9px] text-text-tertiary block">
+                      {vendor.ratedEditionsCount} {vendor.ratedEditionsCount === 1 ? 'edition' : 'editions'}
+                    </span>
+                  ) : null}
+                </div>
+              )}
+            </div>
+
+            {/* Note Display if present */}
+            {vendor.ratingNote && (
+              <div className="bg-white/80 border border-amber-200/50 rounded-lg p-2.5 text-[11px] text-amber-950 flex items-start gap-2">
+                <MessageSquare className="w-3.5 h-3.5 text-amber-500 shrink-0 mt-0.5" />
+                <span className="italic font-medium">"{vendor.ratingNote}"</span>
+              </div>
+            )}
+          </div>
 
           {/* Attendance History Section */}
           <div>

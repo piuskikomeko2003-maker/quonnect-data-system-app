@@ -9,7 +9,11 @@ export interface AdminAuthResult {
   response?: NextResponse;
 }
 
-export async function requireAdmin(): Promise<AdminAuthResult> {
+/**
+ * Resolves the authenticated user + their profile. Returns a NextResponse on
+ * any failure (401 not authenticated / 500 unexpected) so callers can early-return.
+ */
+async function loadAuthProfile(): Promise<AdminAuthResult> {
   try {
     const cookieStore = await cookies();
     const supabase = createClient(cookieStore);
@@ -28,7 +32,7 @@ export async function requireAdmin(): Promise<AdminAuthResult> {
       .eq('user_id', user.id)
       .maybeSingle() as any);
 
-    if (!profile || (profile.role !== 'admin' && profile.role !== 'super_admin')) {
+    if (!profile) {
       return {
         response: NextResponse.json(
           { error: 'Insufficient permissions. Admin role required.' },
@@ -46,4 +50,41 @@ export async function requireAdmin(): Promise<AdminAuthResult> {
       ),
     };
   }
+}
+
+export async function requireAdmin(): Promise<AdminAuthResult> {
+  const result = await loadAuthProfile();
+  if (result.response) return result;
+
+  if (result.profile?.role !== 'admin' && result.profile?.role !== 'super_admin') {
+    return {
+      response: NextResponse.json(
+        { error: 'Insufficient permissions. Admin role required.' },
+        { status: 403 }
+      ),
+    };
+  }
+
+  return result;
+}
+
+/**
+ * Super-admin-only gate. Every page, API route and server action in the sticker
+ * printing feature must call this before doing any work, so that regular admins
+ * are rejected on the server even if they reach the endpoint directly.
+ */
+export async function requireSuperAdmin(): Promise<AdminAuthResult> {
+  const result = await loadAuthProfile();
+  if (result.response) return result;
+
+  if (result.profile?.role !== 'super_admin') {
+    return {
+      response: NextResponse.json(
+        { error: 'Insufficient permissions. Super admin role required.' },
+        { status: 403 }
+      ),
+    };
+  }
+
+  return result;
 }

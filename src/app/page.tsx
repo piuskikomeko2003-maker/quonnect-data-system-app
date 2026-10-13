@@ -10,6 +10,7 @@ import { useRegion } from '@/context/RegionContext';
 import { AdminShell } from '@/components/layout/AdminShell';
 import { PageContainer } from '@/components/layout/PageContainer';
 import { SettingsView } from '@/components/settings/SettingsView';
+import StickersView from '@/components/stickers/StickersView';
 import { PendingApprovalView } from '@/components/auth/PendingApprovalView';
 import { importCSV } from '@/utils/csvImport';
 import { resolveGender, isGenderColumn, isGenderValue } from '@/utils/gender';
@@ -40,6 +41,10 @@ import { PaidVendorImportHistoryModal } from '@/components/vendors/PaidVendorImp
 import { SyncSurveyVendorsModal } from '@/components/vendors/SyncSurveyVendorsModal';
 import { IncompleteVendorsPanel } from '@/components/vendors/IncompleteVendorsPanel';
 import { DuplicateConfirmModal } from '@/components/ui/DuplicateConfirmModal';
+import { VendorRatingModal } from '@/components/vendors/VendorRatingModal';
+import { BulkRatingModal } from '@/components/vendors/BulkRatingModal';
+import { VendorExportModal } from '@/components/vendors/VendorExportModal';
+import { VendorRatingsView } from '@/components/vendors/VendorRatingsView';
 import { QuickEntryPanel } from '@/components/forms/QuickEntryPanel';
 import { FormBuilderShell } from '@/components/formbuilder/FormBuilderShell';
 import { FormBuilderPanel } from '@/components/formbuilder/FormBuilderPanel';
@@ -127,6 +132,11 @@ const getVendorDetailData = (vendor: any) => {
     name: vendor.name,
     phone: vendor.phone,
     status: vendor.status,
+    businessName: vendor.businessName,
+    rating: vendor.rating,
+    ratingNote: vendor.ratingNote,
+    avgRating: vendor.avgRating,
+    ratedEditionsCount: vendor.ratedEditionsCount,
     avatarInitials: vendor.name.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase(),
     attendanceHistory: [
       {
@@ -756,6 +766,46 @@ export default function Home() {
         });
       }
 
+      // Fetch marketing-power ratings for active edition and cross-edition averages
+      const ratingsMap: Record<string, { rating: number | null; note: string | null; avgRating: number | null; ratedEditionsCount: number }> = {};
+      if (activeEdition?.id) {
+        try {
+          const [edRatingsRes, allRatingsRes] = await Promise.all([
+            supabase
+              .from('vendor_ratings')
+              .select('vendor_id, rating, note, edition_id')
+              .eq('edition_id', activeEdition.id),
+            supabase
+              .from('vendor_ratings')
+              .select('vendor_id, rating')
+              .not('rating', 'is', null),
+          ]);
+
+          const sumMap = new globalThis.Map<string, { sum: number; count: number }>();
+          (allRatingsRes.data || []).forEach((r: any) => {
+            if (r.rating !== null && r.rating !== undefined) {
+              const cur = sumMap.get(r.vendor_id) || { sum: 0, count: 0 };
+              cur.sum += Number(r.rating);
+              cur.count += 1;
+              sumMap.set(r.vendor_id, cur);
+            }
+          });
+
+          (edRatingsRes.data || []).forEach((r: any) => {
+            const sm = sumMap.get(r.vendor_id);
+            const avg = sm && sm.count > 0 ? Math.round((sm.sum / sm.count) * 10) / 10 : (r.rating !== null ? Number(r.rating) : null);
+            ratingsMap[r.vendor_id] = {
+              rating: r.rating !== null ? Number(r.rating) : null,
+              note: r.note || null,
+              avgRating: avg,
+              ratedEditionsCount: sm?.count || (r.rating !== null ? 1 : 0),
+            };
+          });
+        } catch {
+          // Pre-migration fallback: table not present yet
+        }
+      }
+
       const allVendorIds = [...new globalThis.Set([...surveyVendorIds, ...paidVendorIds])];
 
 
@@ -783,6 +833,8 @@ export default function Home() {
             paidVendorIds.has(v.id) ? 'paid' :
               surveyVendorIds.has(v.id) ? 'survey' : 'unknown';
 
+        const rInfo = ratingsMap[v.id] || { rating: null, note: null, avgRating: null, ratedEditionsCount: 0 };
+
         return {
           id: v.id,
           name: v.contact_name || answerMap['full_name'] || answerMap['contact_name'] || 'Unknown',
@@ -807,7 +859,11 @@ export default function Home() {
           dob: answerMap['date_of_birth'] || answerMap['dob'] || v.dob || '',
           amountPaid: paidAmountMap.get(v.id) || '0',
           email: v.email || answerMap['email'] || answerMap['email_address'] || '',
-          registrationType
+          registrationType,
+          rating: rInfo.rating,
+          ratingNote: rInfo.note,
+          avgRating: rInfo.avgRating,
+          ratedEditionsCount: rInfo.ratedEditionsCount,
         };
       });
 
@@ -1582,10 +1638,17 @@ export default function Home() {
     minAge: '',
     maxAge: '',
     businessType: 'All',
-    registrationType: 'All'
+    registrationType: 'All',
+    ratingFilter: 'All'
   });
   const [vendorSearch, setVendorSearch] = useState('');
   const [selectedVendorIds, setSelectedVendorIds] = useState<string[]>([]);
+
+  // Rating & Export Modal States
+  const [isRatingModalOpen, setIsRatingModalOpen] = useState(false);
+  const [vendorToRate, setVendorToRate] = useState<any | null>(null);
+  const [isBulkRatingModalOpen, setIsBulkRatingModalOpen] = useState(false);
+  const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   useEffect(() => {
     if (activeNav === 'overview' && mounted && !authLoading && role && role !== 'unassigned') {
@@ -2548,6 +2611,24 @@ export default function Home() {
       }
     }
 
+    // Marketing Power Rating filter
+    if (filters.ratingFilter && filters.ratingFilter !== 'All') {
+      const r = v.rating !== null && v.rating !== undefined ? Number(v.rating) : null;
+      if (filters.ratingFilter === 'unrated') {
+        if (r !== null) return false;
+      } else if (filters.ratingFilter === 'rated') {
+        if (r === null) return false;
+      } else if (filters.ratingFilter === '1-3') {
+        if (r === null || r < 1 || r > 3) return false;
+      } else if (filters.ratingFilter === '4-6') {
+        if (r === null || r < 4 || r > 6) return false;
+      } else if (filters.ratingFilter === '7-8') {
+        if (r === null || r < 7 || r > 8) return false;
+      } else if (filters.ratingFilter === '9-10') {
+        if (r === null || r < 9 || r > 10) return false;
+      }
+    }
+
     return true;
   });
 
@@ -3038,6 +3119,7 @@ export default function Home() {
       }}
       onLogout={signOut}
       vendorAlertCount={mergeProposals.length}
+      isSuperAdmin={role === 'super_admin'}
     >
       {/* ==========================================
           ROUTE RENDERING
@@ -3414,7 +3496,8 @@ export default function Home() {
                 minAge: '',
                 maxAge: '',
                 businessType: 'All',
-                registrationType: 'All'
+                registrationType: 'All',
+                ratingFilter: 'All'
               })}
             />
 
@@ -3453,9 +3536,47 @@ export default function Home() {
                 searchTerm={vendorSearch}
                 onSearchChange={setVendorSearch}
                 onDelete={handleDeleteVendor}
+                onRateVendor={(v) => {
+                  setVendorToRate(v);
+                  setIsRatingModalOpen(true);
+                }}
+                onBulkRate={() => {
+                  setIsBulkRatingModalOpen(true);
+                }}
+                onOpenExport={() => {
+                  setIsExportModalOpen(true);
+                }}
+                isAdmin={isAdmin(role)}
               />
             )}
           </div>
+        )}
+
+        {/* 2b. RATINGS & EXPORT SCREEN */}
+        {activeNav === 'ratings' && (
+          <VendorRatingsView
+            vendors={vendors}
+            activeEdition={activeEdition}
+            activeRegion={activeRegion}
+            editions={ctxEditions}
+            regions={ctxRegions}
+            isAdmin={isAdmin(role)}
+            onRateVendor={(v) => {
+              setVendorToRate(v);
+              setIsRatingModalOpen(true);
+            }}
+            onBulkRate={(selectedIds) => {
+              setSelectedVendorIds(selectedIds);
+              setIsBulkRatingModalOpen(true);
+            }}
+            onOpenExport={() => {
+              setIsExportModalOpen(true);
+            }}
+            onRowClick={(v) => {
+              setSelectedVendorId(v.id);
+              setIsDetailOpen(true);
+            }}
+          />
         )}
 
         {/* 3. WALK-INS LIST SCREEN */}
@@ -4612,8 +4733,13 @@ export default function Home() {
           />
         )}
 
+        {/* STICKER PRINTING (super admin only) */}
+        {activeNav === 'stickers' && (
+          <StickersView isSuperAdmin={role === 'super_admin'} />
+        )}
+
         {/* 7. OTHER SYSTEM PLACES (PLACEHOLDERS) */}
-        {!['overview', 'vendors', 'walkins', 'quick-entry', 'formbuilder', 'import-export', 'markets', 'jobs', 'paid-vendors', 'finance', 'settings'].includes(activeNav) && (
+        {!['overview', 'vendors', 'ratings', 'walkins', 'quick-entry', 'formbuilder', 'import-export', 'markets', 'jobs', 'paid-vendors', 'finance', 'settings', 'stickers'].includes(activeNav) && (
           <div className="py-24 text-center border border-dashed border-border rounded-lg select-none text-left animate-fade-in">
             <ClipboardList className="w-12 h-12 text-green mx-auto mb-3 opacity-80" />
             <h3 className="text-sm font-bold text-text-primary">Module Under Implementation</h3>
@@ -4641,6 +4767,17 @@ export default function Home() {
           setSelectedVendorId(null);
         }}
         vendor={activeVendorDetail}
+        onRateVendor={(id) => {
+          const v = vendors.find(x => x.id === id);
+          if (v) {
+            setVendorToRate(v);
+            setIsRatingModalOpen(true);
+          }
+        }}
+        onExport={() => {
+          setIsExportModalOpen(true);
+        }}
+        isAdmin={isAdmin(role)}
         onEdit={(id) => {
           const vendorObj = vendors.find(v => v.id === id);
           if (vendorObj) {
@@ -4675,6 +4812,62 @@ export default function Home() {
             setIsDetailOpen(false);
           }
         }}
+      />
+
+      {/* Vendor Marketing Power Rating Modal */}
+      <VendorRatingModal
+        isOpen={isRatingModalOpen}
+        onClose={() => {
+          setIsRatingModalOpen(false);
+          setVendorToRate(null);
+        }}
+        vendor={vendorToRate}
+        activeEdition={activeEdition}
+        onRatingSaved={(vendorId, newRating, newNote, newAvg) => {
+          setVendors(prev => prev.map(v => {
+            if (v.id === vendorId) {
+              return {
+                ...v,
+                rating: newRating,
+                ratingNote: newNote,
+                avgRating: newAvg !== undefined && newAvg !== null ? newAvg : (newRating !== null ? newRating : v.avgRating),
+              };
+            }
+            return v;
+          }));
+        }}
+      />
+
+      {/* Bulk Rating Modal */}
+      <BulkRatingModal
+        isOpen={isBulkRatingModalOpen}
+        onClose={() => setIsBulkRatingModalOpen(false)}
+        selectedVendorIds={selectedVendorIds}
+        activeEdition={activeEdition}
+        onBulkRatingComplete={(vendorIds, newRating, newNote) => {
+          const idSet = new Set(vendorIds);
+          setVendors(prev => prev.map(v => {
+            if (idSet.has(v.id)) {
+              return {
+                ...v,
+                rating: newRating,
+                ratingNote: newNote,
+              };
+            }
+            return v;
+          }));
+          setSelectedVendorIds([]);
+        }}
+      />
+
+      {/* Customizable Vendor CSV Export Modal */}
+      <VendorExportModal
+        isOpen={isExportModalOpen}
+        onClose={() => setIsExportModalOpen(false)}
+        editions={ctxEditions}
+        regions={ctxRegions}
+        activeEdition={activeEdition}
+        activeRegion={activeRegion}
       />
 
       {/* Edit Vendor Modal */}

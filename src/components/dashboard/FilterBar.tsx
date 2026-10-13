@@ -1,5 +1,5 @@
 import React from 'react';
-import { Filter, X, ChevronDown } from 'lucide-react';
+import { Filter, X, ChevronDown, Star } from 'lucide-react';
 import { Button } from '../ui/Button';
 
 export interface FilterState {
@@ -11,6 +11,7 @@ export interface FilterState {
   maxAge: number | '';
   businessType: string;
   registrationType?: 'All' | 'survey' | 'paid' | 'both';
+  ratingFilter?: 'All' | 'unrated' | 'rated' | '1-3' | '4-6' | '7-8' | '9-10';
 }
 
 export interface FilterBarProps {
@@ -54,7 +55,8 @@ export const FilterBar: React.FC<FilterBarProps> = ({
     filters.minAge !== '' || 
     filters.maxAge !== '' || 
     filters.businessType !== 'All' ||
-    (filters.registrationType && filters.registrationType !== 'All');
+    (filters.registrationType && filters.registrationType !== 'All') ||
+    (filters.ratingFilter && filters.ratingFilter !== 'All');
 
   return (
     <div className="flex flex-col gap-3.5 bg-bg-surface border border-border rounded-lg p-3.5 sm:p-4 mb-6">
@@ -79,7 +81,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
       </div>
 
       {/* Dropdown Selectors Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2.5">
         {/* Region Dropdown */}
         <select
           value={filters.region}
@@ -109,7 +111,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
         <select
           value={filters.businessType}
           onChange={(e) => onFiltersChange({ businessType: e.target.value })}
-          className="w-full bg-white border border-border text-text-primary text-xs rounded-md px-3 py-2 cursor-pointer outline-none transition-colors focus:border-accent appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%209l3%203%203-3%22%20stroke%3D%22%2364748b%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[right_10px_center] bg-no-repeat pr-8 sm:col-span-2 lg:col-span-1"
+          className="w-full bg-white border border-border text-text-primary text-xs rounded-md px-3 py-2 cursor-pointer outline-none transition-colors focus:border-accent appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%209l3%203%203-3%22%20stroke%3D%22%2364748b%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[right_10px_center] bg-no-repeat pr-8"
         >
           <option value="All" className="bg-white">All Business Types</option>
           {businessTypes.map((t) => (
@@ -117,6 +119,21 @@ export const FilterBar: React.FC<FilterBarProps> = ({
               {t}
             </option>
           ))}
+        </select>
+
+        {/* Marketing Power Rating Filter */}
+        <select
+          value={filters.ratingFilter || 'All'}
+          onChange={(e) => onFiltersChange({ ratingFilter: e.target.value as any })}
+          className="w-full bg-white border border-border text-text-primary text-xs rounded-md px-3 py-2 cursor-pointer outline-none transition-colors focus:border-accent appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%209l3%203%203-3%22%20stroke%3D%22%2364748b%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[right_10px_center] bg-no-repeat pr-8"
+        >
+          <option value="All" className="bg-white">All Ratings (1-10)</option>
+          <option value="unrated" className="bg-white">Unrated Only</option>
+          <option value="rated" className="bg-white">Rated Only</option>
+          <option value="9-10" className="bg-white">9–10 ★ (Top Crowd Pullers)</option>
+          <option value="7-8" className="bg-white">7–8 ★ (High Power)</option>
+          <option value="4-6" className="bg-white">4–6 ★ (Moderate)</option>
+          <option value="1-3" className="bg-white">1–3 ★ (Low Reach)</option>
         </select>
       </div>
 
@@ -186,7 +203,7 @@ export const FilterBar: React.FC<FilterBarProps> = ({
         </div>
       </div>
 
-      {/* Edition selector chips row (Keep exact style from HTML) */}
+      {/* Edition selector chips row */}
       <div className="border-t border-border pt-3.5 flex flex-col sm:flex-row sm:items-center gap-2">
         <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest select-none">Editions:</span>
         <div className="flex bg-bg-elevated border border-border rounded-md p-1.5 gap-1 overflow-x-auto min-w-0 flex-1 select-none">
