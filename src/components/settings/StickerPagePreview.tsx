@@ -3,39 +3,18 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Eye, EyeOff, Minus, Plus, Maximize2 } from 'lucide-react';
 import {
-  STICKER_FIELD_KEYS,
-  STICKER_FONT_FAMILIES,
   STICKER_SAMPLE_DATA,
   type StickerDesign,
-  type StickerFieldKey,
   type StickerSampleData,
 } from '@/types/sticker';
-import { fieldBox, fitText } from '@/lib/stickers/fitting';
+import { StickerArtwork, type StickerImageBox } from '@/components/stickers/StickerArtwork';
 import {
   computeStickerLayout,
-  slotImageBox,
+  slotImageBoxInSlot,
+  type StickerLayout,
   type StickerLayoutSettings,
   type StickerSlotMm,
 } from '@/lib/stickers/pageLayout';
-
-const FONT_CSS: Record<string, string> = Object.fromEntries(
-  STICKER_FONT_FAMILIES.map((f) => [f.key, f.css])
-);
-
-let measureCtx: CanvasRenderingContext2D | null = null;
-function measureText(text: string, fontSize: number, family: string, bold: boolean): number {
-  if (typeof document === 'undefined') return text.length * fontSize * 0.55;
-  if (!measureCtx) measureCtx = document.createElement('canvas').getContext('2d');
-  if (!measureCtx) return text.length * fontSize * 0.55;
-  measureCtx.font = `${bold ? 700 : 400} ${fontSize}px ${FONT_CSS[family] || FONT_CSS.helvetica}`;
-  return measureCtx.measureText(text).width;
-}
-
-const sampleValues = (sample: StickerSampleData): Record<StickerFieldKey, string> => ({
-  business_name: sample.business_name,
-  ticket_number: sample.ticket_number,
-  table_label: sample.table_label,
-});
 
 interface StickerPagePreviewProps {
   settings: StickerLayoutSettings;
@@ -186,17 +165,15 @@ export const StickerPagePreview: React.FC<StickerPagePreviewProps> = ({
                       opacity: filled ? 1 : 0.35,
                     }}
                   >
-                    {imageUrl && (
-                      <SlotImage
-                        layout={layout}
-                        slot={slot}
-                        imageUrl={imageUrl}
-                        scale={scale}
-                      />
-                    )}
-                    {showText &&
-                      <SlotFields design={design} slot={slot} sample={samples[slot.index % samples.length]} scale={scale} />
-                    }
+                    <SlotArtwork
+                      layout={layout}
+                      slot={slot}
+                      design={design}
+                      sample={samples[slot.index % samples.length]}
+                      imageUrl={imageUrl}
+                      scale={scale}
+                      showText={showText}
+                    />
                   </div>
                 );
               })}
@@ -297,123 +274,40 @@ export const StickerPagePreview: React.FC<StickerPagePreviewProps> = ({
   );
 };
 
-/** The design image for one slot, clipped to the bleed box, honouring fit mode. */
-const SlotImage: React.FC<{
-  layout: ReturnType<typeof computeStickerLayout>;
+/**
+ * One sticker cell. The image rectangle comes from the shared `slotImageBox()`
+ * (page-space mm) but is converted to coordinates RELATIVE TO THE SLOT before
+ * being handed to the artwork renderer — the slot element is already offset, so
+ * using page-space x/y here would double-count the margin and push the image out
+ * of every cell after the first.
+ */
+const SlotArtwork: React.FC<{
+  layout: StickerLayout;
   slot: StickerSlotMm;
-  imageUrl: string;
-  scale: number;
-}> = ({ layout, slot, imageUrl, scale }) => {
-  const placement = slotImageBox(layout, slot);
-  const inset = layout.imageInset;
-  const clip = {
-    x: slot.x - inset.left,
-    y: slot.y - inset.top,
-    width: slot.width + inset.left + inset.right,
-    height: slot.height + inset.top + inset.bottom,
-  };
-  return (
-    <div
-      className="absolute overflow-hidden"
-      style={{
-        left: `${clip.x * scale}px`,
-        top: `${clip.y * scale}px`,
-        width: `${clip.width * scale}px`,
-        height: `${clip.height * scale}px`,
-      }}
-    >
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img
-        src={imageUrl}
-        alt=""
-        style={{
-          position: 'absolute',
-          left: `${(placement.x - clip.x) * scale}px`,
-          top: `${(placement.y - clip.y) * scale}px`,
-          width: `${placement.width * scale}px`,
-          height: `${placement.height * scale}px`,
-        }}
-      />
-    </div>
-  );
-};
-
-/** The three placed text fields for one slot, using the shared fitting logic. */
-const SlotFields: React.FC<{
   design: StickerDesign;
-  slot: StickerSlotMm;
   sample: StickerSampleData;
+  imageUrl: string | null;
   scale: number;
-}> = ({ design, slot, sample, scale }) => {
-  const values = sampleValues(sample);
+  showText: boolean;
+}> = ({ layout, slot, design, sample, imageUrl, scale, showText }) => {
+  const placement = slotImageBoxInSlot(layout, slot);
+  const imageBox: StickerImageBox = {
+    left: placement.x * scale,
+    top: placement.y * scale,
+    width: placement.width * scale,
+    height: placement.height * scale,
+  };
+
   return (
-    <>
-      {STICKER_FIELD_KEYS.map((key) => {
-        const style = design[key];
-        if (!style || !style.enabled) return null;
-        const value = values[key];
-        if (!value) return null;
-
-        const fb = fieldBox(style, slot.width, slot.height);
-        const maxLines = key === 'business_name' ? (style.wrap2 ? 2 : 1) : 1;
-        const measured = (text: string, size: number) =>
-          measureText(text, size, style.fontFamily, style.bold);
-        const fitted = fitText(
-          value,
-          {
-            maxWidth: fb.width,
-            maxHeight: fb.height,
-            startSize: fb.startSize,
-            maxLines,
-            autoShrink: style.autoShrink,
-            minSize: Math.max(4, fb.startSize * 0.3),
-          },
-          measured
-        );
-
-        const justify =
-          style.vAlign === 'top' ? 'flex-start' : style.vAlign === 'middle' ? 'center' : 'flex-end';
-        const alignItems =
-          style.align === 'left' ? 'flex-start' : style.align === 'center' ? 'center' : 'flex-end';
-
-        return (
-          <div
-            key={key}
-            style={{
-              position: 'absolute',
-              left: `${fb.left * scale}px`,
-              top: `${fb.top * scale}px`,
-              width: `${fb.width * scale}px`,
-              height: `${fb.height * scale}px`,
-              display: 'flex',
-              flexDirection: 'column',
-              justifyContent: justify,
-              alignItems,
-              overflow: 'hidden',
-              pointerEvents: 'none',
-            }}
-          >
-            {fitted.lines.map((line, i) => (
-              <div
-                key={i}
-                style={{
-                  width: '100%',
-                  fontSize: `${fitted.fontSize * scale}px`,
-                  lineHeight: `${fitted.lineHeight * scale}px`,
-                  fontWeight: style.bold ? 700 : 400,
-                  fontFamily: FONT_CSS[style.fontFamily] || FONT_CSS.helvetica,
-                  color: style.color || '#000000',
-                  textAlign: style.align,
-                  whiteSpace: 'pre',
-                }}
-              >
-                {line}
-              </div>
-            ))}
-          </div>
-        );
-      })}
-    </>
+    <StickerArtwork
+      design={design}
+      sample={sample}
+      widthPx={slot.width * scale}
+      heightPx={slot.height * scale}
+      imageUrl={imageUrl}
+      imageBox={imageBox}
+      showText={showText}
+    />
   );
 };
 

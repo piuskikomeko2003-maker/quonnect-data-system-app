@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Move,
   Type,
@@ -12,7 +12,6 @@ import {
   Bold as BoldIcon,
   RotateCcw,
   Shuffle,
-  Image as ImageIcon,
   Eye,
   Sliders,
 } from 'lucide-react';
@@ -27,28 +26,8 @@ import {
   type StickerFieldKey,
   type StickerFieldStyle,
   type StickerFontFamily,
-  type StickerHAlign,
-  type StickerVAlign,
 } from '@/types/sticker';
-import { fitText } from '@/lib/stickers/fitting';
-
-const FONT_CSS: Record<StickerFontFamily, string> = {
-  helvetica: 'Helvetica, Arial, sans-serif',
-  times: '"Times New Roman", Times, serif',
-  courier: '"Courier New", Courier, monospace',
-};
-
-let measureCtx: CanvasRenderingContext2D | null = null;
-function measureText(text: string, fontSize: number, family: StickerFontFamily, bold: boolean): number {
-  if (typeof document === 'undefined') return text.length * fontSize * 0.55;
-  if (!measureCtx) {
-    const canvas = document.createElement('canvas');
-    measureCtx = canvas.getContext('2d');
-  }
-  if (!measureCtx) return text.length * fontSize * 0.55;
-  measureCtx.font = `${bold ? 700 : 400} ${fontSize}px ${FONT_CSS[family]}`;
-  return measureCtx.measureText(text).width;
-}
+import { StickerArtwork } from '@/components/stickers/StickerArtwork';
 
 interface StickerDesignerProps {
   design: StickerDesign;
@@ -103,11 +82,6 @@ export const StickerDesigner: React.FC<StickerDesignerProps> = ({
   }, [aspect]);
 
   const sample = STICKER_SAMPLE_DATA[sampleIndex % STICKER_SAMPLE_DATA.length];
-  const sampleValues: Record<StickerFieldKey, string> = {
-    business_name: sample.business_name,
-    ticket_number: sample.ticket_number,
-    table_label: sample.table_label,
-  };
 
   const updateField = useCallback(
     (key: StickerFieldKey, patch: Partial<StickerFieldStyle>) => {
@@ -200,38 +174,6 @@ export const StickerDesigner: React.FC<StickerDesignerProps> = ({
       y: clamp(style.y + dy, 0, 100 - style.height),
     });
   };
-
-  const renderedFields = useMemo(() => {
-    return STICKER_FIELD_KEYS.map((key) => {
-      const style = design[key];
-      const boxW = (style.width / 100) * canvasW;
-      const boxH = (style.height / 100) * canvasH;
-      const startSize = (style.fontSizePct / 100) * canvasH;
-      const maxLines = key === 'business_name' ? (style.wrap2 ? 2 : 1) : 1;
-      const measured = (text: string, size: number) =>
-        measureText(text, size, style.fontFamily, style.bold);
-
-      const fitted = fitText(
-        sampleValues[key],
-        {
-          maxWidth: boxW,
-          maxHeight: boxH,
-          startSize,
-          maxLines,
-          autoShrink: style.autoShrink,
-          minSize: Math.max(4, startSize * 0.3),
-        },
-        measured
-      );
-
-      const justify =
-        style.vAlign === 'top' ? 'flex-start' : style.vAlign === 'middle' ? 'center' : 'flex-end';
-      const alignItems =
-        style.align === 'left' ? 'flex-start' : style.align === 'center' ? 'center' : 'flex-end';
-
-      return { key, style, fitted, justify, alignItems };
-    });
-  }, [design, canvasW, canvasH, sampleValues]);
 
   const num = (
     label: string,
@@ -495,107 +437,20 @@ export const StickerDesigner: React.FC<StickerDesignerProps> = ({
                   boxShadow: '0 0 0 1px rgba(0,0,0,0.15)',
                 }}
               >
-                {imageUrl ? (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img
-                    src={imageUrl}
-                    alt="Sticker design"
-                    style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
-                  />
-                ) : (
-                  <div className="absolute inset-0 flex items-center justify-center text-slate-300 text-[11px] gap-1.5">
-                    <ImageIcon className="w-4 h-4" />
-                    No image — plain white sticker
-                  </div>
-                )}
-
-                {/* Overlaid fields */}
-                {renderedFields.map(({ key, style, fitted, justify, alignItems }) => {
-                  if (!style.enabled) return null;
-                  const isCurrent = activeField === key;
-                  return (
-                    <div
-                      key={key}
-                      onPointerDown={(e) => beginDrag(e, key, 'move')}
-                      onKeyDown={(e) => handleKeyDown(e, key)}
-                      tabIndex={0}
-                      className="absolute cursor-move outline-none"
-                      style={{
-                        left: `${style.x}%`,
-                        top: `${style.y}%`,
-                        width: `${style.width}%`,
-                        height: `${style.height}%`,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        justifyContent: justify,
-                        alignItems,
-                        outline: isCurrent ? '2px dashed #1d4ed8' : '1px solid rgba(0,0,0,0.08)',
-                        backgroundColor: isCurrent ? 'rgba(29,78,216,0.10)' : 'transparent',
-                        zIndex: isCurrent ? 20 : 10,
-                      }}
-                    >
-                      {fitted.lines.map((line, i) => (
-                        <div
-                          key={i}
-                          style={{
-                            width: '100%',
-                            fontSize: `${fitted.fontSize}px`,
-                            lineHeight: `${fitted.lineHeight}px`,
-                            fontWeight: style.bold ? 700 : 400,
-                            fontFamily: FONT_CSS[style.fontFamily],
-                            color: style.color || '#000000',
-                            textAlign: style.align,
-                            whiteSpace: 'pre',
-                            pointerEvents: 'none',
-                          }}
-                        >
-                          {line}
-                        </div>
-                      ))}
-
-                      {isCurrent && (
-                        <>
-                          {(['nw', 'ne', 'sw', 'se'] as const).map((handle) => (
-                            <span
-                              key={handle}
-                              onPointerDown={(e) => beginDrag(e, key, 'resize', handle)}
-                              style={{
-                                position: 'absolute',
-                                width: 10,
-                                height: 10,
-                                background: '#1d4ed8',
-                                border: '1px solid #fff',
-                                borderRadius: 2,
-                                cursor: handle === 'nw' || handle === 'se' ? 'nwse-resize' : 'nesw-resize',
-                                left: handle === 'nw' || handle === 'sw' ? -5 : undefined,
-                                right: handle === 'ne' || handle === 'se' ? -5 : undefined,
-                                top: handle === 'nw' || handle === 'ne' ? -5 : undefined,
-                                bottom: handle === 'sw' || handle === 'se' ? -5 : undefined,
-                              }}
-                            />
-                          ))}
-                          <span
-                            style={{
-                              position: 'absolute',
-                              top: -16,
-                              left: 0,
-                              fontSize: 9,
-                              background: '#1d4ed8',
-                              color: '#fff',
-                              padding: '1px 4px',
-                              borderRadius: 2,
-                              whiteSpace: 'nowrap',
-                              fontWeight: 'bold',
-                              pointerEvents: 'none',
-                            }}
-                          >
-                            {STICKER_FIELD_LABELS[key]}
-                          </span>
-                        </>
-                      )}
-                    </div>
-                  );
-                })}
+                <StickerArtwork
+                  design={design}
+                  sample={sample}
+                  widthPx={canvasW}
+                  heightPx={canvasH}
+                  imageUrl={imageUrl}
+                  emptyImageHint="No image — plain white sticker"
+                  interactive={{
+                    activeField,
+                    onFieldPointerDown: (e, key) => beginDrag(e, key, 'move'),
+                    onFieldKeyDown: handleKeyDown,
+                    onResizePointerDown: (e, key, handle) => beginDrag(e, key, 'resize', handle),
+                  }}
+                />
               </div>
             </div>
           </div>

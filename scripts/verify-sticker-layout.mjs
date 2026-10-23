@@ -15,6 +15,7 @@ import { PDFDocument } from 'pdf-lib';
 import {
   computeStickerLayout,
   slotImageBox,
+  slotImageBoxInSlot,
   autoFitStickerSize,
   A4_LANDSCAPE_MM,
   A4_PORTRAIT_MM,
@@ -95,6 +96,27 @@ console.log('1. Landscape 3x3 @ 89x59 mm, 6 mm gaps');
   }
   ok(offPage === 0, `no slot image leaves the page (off: ${offPage})`);
   ok(cropped === 0, `exact fit never crops (cropped: ${cropped})`);
+
+  // Regression guard for the page preview: every cell must receive the SAME
+  // image rectangle relative to its own slot. Page-space coordinates leaked into
+  // the slot children before, so only the first cell showed an image.
+  const inset = layout.imageInset;
+  let relativeMismatches = 0;
+  for (const slot of layout.slots) {
+    const rel = slotImageBoxInSlot(layout, slot);
+    if (
+      !CLOSE(rel.x, -inset.left) ||
+      !CLOSE(rel.y, -inset.top) ||
+      !CLOSE(rel.width, slot.width + inset.left + inset.right) ||
+      !CLOSE(rel.height, slot.height + inset.top + inset.bottom)
+    ) {
+      relativeMismatches++;
+    }
+  }
+  ok(
+    relativeMismatches === 0,
+    `all ${layout.slots.length} cell image boxes are slot-relative (mismatches: ${relativeMismatches})`
+  );
 
   // Crop marks: two edges (left/right) per column/row boundary => 2*(3+3) edges
   // x 2 ticks = 16.
@@ -231,7 +253,16 @@ console.log('7. Source guards');
 
   const previewSrc = fs.readFileSync(path.join(ROOT, 'src/components/settings/StickerPagePreview.tsx'), 'utf8');
   ok(previewSrc.includes('computeStickerLayout'), 'preview uses computeStickerLayout');
-  ok(previewSrc.includes('slotImageBox'), 'preview uses slotImageBox');
+  ok(previewSrc.includes('slotImageBoxInSlot'), 'preview renders images slot-relative');
+  ok(
+    previewSrc.includes("from '@/components/stickers/StickerArtwork'"),
+    'preview reuses the shared artwork renderer'
+  );
+  const designerSrc = fs.readFileSync(path.join(ROOT, 'src/components/settings/StickerDesigner.tsx'), 'utf8');
+  ok(
+    designerSrc.includes("from '@/components/stickers/StickerArtwork'"),
+    'single preview reuses the shared artwork renderer'
+  );
 
   const geometrySrc = fs.readFileSync(path.join(ROOT, 'src/lib/stickers/geometry.ts'), 'utf8');
   ok(geometrySrc.includes('computeStickerLayout'), 'geometry.ts delegates to computeStickerLayout');

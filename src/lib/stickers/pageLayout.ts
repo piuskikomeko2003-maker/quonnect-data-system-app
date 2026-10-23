@@ -369,6 +369,26 @@ export function slotImageBox(layout: StickerLayout, slot: StickerSlotMm): ImageP
 }
 
 /**
+ * The design image rectangle for one slot expressed RELATIVE TO THAT SLOT
+ * (0,0 = the slot's top-left). Use this for anything rendered inside an element
+ * that is already positioned at the slot: passing page-space coordinates to a
+ * child of the slot would double-count the slot offset and push every image out
+ * of its cell.
+ */
+export function slotImageBoxInSlot(
+  layout: StickerLayout,
+  slot: StickerSlotMm
+): RectMm {
+  const placement = slotImageBox(layout, slot);
+  return {
+    x: placement.x - slot.x,
+    y: placement.y - slot.y,
+    width: placement.width,
+    height: placement.height,
+  };
+}
+
+/**
  * The largest sticker size that fits the page for the given columns/rows/gaps
  * and margins, keeping the design image's aspect ratio. Powers the "Auto-fit"
  * button.
