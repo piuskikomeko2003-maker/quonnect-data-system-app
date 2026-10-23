@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
@@ -23,6 +24,8 @@ import {
   Link2,
   Wand2,
   Layout,
+  CalendarDays,
+  Sparkles,
 } from 'lucide-react';
 import type { StickerTemplate, StickerTemplatePatch } from '@/types/sticker';
 import { normalizeDesign } from '@/types/sticker';
@@ -31,7 +34,14 @@ import { layoutSettingsFromTemplate } from '@/lib/stickers/templateLayout';
 import { StickerDesigner } from './StickerDesigner';
 import { StickerPagePreview } from './StickerPagePreview';
 
+interface EditionOption {
+  id: string;
+  name: string;
+  date?: string;
+}
+
 const toPatch = (t: StickerTemplate): StickerTemplatePatch => ({
+  edition_id: t.edition_id ?? null,
   orientation: t.orientation,
   page_width_mm: Number(t.page_width_mm),
   page_height_mm: Number(t.page_height_mm),
@@ -62,6 +72,9 @@ const toPatch = (t: StickerTemplate): StickerTemplatePatch => ({
 
 export const StickerTemplateSettings: React.FC = () => {
   const [templates, setTemplates] = useState<StickerTemplate[]>([]);
+  /** 'global' or an edition id. */
+  const [scope, setScope] = useState<string>('global');
+  const [editions, setEditions] = useState<EditionOption[]>([]);
   const [selectedId, setSelectedId] = useState<string>('');
   const [draft, setDraft] = useState<StickerTemplatePatch | null>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
@@ -69,23 +82,62 @@ export const StickerTemplateSettings: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [activating, setActivating] = useState(false);
+  const [creatingEdition, setCreatingEdition] = useState(false);
   const [missingTable, setMissingTable] = useState(false);
   const [status, setStatus] = useState<{ message: string; type: 'success' | 'error' | 'warning' } | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [nameDraft, setNameDraft] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const selected = useMemo(
-    () => templates.find((t) => t.id === selectedId) || null,
-    [templates, selectedId]
+  const isEditionScope = scope !== 'global';
+
+  const globalTemplates = useMemo(() => templates.filter((t) => !t.edition_id), [templates]);
+  const defaultTemplate = useMemo(
+    () => globalTemplates.find((t) => t.is_active) || globalTemplates[0] || null,
+    [globalTemplates]
   );
+  const editionTemplate = useMemo(
+    () => (isEditionScope ? templates.find((t) => t.edition_id === scope) || null : null),
+    [templates, scope, isEditionScope]
+  );
+
+  const selected = useMemo(() => {
+    if (isEditionScope) return editionTemplate;
+    return (
+      templates.find((t) => t.id === selectedId && !t.edition_id) ||
+      defaultTemplate ||
+      globalTemplates[0] ||
+      null
+    );
+  }, [isEditionScope, editionTemplate, templates, selectedId, defaultTemplate, globalTemplates]);
 
   const flash = (message: string, type: 'success' | 'error' | 'warning') => {
     setStatus({ message, type });
     setTimeout(() => setStatus(null), 6000);
   };
 
-  const loadTemplates = useCallback(async (preferId?: string) => {
+  const loadEditions = useCallback(async () => {
+    try {
+      const supabase = createClient();
+      if (!supabase) return;
+      const { data, error } = await supabase
+        .from('market_days')
+        .select('*')
+        .order('event_date', { ascending: false });
+      if (error) throw error;
+      setEditions(
+        (data || []).map((row: { id: string; name?: string | null; edition?: string | null; event_date?: string | null }) => ({
+          id: row.id,
+          name: row.edition || row.name || 'Untitled edition',
+          date: row.event_date || undefined,
+        }))
+      );
+    } catch (err) {
+      console.error('Failed to load editions for sticker templates:', err);
+    }
+  }, []);
+
+  const loadTemplates = useCallback(async (preferId?: string, preferScope: string = 'global') => {
     setLoading(true);
     try {
       const res = await fetch('/api/stickers/templates', { cache: 'no-store' });
@@ -97,10 +149,18 @@ export const StickerTemplateSettings: React.FC = () => {
       const list: StickerTemplate[] = data.templates || [];
       setTemplates(list);
       setMissingTable(false);
-      const active = list.find((t) => t.is_active) || list[0] || null;
-      const nextId = preferId && list.some((t) => t.id === preferId) ? preferId : active?.id || '';
-      setSelectedId(nextId);
-      const next = list.find((t) => t.id === nextId) || null;
+
+      const globals = list.filter((t) => !t.edition_id);
+      const fallback = globals.find((t) => t.is_active) || globals[0] || list[0] || null;
+      const scoped =
+        preferScope !== 'global' ? list.find((t) => t.edition_id === preferScope) || null : null;
+      const preferred =
+        preferId && list.some((t) => t.id === preferId && !t.edition_id)
+          ? list.find((t) => t.id === preferId) || null
+          : null;
+      const next = preferScope === 'global' ? preferred || fallback : scoped;
+
+      setSelectedId(next?.id || '');
       setDraft(next ? toPatch(next) : null);
       setImageUrl(next?.image_url ?? null);
     } catch (err: any) {
@@ -112,19 +172,36 @@ export const StickerTemplateSettings: React.FC = () => {
 
   useEffect(() => {
     loadTemplates();
-  }, [loadTemplates]);
+    loadEditions();
+  }, [loadTemplates, loadEditions]);
 
   useEffect(() => {
     setNameDraft(selected?.preset_name || '');
   }, [selected?.preset_name, selectedId]);
 
   const selectPreset = (id: string) => {
+    setScope('global');
     setSelectedId(id);
-    const t = templates.find((x) => x.id === id);
+    const t = templates.find((x) => x.id === id && !x.edition_id);
     setDraft(t ? toPatch(t) : null);
     setImageUrl(t?.image_url ?? null);
     setWarnings([]);
     setStatus(null);
+  };
+
+  const selectScope = (nextScope: string) => {
+    setScope(nextScope);
+    setWarnings([]);
+    setStatus(null);
+
+    const next =
+      nextScope === 'global'
+        ? defaultTemplate
+        : templates.find((t) => t.edition_id === nextScope) || null;
+
+    setSelectedId(next?.id || '');
+    setDraft(next ? toPatch(next) : null);
+    setImageUrl(next?.image_url ?? null);
   };
 
   const setField = <K extends keyof StickerTemplatePatch>(key: K, value: StickerTemplatePatch[K]) => {
@@ -275,6 +352,29 @@ export const StickerTemplateSettings: React.FC = () => {
     window.open(`/api/stickers/alignment-test?template_id=${selected.id}`, '_blank');
   };
 
+  const customizeEdition = async () => {
+    if (!isEditionScope) return;
+    setCreatingEdition(true);
+    try {
+      const res = await fetch('/api/stickers/templates', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          edition_id: scope,
+          duplicate_of: defaultTemplate?.id,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || 'Failed to create edition design');
+      await loadTemplates(data.template?.id, scope);
+      flash('Custom sticker design created for this edition.', 'success');
+    } catch (err: any) {
+      flash(err?.message || 'Failed to create edition design', 'error');
+    } finally {
+      setCreatingEdition(false);
+    }
+  };
+
   const createTemplate = async () => {
     const name = window.prompt('Name for the new template:', 'New template');
     if (name === null) return;
@@ -286,7 +386,7 @@ export const StickerTemplateSettings: React.FC = () => {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || 'Failed to create template');
-      await loadTemplates(data.template?.id);
+      await loadTemplates(data.template?.id, 'global');
       flash('Template created.', 'success');
     } catch (err: any) {
       flash(err?.message || 'Failed to create template', 'error');
@@ -303,7 +403,7 @@ export const StickerTemplateSettings: React.FC = () => {
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || 'Failed to duplicate template');
-      await loadTemplates(data.template?.id);
+      await loadTemplates(data.template?.id, 'global');
       flash('Template duplicated.', 'success');
     } catch (err: any) {
       flash(err?.message || 'Failed to duplicate template', 'error');
@@ -312,13 +412,30 @@ export const StickerTemplateSettings: React.FC = () => {
 
   const deleteTemplate = async () => {
     if (!selected) return;
-    if (!confirm(`Delete "${selected.preset_name}"? This cannot be undone.`)) return;
+    const removingEdition = Boolean(selected.edition_id);
+    if (
+      !confirm(
+        removingEdition
+          ? `Remove this edition's custom sticker design? It will fall back to the global default.`
+          : `Delete "${selected.preset_name}"? This cannot be undone.`
+      )
+    ) {
+      return;
+    }
     try {
       const res = await fetch(`/api/stickers/templates?id=${selected.id}`, { method: 'DELETE' });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || 'Failed to delete template');
-      await loadTemplates();
-      flash('Template deleted.', 'success');
+      if (removingEdition) {
+        setTemplates((prev) => prev.filter((t) => t.id !== selected.id));
+        setSelectedId('');
+        setDraft(null);
+        setImageUrl(null);
+        flash('Edition custom design removed. This edition now uses the global default.', 'success');
+      } else {
+        await loadTemplates(undefined, 'global');
+        flash('Template deleted.', 'success');
+      }
     } catch (err: any) {
       flash(err?.message || 'Failed to delete template', 'error');
     }
@@ -368,6 +485,11 @@ export const StickerTemplateSettings: React.FC = () => {
     );
   }
 
+  const editionLabel = editions.find((e) => e.id === scope)?.name || 'This edition';
+  const editionIdsWithTemplate = new Set(
+    templates.filter((t) => t.edition_id).map((t) => t.edition_id as string)
+  );
+
   const numField = (
     label: string,
     key: keyof StickerTemplatePatch,
@@ -395,7 +517,7 @@ export const StickerTemplateSettings: React.FC = () => {
             Sticker Templates
           </h1>
           <p className="text-xs text-text-muted mt-0.5">
-            Design a single sticker and lay it out on the sheet. Print at 100% / Actual size.
+            Give each edition its own sticker design, or fall back to the global default. Print at 100% / Actual size.
           </p>
         </div>
       </div>
@@ -430,35 +552,110 @@ export const StickerTemplateSettings: React.FC = () => {
         </div>
       )}
 
-      {/* Preset selector */}
-      <div className="flex items-center gap-2 border-b border-border pb-px overflow-x-auto">
-        {templates.map((t) => (
-          <button
-            key={t.id}
-            onClick={() => selectPreset(t.id)}
-            className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-lg transition-all border-b-2 -mb-px cursor-pointer whitespace-nowrap ${
-              selectedId === t.id
-                ? 'text-accent border-accent bg-accent-soft/40'
-                : 'text-text-muted border-transparent hover:text-text-primary hover:bg-slate-100'
-            }`}
-          >
-            {t.preset_name}
-            {t.is_active && <Badge variant="success" size="sm">Active</Badge>}
-          </button>
-        ))}
+      {/* Scope: global default or one edition */}
+      <div className="bg-bg-surface border border-border rounded-xl p-4 flex flex-col sm:flex-row sm:items-center gap-3">
+        <div className="flex items-center gap-2">
+          <CalendarDays className="w-4 h-4 text-accent" />
+          <label htmlFor="sticker-template-scope" className="text-xs font-bold text-text-primary uppercase tracking-wider">
+            Edition
+          </label>
+        </div>
+        <select
+          id="sticker-template-scope"
+          value={scope}
+          onChange={(e) => selectScope(e.target.value)}
+          className="w-full sm:w-auto min-w-[260px] bg-bg-input border border-border rounded-md px-3 py-2 text-xs text-text-primary outline-none focus:border-accent"
+        >
+          <option value="global">Global default — used by editions without a custom design</option>
+          {editions.map((edition) => (
+            <option key={edition.id} value={edition.id}>
+              {edition.name}
+              {edition.date ? ` — ${edition.date}` : ''}
+              {editionIdsWithTemplate.has(edition.id) ? ' (custom design)' : ''}
+            </option>
+          ))}
+        </select>
+        <p className="text-[11px] text-text-tertiary sm:ml-auto">
+          {isEditionScope && editionTemplate
+            ? 'Editing the design used only by this edition.'
+            : isEditionScope
+            ? 'This edition currently uses the global default.'
+            : 'Editing the fallback design used by all editions.'}
+        </p>
       </div>
 
-      {draft && selected && (
+      {/* Global preset tabs */}
+      {!isEditionScope && (
+        <div className="flex items-center gap-2 border-b border-border pb-px overflow-x-auto">
+          {globalTemplates.map((t) => (
+            <button
+              key={t.id}
+              onClick={() => selectPreset(t.id)}
+              className={`flex items-center gap-2 px-4 py-2.5 text-xs font-semibold rounded-t-lg transition-all border-b-2 -mb-px cursor-pointer whitespace-nowrap ${
+                selectedId === t.id
+                  ? 'text-accent border-accent bg-accent-soft/40'
+                  : 'text-text-muted border-transparent hover:text-text-primary hover:bg-slate-100'
+              }`}
+            >
+              {t.preset_name}
+              {t.is_active && <Badge variant="success" size="sm">Active</Badge>}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {isEditionScope && !editionTemplate && (
+        <div className="bg-accent-soft/20 border border-accent/30 rounded-xl p-5 flex flex-col sm:flex-row sm:items-center gap-4">
+          <div className="flex items-start gap-3 min-w-0">
+            <Sparkles className="w-5 h-5 text-accent shrink-0 mt-0.5" />
+            <div>
+              <p className="text-sm font-bold text-text-primary">
+                {editionLabel} uses the global default sticker design
+              </p>
+              <p className="text-[11px] text-text-secondary mt-1">
+                {defaultTemplate
+                  ? `Currently using "${defaultTemplate.preset_name}". Create a copy for this edition, then change its image and fields without affecting other editions.`
+                  : 'Create a custom design for this edition.'}
+              </p>
+            </div>
+          </div>
+          <Button
+            variant="primary"
+            size="sm"
+            onClick={customizeEdition}
+            disabled={creatingEdition}
+            className="sm:ml-auto shrink-0"
+          >
+            {creatingEdition ? (
+              <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            ) : (
+              <Sparkles className="w-3.5 h-3.5" />
+            )}
+            Customize for this edition
+          </Button>
+        </div>
+      )}
+
+      {draft && selected && (!isEditionScope || editionTemplate) && (
         <>
           <div className="flex flex-wrap items-center gap-2">
-            <Button variant="secondary" size="sm" onClick={createTemplate}>
-              <Plus className="w-3.5 h-3.5" />
-              New template
-            </Button>
-            <Button variant="secondary" size="sm" onClick={duplicateTemplate}>
-              <Copy className="w-3.5 h-3.5" />
-              Duplicate
-            </Button>
+            {!isEditionScope && (
+              <>
+                <Button variant="secondary" size="sm" onClick={createTemplate}>
+                  <Plus className="w-3.5 h-3.5" />
+                  New template
+                </Button>
+                <Button variant="secondary" size="sm" onClick={duplicateTemplate}>
+                  <Copy className="w-3.5 h-3.5" />
+                  Duplicate
+                </Button>
+              </>
+            )}
+            {isEditionScope && (
+              <Badge variant="info" size="sm">
+                Custom design for {editionLabel}
+              </Badge>
+            )}
             <div className="flex items-center gap-2 ml-auto">
               <input
                 type="text"
@@ -497,7 +694,7 @@ export const StickerTemplateSettings: React.FC = () => {
                 <Printer className="w-3.5 h-3.5" />
                 Print alignment test
               </Button>
-              {!selected.is_active && (
+              {!isEditionScope && !selected.is_active && (
                 <Button variant="secondary" size="sm" onClick={makeActive} disabled={activating}>
                   {activating ? <Loader2 className="w-3.5 h-3.5 animate-spin" /> : <CheckCircle2 className="w-3.5 h-3.5" />}
                   Set as active

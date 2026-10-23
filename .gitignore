@@ -39,6 +39,9 @@ yarn-error.log*
 # database backups
 backups/
 
+# supabase CLI local link state
+supabase/.temp/
+
 # vercel
 .vercel
 

@@ -2,8 +2,8 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { requireSuperAdmin } from '@/lib/auth/requireAdmin';
 import {
-  STICKER_ASSETS_BUCKET,
   createStickerTemplate,
+  deleteOrphanedStickerImage,
   deleteStickerTemplate,
   listStickerTemplates,
   sanitizeTemplatePatch,
@@ -19,11 +19,14 @@ export const runtime = 'nodejs';
  * design image (the bucket itself is never public). The server role check is the
  * real protection — hiding the UI alone is not relied upon.
  */
-export async function GET() {
+export async function GET(request: NextRequest) {
   const auth = await requireSuperAdmin();
   if (auth.response) return auth.response;
 
   try {
+    const { searchParams } = new URL(request.url);
+    const editionId = searchParams.get('edition_id');
+
     const supabase = createServiceClient();
     const templates = await listStickerTemplates(supabase);
     const withUrls = await Promise.all(
@@ -32,7 +35,15 @@ export async function GET() {
         image_url: await signStickerImageUrl(supabase, t.image_path),
       }))
     );
-    return NextResponse.json({ templates: withUrls });
+
+    // Edition-specific design first, otherwise the globally active preset.
+    const defaultTemplate =
+      withUrls.find((t) => !t.edition_id && t.is_active) ||
+      withUrls.find((t) => !t.edition_id) ||
+      null;
+    const resolved = (editionId && withUrls.find((t) => t.edition_id === editionId)) || defaultTemplate;
+
+    return NextResponse.json({ templates: withUrls, template: resolved });
   } catch (err: any) {
     if (err?.code === 'PGRST205' || err?.message?.includes('schema cache')) {
       return NextResponse.json(
@@ -87,6 +98,14 @@ export async function PUT(request: NextRequest) {
       .eq('id', id)
       .maybeSingle();
     const previousImage = (existing as any)?.image_path as string | null | undefined;
+    const isEditionTemplate = Boolean((existing as any)?.edition_id);
+
+    if (makeActive && isEditionTemplate) {
+      return NextResponse.json(
+        { error: 'An edition-specific design cannot be the global active preset.' },
+        { status: 400 }
+      );
+    }
 
     // Never persist a grid that does not fit its page. Only enforced when the
     // geometry is actually being changed (or the preset is being activated) so a
@@ -137,13 +156,10 @@ export async function PUT(request: NextRequest) {
 
     if (error) throw error;
 
-    // Best-effort cleanup of the replaced image (never fails the save).
+    // Best-effort cleanup of the replaced image (never fails the save). Shared
+    // images (e.g. an edition copied from the global default) are kept.
     if ('image_path' in patch && previousImage && previousImage !== patch.image_path) {
-      try {
-        await supabase.storage.from(STICKER_ASSETS_BUCKET).remove([previousImage]);
-      } catch {
-        // ignore cleanup failures
-      }
+      await deleteOrphanedStickerImage(supabase, previousImage);
     }
 
     return NextResponse.json({ success: true, template: data });
@@ -180,18 +196,23 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json().catch(() => ({}));
-    const { name, duplicate_of } = body ?? {};
+    const { name, duplicate_of, edition_id } = body ?? {};
 
     const supabase = createServiceClient();
     const template = await createStickerTemplate(supabase, {
       name: typeof name === 'string' ? name : undefined,
       duplicateOf: typeof duplicate_of === 'string' ? duplicate_of : undefined,
+      editionId: typeof edition_id === 'string' && edition_id ? edition_id : undefined,
     });
 
     return NextResponse.json({ success: true, template });
   } catch (err: any) {
-    console.error('Failed to create sticker template:', err);
-    return NextResponse.json({ error: err?.message || 'Failed to create sticker template' }, { status: 500 });
+    const duplicateEdition = /already has its own sticker design/i.test(err?.message || '');
+    if (!duplicateEdition) console.error('Failed to create sticker template:', err);
+    return NextResponse.json(
+      { error: err?.message || 'Failed to create sticker template' },
+      { status: duplicateEdition ? 409 : 500 }
+    );
   }
 }
 

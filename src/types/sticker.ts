@@ -141,6 +141,8 @@ export function normalizeDesign(raw: any): StickerDesign {
 /** A sticker template row (public.sticker_templates). */
 export interface StickerTemplate {
   id: string;
+  /** NULL for a global preset; set when this design belongs to one edition. */
+  edition_id: string | null;
   preset_key: string;
   preset_name: string;
   is_active: boolean;
@@ -189,6 +191,7 @@ export type StickerTemplatePatch = Omit<
 >;
 
 export const DEFAULT_STICKER_TEMPLATE: StickerTemplatePatch = {
+  edition_id: null,
   orientation: 'landscape',
   // Landscape A4 = 297 x 210 mm.
   page_width_mm: 297,
@@ -263,6 +266,7 @@ export function normalizeTemplate(row: any): StickerTemplate {
       : 'portrait';
   return {
     ...row,
+    edition_id: row.edition_id ?? null,
     orientation,
     page_width_mm: pageWidth,
     page_height_mm: pageHeight,

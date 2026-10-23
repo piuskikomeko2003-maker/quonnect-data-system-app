@@ -62,7 +62,7 @@ export async function POST(request: NextRequest) {
     }
 
     const vendors = await fetchStickerVendors(supabase, market_day_id);
-    const template = await getStickerTemplate(supabase);
+    const template = await getStickerTemplate(supabase, null, market_day_id);
     const slotsPerPage = template ? Math.max(1, template.columns * template.rows) : DEFAULT_SLOTS_PER_PAGE;
 
     const isAll = mode === 'all';
@@ -153,11 +153,7 @@ async function createReprintBatch(
     );
   }
 
-  const { data: template } = await supabase
-    .from('sticker_templates')
-    .select('id')
-    .eq('is_active', true)
-    .maybeSingle();
+  const template = await getStickerTemplate(supabase, null, reg.market_day_id);
 
   const { data: batch, error } = await supabase
     .from('sticker_print_batches')

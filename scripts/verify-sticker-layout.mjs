@@ -266,6 +266,20 @@ console.log('7. Source guards');
 
   const geometrySrc = fs.readFileSync(path.join(ROOT, 'src/lib/stickers/geometry.ts'), 'utf8');
   ok(geometrySrc.includes('computeStickerLayout'), 'geometry.ts delegates to computeStickerLayout');
+
+  // Per-edition designs: the server, API and migration must all know about the
+  // edition scope so the print screen and settings agree on which template wins.
+  const serverSrc = fs.readFileSync(path.join(ROOT, 'src/lib/stickers/server.ts'), 'utf8');
+  ok(serverSrc.includes('edition_id'), 'sticker server resolves edition-specific templates');
+  const templatesApiSrc = fs.readFileSync(
+    path.join(ROOT, 'src/app/api/stickers/templates/route.ts'),
+    'utf8'
+  );
+  ok(templatesApiSrc.includes('edition_id'), 'sticker templates API accepts an edition scope');
+  ok(
+    fs.existsSync(path.join(ROOT, 'supabase/migrations/add_sticker_template_editions.sql')),
+    'per-edition sticker migration exists'
+  );
 }
 
 console.log(`\n${checks - failures}/${checks} checks passed\n`);

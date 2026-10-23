@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
     const supabase = createServiceClient();
     const { data: batch, error } = await supabase
       .from('sticker_print_batches')
-      .select('id, kind, items, start_position, template_id')
+      .select('id, kind, items, start_position, template_id, market_day_id')
       .eq('id', batchId)
       .maybeSingle();
     if (error) throw error;
@@ -34,7 +34,12 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Batch not found.' }, { status: 404 });
     }
 
-    const template = await getStickerTemplate(supabase, batch.template_id);
+    const batchRow = batch as { template_id?: string | null; market_day_id?: string | null };
+    const template = await getStickerTemplate(
+      supabase,
+      batchRow.template_id || null,
+      batchRow.market_day_id || null
+    );
     if (!template) {
       return NextResponse.json({ error: 'No sticker template available.' }, { status: 400 });
     }

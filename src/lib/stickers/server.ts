@@ -55,10 +55,27 @@ export async function listStickerTemplates(supabase: ServiceClient): Promise<Sti
   return data.map(normalizeTemplate);
 }
 
-/** Returns the requested template, or the active one when no id is given. */
+/** True when the deployed database has not run add_sticker_template_editions.sql. */
+function isMissingEditionColumn(error: unknown): boolean {
+  const candidate = error as { code?: string; message?: string } | null;
+  return (
+    candidate?.code === 'PGRST204' ||
+    /edition_id/i.test(candidate?.message || '') ||
+    /column .* does not exist/i.test(candidate?.message || '')
+  );
+}
+
+/**
+ * Resolves the sticker template to use.
+ *
+ *  - `templateId` wins (used when reopening a stored batch).
+ *  - otherwise `editionId` gets that edition's custom design.
+ *  - otherwise the globally active preset is the fallback.
+ */
 export async function getStickerTemplate(
   supabase: ServiceClient,
-  templateId?: string | null
+  templateId?: string | null,
+  editionId?: string | null
 ): Promise<StickerTemplate | null> {
   if (templateId) {
     const { data, error } = await supabase
@@ -70,17 +87,44 @@ export async function getStickerTemplate(
     return data ? normalizeTemplate(data) : null;
   }
 
-  const { data, error } = await supabase
+  if (editionId) {
+    const { data, error } = await supabase
+      .from('sticker_templates')
+      .select('*')
+      .eq('edition_id', editionId)
+      .maybeSingle();
+    if (error) {
+      // Before the per-edition migration is applied, keep using the global
+      // fallback instead of breaking sticker printing.
+      if (!isMissingEditionColumn(error)) throw error;
+    } else if (data) {
+      return normalizeTemplate(data);
+    }
+  }
+
+  const activeQuery = supabase
     .from('sticker_templates')
     .select('*')
     .eq('is_active', true)
-    .maybeSingle();
+    .is('edition_id', null);
+  let { data, error } = await activeQuery.maybeSingle();
+
+  // Pre-migration databases do not have edition_id yet.
+  if (error && isMissingEditionColumn(error)) {
+    const retry = await supabase
+      .from('sticker_templates')
+      .select('*')
+      .eq('is_active', true)
+      .maybeSingle();
+    data = retry.data;
+    error = retry.error;
+  }
   if (error) throw error;
   if (data) return normalizeTemplate(data);
 
-  // Fall back to the first preset if none is flagged active.
+  // Fall back to the first global preset if none is flagged active.
   const all = await listStickerTemplates(supabase);
-  return all[0] ?? null;
+  return all.find((t) => !t.edition_id) ?? all[0] ?? null;
 }
 
 async function seedDefaultTemplates(supabase: ServiceClient): Promise<StickerTemplate[]> {
@@ -352,16 +396,45 @@ async function uniquePresetKey(supabase: ServiceClient, base: string): Promise<s
 /**
  * Creates a new template. When `duplicateOf` is given, the source template's
  * grid, design and image are copied; otherwise a fresh default template is made.
+ *
+ * With `editionId`, the new row becomes that edition's own design and starts
+ * from the copy source (or the globally active preset) when one is available.
  */
 export async function createStickerTemplate(
   supabase: ServiceClient,
-  options: { name?: string; duplicateOf?: string }
+  options: { name?: string; duplicateOf?: string; editionId?: string }
 ): Promise<StickerTemplate> {
   const all = await listStickerTemplates(supabase);
-  const source = options.duplicateOf ? all.find((t) => t.id === options.duplicateOf) || null : null;
+
+  if (options.editionId && all.some((t) => t.edition_id === options.editionId)) {
+    throw new Error('This edition already has its own sticker design.');
+  }
+
+  const source = options.duplicateOf
+    ? all.find((t) => t.id === options.duplicateOf) || null
+    : options.editionId
+    ? all.find((t) => !t.edition_id && t.is_active) || all.find((t) => !t.edition_id) || null
+    : null;
+
+  let editionName: string | null = null;
+  if (options.editionId) {
+    const { data: edition } = await supabase
+      .from('market_days')
+      .select('*')
+      .eq('id', options.editionId)
+      .maybeSingle();
+    const editionRow = edition as { edition?: string | null; name?: string | null } | null;
+    editionName = editionRow?.edition || editionRow?.name || null;
+  }
 
   const requestedName = String(options.name || '').trim().slice(0, 80);
-  const presetName = requestedName || (source ? `${source.preset_name} (copy)` : 'New template');
+  const presetName =
+    requestedName ||
+    (options.editionId
+      ? `${editionName || 'Edition'} stickers`
+      : source
+      ? `${source.preset_name} (copy)`
+      : 'New template');
   const presetKey = await uniquePresetKey(supabase, slugifyPresetKey(presetName));
 
   const base = source ?? null;
@@ -399,6 +472,7 @@ export async function createStickerTemplate(
     .from('sticker_templates')
     .insert({
       ...grid,
+      edition_id: options.editionId ?? null,
       preset_key: presetKey,
       preset_name: presetName,
       is_active: false,
@@ -411,8 +485,35 @@ export async function createStickerTemplate(
 }
 
 /**
- * Deletes a template. Refuses to delete the last one. If the active template is
- * deleted, another is promoted so the print screen always has an active preset.
+ * Removes a design image from storage only when no other template references it.
+ * Edition templates intentionally share the global default's image until the
+ * admin uploads a replacement, so deleting one must never break the other.
+ */
+export async function deleteOrphanedStickerImage(
+  supabase: ServiceClient,
+  path: string | null | undefined
+): Promise<void> {
+  if (!path) return;
+  const { data, error } = await supabase
+    .from('sticker_templates')
+    .select('id')
+    .eq('image_path', path)
+    .limit(1);
+  if (error || (data && data.length > 0)) return;
+  try {
+    await supabase.storage.from(STICKER_ASSETS_BUCKET).remove([path]);
+  } catch {
+    // Best-effort cleanup; never fail the delete.
+  }
+}
+
+/**
+ * Deletes a template.
+ *
+ *  - Edition templates can always be removed; the edition falls back to the
+ *    global default.
+ *  - Global templates must leave at least one global default behind, and if the
+ *    active one is deleted another global preset is promoted.
  * The storage image is only removed when no other template still references it.
  */
 export async function deleteStickerTemplate(
@@ -422,28 +523,23 @@ export async function deleteStickerTemplate(
   const all = await listStickerTemplates(supabase);
   const target = all.find((t) => t.id === id);
   if (!target) return { ok: false, error: 'Template not found.' };
-  if (all.length <= 1) return { ok: false, error: 'At least one template must remain.' };
+
+  const globalTemplates = all.filter((t) => !t.edition_id);
+  if (!target.edition_id && globalTemplates.length <= 1) {
+    return { ok: false, error: 'At least one global default template must remain.' };
+  }
 
   const { error } = await supabase.from('sticker_templates').delete().eq('id', id);
   if (error) throw error;
 
   if (target.is_active) {
-    const next = all.find((t) => t.id !== id);
+    const next = globalTemplates.find((t) => t.id !== id);
     if (next) {
       await supabase.from('sticker_templates').update({ is_active: true }).eq('id', next.id);
     }
   }
 
-  if (target.image_path) {
-    const stillUsed = all.some((t) => t.id !== id && t.image_path === target.image_path);
-    if (!stillUsed) {
-      try {
-        await supabase.storage.from(STICKER_ASSETS_BUCKET).remove([target.image_path]);
-      } catch {
-        // ignore cleanup failures
-      }
-    }
-  }
+  await deleteOrphanedStickerImage(supabase, target.image_path);
 
   return { ok: true };
 }

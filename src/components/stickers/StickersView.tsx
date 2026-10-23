@@ -57,10 +57,19 @@ const StickersView: React.FC<{ isSuperAdmin: boolean }> = ({ isSuperAdmin }) => 
   const [selectedTables, setSelectedTables] = useState<number[]>([]);
   const [reprinting, setReprinting] = useState(false);
 
-  const activeTemplate = useMemo(
-    () => templates.find((t) => t.is_active) || templates[0] || null,
-    [templates]
-  );
+  // Edition design wins; the globally active preset is the fallback.
+  const activeTemplate = useMemo(() => {
+    if (templates.length === 0) return null;
+    const editionTemplate = marketDayId
+      ? templates.find((t) => t.edition_id === marketDayId)
+      : null;
+    return (
+      editionTemplate ||
+      templates.find((t) => !t.edition_id && t.is_active) ||
+      templates.find((t) => !t.edition_id) ||
+      templates[0]
+    );
+  }, [templates, marketDayId]);
   const slotsPerPage = activeTemplate ? Math.max(1, activeTemplate.columns * activeTemplate.rows) : 30;
 
   const load = useCallback(async () => {
@@ -75,7 +84,10 @@ const StickersView: React.FC<{ isSuperAdmin: boolean }> = ({ isSuperAdmin }) => 
     try {
       const [vendorsRes, templatesRes, batchesRes] = await Promise.all([
         fetch(`/api/stickers/vendors?market_day_id=${marketDayId}`, { cache: 'no-store' }),
-        fetch('/api/stickers/templates', { cache: 'no-store' }),
+        fetch(
+          `/api/stickers/templates${marketDayId ? `?edition_id=${marketDayId}` : ''}`,
+          { cache: 'no-store' }
+        ),
         fetch(`/api/stickers/batches?market_day_id=${marketDayId}`, { cache: 'no-store' }),
       ]);
 
@@ -331,6 +343,12 @@ const StickersView: React.FC<{ isSuperAdmin: boolean }> = ({ isSuperAdmin }) => 
             <p className="text-text-tertiary">
               {preview.items.length} vendor{preview.items.length === 1 ? '' : 's'} · {slotsPerPage} slots/page
             </p>
+            {activeTemplate && (
+              <p className="text-text-tertiary">
+                Design: <span className="font-semibold text-text-secondary">{activeTemplate.preset_name}</span>{' '}
+                {activeTemplate.edition_id === marketDayId ? '(this edition)' : '(global default)'}
+              </p>
+            )}
           </div>
 
           <Button
