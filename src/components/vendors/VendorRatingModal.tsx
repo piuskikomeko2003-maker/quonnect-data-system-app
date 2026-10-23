@@ -2,8 +2,9 @@ import React, { useState, useEffect } from 'react';
 import { Modal } from '../ui/Modal';
 import { Button } from '../ui/Button';
 import { useToast } from '../ui/ToastProvider';
-import { Star, Sparkles, X, MessageSquare } from 'lucide-react';
+import { Sparkles, X, MessageSquare } from 'lucide-react';
 import { MarketingPowerStars } from './MarketingPowerStars';
+import { isIsoDate, mondayOf, todayDateOnly } from '@/lib/ratingWeeks';
 
 export interface VendorRatingModalProps {
   isOpen: boolean;
@@ -19,6 +20,7 @@ export interface VendorRatingModalProps {
   activeEdition: {
     id: string;
     name: string;
+    date?: string;
   } | null;
   onRatingSaved: (vendorId: string, rating: number | null, note: string | null, avgRating?: number | null) => void;
 }
@@ -38,6 +40,7 @@ export const VendorRatingModal: React.FC<VendorRatingModalProps> = ({
 
   useEffect(() => {
     if (vendor) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setSelectedRating(vendor.rating !== undefined && vendor.rating !== null ? Number(vendor.rating) : null);
       setNote(vendor.ratingNote || '');
     }
@@ -46,6 +49,14 @@ export const VendorRatingModal: React.FC<VendorRatingModalProps> = ({
   if (!isOpen || !vendor || !activeEdition) return null;
 
   const displayRating = hoverRating !== null ? hoverRating : selectedRating;
+
+  // Ratings taken from the vendor directory for an upcoming edition also count
+  // as this week's weekly check-in, keeping all rating surfaces in sync.
+  const today = todayDateOnly();
+  const weeklyWeekStart =
+    activeEdition?.date && isIsoDate(activeEdition.date) && activeEdition.date >= today
+      ? mondayOf(today)
+      : null;
 
   const handleSave = async () => {
     if (!vendor || !activeEdition) return;
@@ -59,16 +70,20 @@ export const VendorRatingModal: React.FC<VendorRatingModalProps> = ({
 
     setIsSubmitting(true);
     try {
-      const res = await fetch('/api/vendors/ratings', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          vendorId: vendor.id,
-          editionId: activeEdition.id,
-          rating: selectedRating,
-          note: note.trim() || null,
-        }),
-      });
+      const res = await fetch(
+        weeklyWeekStart ? '/api/vendors/ratings/weekly' : '/api/vendors/ratings',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            vendorId: vendor.id,
+            editionId: activeEdition.id,
+            rating: selectedRating,
+            note: note.trim() || null,
+            ...(weeklyWeekStart ? { weekStart: weeklyWeekStart } : {}),
+          }),
+        }
+      );
 
       const data = await res.json();
       if (!res.ok) {
@@ -83,10 +98,10 @@ export const VendorRatingModal: React.FC<VendorRatingModalProps> = ({
           : `Rated ${vendor.businessName || 'vendor'} ${selectedRating}/10 (${selectedRating / 2} stars)`,
         'success'
       );
-    } catch (err: any) {
+    } catch (err: unknown) {
       // Rollback on failure
       onRatingSaved(vendor.id, previousRating, previousNote, vendor.avgRating);
-      addToast(`Error saving rating: ${err.message}`, 'error');
+      addToast(`Error saving rating: ${err instanceof Error ? err.message : String(err)}`, 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -105,6 +120,7 @@ export const VendorRatingModal: React.FC<VendorRatingModalProps> = ({
             <h3 className="text-sm font-bold text-text-primary">Rate Marketing Power</h3>
             <p className="text-[11px] text-text-secondary">
               For <span className="font-semibold text-text-primary">{activeEdition.name}</span>
+              {weeklyWeekStart ? ' · this week’s check-in' : ''}
             </p>
           </div>
         </div>

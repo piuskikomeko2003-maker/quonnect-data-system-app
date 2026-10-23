@@ -13,6 +13,9 @@ export interface BulkRatingModalProps {
     id: string;
     name: string;
   } | null;
+  /** When provided, the rating is saved as a weekly quick-rating entry. */
+  weekStart?: string;
+  weekLabel?: string;
   onBulkRatingComplete: (vendorIds: string[], rating: number | null, note: string | null) => void;
 }
 
@@ -21,6 +24,8 @@ export const BulkRatingModal: React.FC<BulkRatingModalProps> = ({
   onClose,
   selectedVendorIds,
   activeEdition,
+  weekStart,
+  weekLabel,
   onBulkRatingComplete,
 }) => {
   const { addToast } = useToast();
@@ -29,6 +34,8 @@ export const BulkRatingModal: React.FC<BulkRatingModalProps> = ({
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   if (!isOpen || selectedVendorIds.length === 0 || !activeEdition) return null;
+
+  const isWeekly = Boolean(weekStart);
 
   const handleBulkSave = async () => {
     if (!activeEdition) return;
@@ -39,30 +46,35 @@ export const BulkRatingModal: React.FC<BulkRatingModalProps> = ({
 
     setIsSubmitting(true);
     try {
-      const res = await fetch('/api/vendors/ratings/bulk', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          vendorIds: selectedVendorIds,
-          editionId: activeEdition.id,
-          rating: selectedRating,
-          note: note.trim() || null,
-        }),
-      });
+      const res = await fetch(
+        isWeekly ? '/api/vendors/ratings/weekly' : '/api/vendors/ratings/bulk',
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            vendorIds: selectedVendorIds,
+            editionId: activeEdition.id,
+            rating: selectedRating,
+            note: note.trim() || null,
+            ...(isWeekly ? { weekStart } : {}),
+          }),
+        }
+      );
 
       const data = await res.json();
       if (!res.ok) {
         throw new Error(data.error || 'Failed to bulk rate vendors');
       }
 
+      const scope = isWeekly && weekLabel ? ` for ${weekLabel}` : '';
       addToast(
         selectedRating === null
-          ? `Cleared ratings for ${selectedVendorIds.length} vendors`
-          : `Updated rating to ${selectedRating}/10 for ${selectedVendorIds.length} vendors`,
+          ? `Cleared ratings${scope} for ${selectedVendorIds.length} vendors`
+          : `Updated rating to ${selectedRating}/10${scope} for ${selectedVendorIds.length} vendors`,
         'success'
       );
-    } catch (err: any) {
-      addToast(`Error updating ratings: ${err.message}`, 'error');
+    } catch (err: unknown) {
+      addToast(`Error updating ratings: ${err instanceof Error ? err.message : String(err)}`, 'error');
     } finally {
       setIsSubmitting(false);
     }
@@ -80,7 +92,14 @@ export const BulkRatingModal: React.FC<BulkRatingModalProps> = ({
           <div>
             <h3 className="text-sm font-bold text-text-primary">Bulk Rate Vendors</h3>
             <p className="text-[11px] text-text-secondary">
-              Setting rating for <span className="font-semibold text-text-primary">{selectedVendorIds.length} selected vendors</span> in {activeEdition.name}
+              Setting rating for <span className="font-semibold text-text-primary">{selectedVendorIds.length} selected vendors</span>
+              {isWeekly ? (
+                <>
+                  {' '}for <span className="font-semibold text-text-primary">{weekLabel || 'this week'}</span>
+                </>
+              ) : (
+                <> in {activeEdition.name}</>
+              )}
             </p>
           </div>
         </div>
@@ -157,7 +176,7 @@ export const BulkRatingModal: React.FC<BulkRatingModalProps> = ({
             rows={2}
             value={note}
             onChange={(e) => setNote(e.target.value)}
-            placeholder="e.g. Bulk scored after Edition market day evaluation..."
+            placeholder="e.g. Bulk scored after weekly marketing review..."
             className="w-full bg-white border border-border rounded-lg p-2.5 text-xs text-text-primary placeholder:text-text-tertiary focus:border-accent focus:ring-1 focus:ring-accent outline-none"
             maxLength={300}
           />
