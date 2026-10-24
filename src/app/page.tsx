@@ -1,9 +1,10 @@
 'use client';
 
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { useLiveMetrics } from '@/hooks/useLiveMetrics';
 import { useAuth } from '@/hooks/useAuth';
+import { useGateEntryQueue } from '@/hooks/useGateEntryQueue';
 import { useToast } from '@/components/ui/ToastProvider';
 import { useScrollLock } from '@/hooks/useScrollLock';
 import { useRegion } from '@/context/RegionContext';
@@ -25,6 +26,7 @@ export interface Market {
   vendorsCount: number;
 }
 import { isTestEdition } from '@/lib/editions';
+import { RatingFilterKey, matchesRatingFilter } from '@/lib/ratingTiers';
 import { isAdmin } from '@/lib/auth/permissions';
 import { GreetingCard } from '@/components/dashboard/GreetingCard';
 import { AlertBanner } from '@/components/dashboard/AlertBanner';
@@ -137,6 +139,8 @@ const getVendorDetailData = (vendor: any) => {
     ratingNote: vendor.ratingNote,
     avgRating: vendor.avgRating,
     ratedEditionsCount: vendor.ratedEditionsCount,
+    editionAvgRating: vendor.editionAvgRating,
+    editionWeeksRated: vendor.editionWeeksRated,
     avatarInitials: vendor.name.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase(),
     attendanceHistory: [
       {
@@ -263,7 +267,15 @@ export default function Home() {
   const [paidVendorEntryFilter, setPaidVendorEntryFilter] = useState<'all' | 'confirmed' | 'awaiting'>('all');
   /** Business category filter for the paid vendors table. 'All' = no category filtering. */
   const [paidVendorCategoryFilter, setPaidVendorCategoryFilter] = useState('All');
-  const [checkingInId, setCheckingInId] = useState<string | null>(null);
+
+  /**
+   * Local desired gate-entry value per registration id. It is applied on top of
+   * server data when the list refreshes, so a slow/echoed fetch can never
+   * un-confirm a mark the operator just tapped. Cleared once the write settles.
+   */
+  const entryOverlayRef = useRef(new globalThis.Map<string, string | null>());
+  /** Guards against older list fetches overwriting newer ones. */
+  const paidVendorsFetchSeqRef = useRef(0);
 
   // Inline "tables" editing on the paid vendors list (admin only).
   const [editingTablesId, setEditingTablesId] = useState<string | null>(null);
@@ -273,10 +285,9 @@ export default function Home() {
   const canEditTables = isAdmin(role);
 
   // Quick mark-entry from search: matches show in a dropdown with a Mark Entry button.
-  const [paidVendorMatches, setPaidVendorMatches] = useState<any[]>([]);
   const [showPaidVendorDropdown, setShowPaidVendorDropdown] = useState(false);
-  const paidVendorDebounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const paidVendorSearchWrapRef = useRef<HTMLDivElement | null>(null);
+  const paidVendorSearchInputRef = useRef<HTMLInputElement | null>(null);
 
   // Overview live counts
   const [overviewCounts, setOverviewCounts] = useState({ paidVendors: 0, walkins: 0, surveyResponses: 0 });
@@ -806,6 +817,26 @@ export default function Home() {
         }
       }
 
+      // Fetch the automatic edition average (mean of all weekly scores) per vendor
+      const editionAvgMap = new globalThis.Map<string, { avg: number | null; weeks: number }>();
+      if (activeEdition?.id) {
+        try {
+          const { data: avgRows } = await supabase
+            .from('vendor_weekly_ratings_summary')
+            .select('vendor_id, avg_weekly_rating, weeks_rated')
+            .eq('edition_id', activeEdition.id);
+
+          (avgRows || []).forEach((row: any) => {
+            editionAvgMap.set(row.vendor_id, {
+              avg: row.avg_weekly_rating !== null ? Number(row.avg_weekly_rating) : null,
+              weeks: Number(row.weeks_rated || 0),
+            });
+          });
+        } catch {
+          // Pre-migration fallback: weekly ratings table not present yet
+        }
+      }
+
       const allVendorIds = [...new globalThis.Set([...surveyVendorIds, ...paidVendorIds])];
 
 
@@ -834,6 +865,7 @@ export default function Home() {
               surveyVendorIds.has(v.id) ? 'survey' : 'unknown';
 
         const rInfo = ratingsMap[v.id] || { rating: null, note: null, avgRating: null, ratedEditionsCount: 0 };
+        const editionAvg = editionAvgMap.get(v.id) || { avg: null, weeks: 0 };
 
         return {
           id: v.id,
@@ -864,6 +896,8 @@ export default function Home() {
           ratingNote: rInfo.note,
           avgRating: rInfo.avgRating,
           ratedEditionsCount: rInfo.ratedEditionsCount,
+          editionAvgRating: editionAvg.avg,
+          editionWeeksRated: editionAvg.weeks,
         };
       });
 
@@ -937,9 +971,13 @@ export default function Home() {
   };
 
   const fetchPaidVendors = async (silent = false) => {
+    const requestId = ++paidVendorsFetchSeqRef.current;
+    const isLatest = () => requestId === paidVendorsFetchSeqRef.current;
+
     try {
       const supabase = createClient();
       if (!supabase || !activeEdition?.id) {
+        if (!isLatest()) return;
         setPaidVendors([]);
         setPaidVendorCounts({ paid: 0, unpaid: 0, revenue: 0 });
         setLoadingPaidVendors(false);
@@ -1047,6 +1085,7 @@ export default function Home() {
 
         const registrations = regRows.map((r: any) => {
           const ticketNumber = normalizeTicketCode(r.ticket_number || r.stall_number || r.notes?.match(/Ticket #(\d+)/)?.[1]) || '';
+          const overlay = entryOverlayRef.current;
           return {
             id: r.id,
             vendor_id: r.vendors?.id || '',
@@ -1056,7 +1095,7 @@ export default function Home() {
             stall_number: r.stall_number || '',
             notes: r.notes || '',
             ticket_number: ticketNumber,
-            check_in_time: r.check_in_time || null,
+            check_in_time: overlay.has(r.id) ? overlay.get(r.id) ?? null : r.check_in_time || null,
             created_at: r.created_at,
             tables: Number.isFinite(Number(r.tables)) ? Math.max(1, Number(r.tables)) : 1,
             business_name: r.vendors?.business_name || '',
@@ -1075,6 +1114,7 @@ export default function Home() {
         const unpaid = registrations.filter(r => r.payment_status !== 'paid').length;
         const revenue = registrations.reduce((sum: number, r: any) => sum + (Number(r.amount_paid) || 0), 0);
 
+        if (!isLatest()) return;
         setPaidVendors(registrations);
         setPaidVendorCounts({ paid, unpaid, revenue });
         setLoadingPaidVendors(false);
@@ -1082,8 +1122,13 @@ export default function Home() {
         throw innerErr;
       }
     } catch (err: any) {
-      setPaidVendors([]);
-      setPaidVendorCounts({ paid: 0, unpaid: 0, revenue: 0 });
+      // A transient refresh failure must not blank a list the gate team is
+      // working through. Only the initial load falls back to an empty state.
+      if (!isLatest()) return;
+      if (!silent) {
+        setPaidVendors([]);
+        setPaidVendorCounts({ paid: 0, unpaid: 0, revenue: 0 });
+      }
       setLoadingPaidVendors(false);
     }
   };
@@ -1142,29 +1187,50 @@ export default function Home() {
     }
   };
 
-  /** Toggle gate entry for a vendor: sets check_in_time when marking, clears it when undoing. */
-  const handleToggleVendorEntry = async (pv: { id: string; business_name?: string; contact_name?: string; ticket_number?: string; check_in_time?: string | null }) => {
-    const supabase = createClient();
-    if (!supabase) return;
-    const isConfirmed = !!pv.check_in_time;
-    const nextCheckIn = isConfirmed ? null : new Date().toISOString();
+  /**
+   * Durable delivery for gate-entry marks. The UI updates instantly; this
+   * queue persists the write locally, retries through network drops, and
+   * replays it after a reload instead of losing the mark.
+   */
+  const gateEntry = useGateEntryQueue({
+    enabled: !authLoading && !!role && role !== 'unassigned',
+    onSettled: (id, value) => {
+      // Keep the local value briefly after the write lands. A list fetch that
+      // started before the commit could otherwise return the old value late and
+      // visually un-confirm the vendor. Skip if a newer tap already replaced it.
+      window.setTimeout(() => {
+        if (entryOverlayRef.current.get(id) === value) {
+          entryOverlayRef.current.delete(id);
+        }
+      }, 8_000);
+    },
+    onPermanentError: (id, _value, error) => {
+      // Permission/validation failures cannot be retried. Drop the optimistic
+      // value and reload the true row so the gate team sees reality.
+      entryOverlayRef.current.delete(id);
+      const message = (error as any)?.message || 'The server rejected this entry';
+      addToast(`Entry not saved: ${message}`, 'error');
+      void fetchPaidVendors(true);
+    },
+  });
 
-    // Optimistic update so the badge + counter react instantly at the gate.
+  /**
+   * Toggle gate entry for a vendor. Synchronous by design: the operator gets
+   * confirmation immediately and the queue guarantees eventual delivery.
+   */
+  const handleToggleVendorEntry = (pv: { id: string; business_name?: string; contact_name?: string; ticket_number?: string; check_in_time?: string | null }) => {
+    const overlay = entryOverlayRef.current;
+    const current = overlay.has(pv.id) ? overlay.get(pv.id) ?? null : pv.check_in_time ?? null;
+    const nextCheckIn = current ? null : new Date().toISOString();
+
+    // Optimistic state + overlay so list refreshes cannot revert it mid-flight.
+    overlay.set(pv.id, nextCheckIn);
     setPaidVendors(prev => prev.map(p => (p.id === pv.id ? { ...p, check_in_time: nextCheckIn } : p)));
-    setCheckingInId(pv.id);
+    gateEntry.setEntry(pv.id, nextCheckIn);
 
-    try {
-      const { error } = await supabase
-        .from('vendor_registrations')
-        .update({ check_in_time: nextCheckIn })
-        .eq('id', pv.id);
-      if (error) throw error;
-    } catch (err: any) {
-      // Roll back the optimistic change if the write failed.
-      setPaidVendors(prev => prev.map(p => (p.id === pv.id ? { ...p, check_in_time: pv.check_in_time ?? null } : p)));
-      window.alert(`Failed to ${isConfirmed ? 'undo' : 'confirm'} entry: ${err?.message || err}`);
-    } finally {
-      setCheckingInId(null);
+    // Subtle tactile confirmation on phones/tablets used at the gate.
+    if (typeof navigator !== 'undefined' && typeof navigator.vibrate === 'function') {
+      navigator.vibrate(10);
     }
   };
 
@@ -1221,41 +1287,44 @@ export default function Home() {
   };
 
   /** Debounced search: match paid vendors by business name, vendor name or ticket #. */
-  useEffect(() => {
-    if (paidVendorDebounceRef.current) clearTimeout(paidVendorDebounceRef.current);
-
+  /**
+   * Local, instant match ranking. No debounce: the list is already in memory, so
+   * waiting 250 ms only slows the gate down. Exact/starts-with ticket matches
+   * come first because operators usually type the ticket number.
+   */
+  const paidVendorMatches = useMemo(() => {
     const term = paidVendorSearch.trim().toLowerCase();
-    if (!term) {
-      setPaidVendorMatches([]);
-      setShowPaidVendorDropdown(false);
-      return;
+    if (!term) return [];
+
+    const scored: { pv: any; score: number }[] = [];
+    for (const pv of paidVendors) {
+      if (pv.payment_status !== 'paid') continue;
+      const ticket = String(pv.ticket_number || '').toLowerCase();
+      const business = String(pv.business_name || '').toLowerCase();
+      const contact = String(pv.contact_name || '').toLowerCase();
+
+      let score = -1;
+      if (ticket && ticket === term) score = 0;
+      else if (ticket && ticket.startsWith(term)) score = 1;
+      else if (business.startsWith(term)) score = 2;
+      else if (contact.startsWith(term)) score = 3;
+      else if (business.includes(term) || contact.includes(term) || ticket.includes(term)) score = 4;
+
+      if (score >= 0) scored.push({ pv, score });
     }
 
-    paidVendorDebounceRef.current = setTimeout(() => {
-      const matches = paidVendors
-        .filter(pv => {
-          if (pv.payment_status !== 'paid') return false;
-          const hay = `${pv.business_name || ''} ${pv.contact_name || ''} ${pv.ticket_number || ''}`.toLowerCase();
-          return hay.includes(term);
-        })
-        .slice(0, 8);
-      setPaidVendorMatches(matches);
-      setShowPaidVendorDropdown(matches.length > 0);
-    }, 250);
-
-    return () => {
-      if (paidVendorDebounceRef.current) clearTimeout(paidVendorDebounceRef.current);
-    };
+    scored.sort((a, b) => a.score - b.score);
+    return scored.slice(0, 8).map((item) => item.pv);
   }, [paidVendorSearch, paidVendors]);
 
-  /** Mark entry straight from the search dropdown, then close it so work can continue. */
+  /** Mark entry straight from the search dropdown, then reset the box for the next vendor. */
   const handleMarkVendorFromSearch = (pv: any) => {
-    // Optimistic update inside handleToggleVendorEntry keeps the marking instant;
-    // close the dropdown right away rather than waiting on the network round-trip.
-    void handleToggleVendorEntry(pv);
+    // handleToggleVendorEntry is optimistic + queued, so this returns immediately.
+    handleToggleVendorEntry(pv);
     setShowPaidVendorDropdown(false);
     setPaidVendorSearch('');
-    setPaidVendorMatches([]);
+    // Keep the keyboard/focus in the search box for continuous gate marking.
+    requestAnimationFrame(() => paidVendorSearchInputRef.current?.focus());
   };
 
   // Close the dropdown when clicking outside the search box (keeps the Mark Entry click alive).
@@ -1512,6 +1581,7 @@ export default function Home() {
     let walkinsChannel: any;
     let responsesChannel: any;
     let vendorRegistrationsChannel: any;
+    let registrationsSyncTimer: ReturnType<typeof setTimeout> | null = null;
 
     if (mounted && !authLoading && role && role !== 'unassigned') {
       fetchVendors();
@@ -1578,10 +1648,16 @@ export default function Home() {
             'postgres_changes',
             { event: '*', schema: 'public', table: 'vendor_registrations' },
             () => {
-              // Silent reconcile: gate-entry marks are already applied optimistically in
-              // handleToggleVendorEntry, so we refresh counts/data without the loading flash.
-              fetchPaidVendors(true);
-              fetchOverviewCounts();
+              // Bursts of gate marks each emit a row echo. Coalesce them into one
+              // silent reconcile instead of refetching every registration per mark.
+              // Pending marks are protected by entryOverlayRef, so a slow echo can
+              // never flip a just-confirmed vendor back to "Mark Entry".
+              if (registrationsSyncTimer) clearTimeout(registrationsSyncTimer);
+              registrationsSyncTimer = setTimeout(() => {
+                registrationsSyncTimer = null;
+                fetchPaidVendors(true);
+                fetchOverviewCounts();
+              }, 800);
             }
           )
           .subscribe();
@@ -1589,6 +1665,7 @@ export default function Home() {
     }
 
     return () => {
+      if (registrationsSyncTimer) clearTimeout(registrationsSyncTimer);
       const supabase = createClient();
       if (supabase) {
         if (vendorsChannel) supabase.removeChannel(vendorsChannel);
@@ -1655,6 +1732,15 @@ export default function Home() {
       fetchOverviewMetrics();
     }
   }, [activeNav, mounted, authLoading, role, fetchOverviewMetrics]);
+
+  // Refresh vendor edition averages when opening the directory (weekly ratings
+  // may have changed since the page first loaded).
+  useEffect(() => {
+    if (activeNav === 'vendors' && mounted && !authLoading && role && role !== 'unassigned') {
+      fetchVendors();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activeNav, mounted, authLoading, role]);
 
   // Drawer Panel & Modal States
   const [selectedVendorId, setSelectedVendorId] = useState<string | null>(null);
@@ -2611,22 +2697,16 @@ export default function Home() {
       }
     }
 
-    // Marketing Power Rating filter
+    // Marketing Power Rating filter (uses the automatic edition average)
     if (filters.ratingFilter && filters.ratingFilter !== 'All') {
-      const r = v.rating !== null && v.rating !== undefined ? Number(v.rating) : null;
-      if (filters.ratingFilter === 'unrated') {
-        if (r !== null) return false;
-      } else if (filters.ratingFilter === 'rated') {
-        if (r === null) return false;
-      } else if (filters.ratingFilter === '1-3') {
-        if (r === null || r < 1 || r > 3) return false;
-      } else if (filters.ratingFilter === '4-6') {
-        if (r === null || r < 4 || r > 6) return false;
-      } else if (filters.ratingFilter === '7-8') {
-        if (r === null || r < 7 || r > 8) return false;
-      } else if (filters.ratingFilter === '9-10') {
-        if (r === null || r < 9 || r > 10) return false;
-      }
+      const ratingValue =
+        v.editionAvgRating !== null && v.editionAvgRating !== undefined
+          ? Number(v.editionAvgRating)
+          : v.rating !== null && v.rating !== undefined
+            ? Number(v.rating)
+            : null;
+
+      if (!matchesRatingFilter(ratingValue, filters.ratingFilter as RatingFilterKey)) return false;
     }
 
     return true;
@@ -3576,6 +3656,15 @@ export default function Home() {
               setSelectedVendorId(v.id);
               setIsDetailOpen(true);
             }}
+            onEditionAverageChange={(vendorId, avg, weeks) => {
+              setVendors((prev) =>
+                prev.map((vendor) =>
+                  vendor.id === vendorId
+                    ? { ...vendor, editionAvgRating: avg, editionWeeksRated: weeks }
+                    : vendor
+                )
+              );
+            }}
           />
         )}
 
@@ -3884,21 +3973,33 @@ export default function Home() {
                         Search only drives the quick mark-entry dropdown; it never filters rows,
                         so the list and scroll position you were working through stay put. */}
                     <div className="sticky top-0 z-20 bg-white border border-border rounded-xl shadow-xs px-3.5 py-2.5 flex items-center gap-2">
-                      <div className="relative flex-1" ref={paidVendorSearchWrapRef}>
+                      <div className="relative flex-1 min-w-0" ref={paidVendorSearchWrapRef}>
                         <Search className="w-3.5 h-3.5 text-text-tertiary absolute left-3 top-1/2 -translate-y-1/2" />
                         <input
+                          ref={paidVendorSearchInputRef}
                           type="text"
                           value={paidVendorSearch}
-                          onChange={e => setPaidVendorSearch(e.target.value)}
+                          onChange={e => {
+                            setPaidVendorSearch(e.target.value);
+                            setShowPaidVendorDropdown(true);
+                          }}
                           onFocus={() => { if (paidVendorMatches.length > 0) setShowPaidVendorDropdown(true); }}
-                          placeholder="Search ticket #, business or vendor name..."
+                          onKeyDown={e => {
+                            if (e.key === 'Enter' && paidVendorMatches.length > 0) {
+                              e.preventDefault();
+                              handleMarkVendorFromSearch(paidVendorMatches[0]);
+                            } else if (e.key === 'Escape') {
+                              setShowPaidVendorDropdown(false);
+                              setPaidVendorSearch('');
+                            }
+                          }}
+                          placeholder="Search ticket #, business or vendor name… (Enter marks the top match)"
                           className="w-full bg-white border border-border rounded-lg pl-9 pr-3 py-2 text-xs text-text-primary placeholder-text-tertiary focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-colors"
                         />
                         {showPaidVendorDropdown && paidVendorMatches.length > 0 && (
                           <div className="absolute z-30 left-0 right-0 mt-1 bg-white border border-border rounded-lg shadow-elevated overflow-hidden text-left">
                             {paidVendorMatches.map((m) => {
                               const isConfirmed = !!m.check_in_time;
-                              const isBusy = checkingInId === m.id;
                               return (
                                 <div
                                   key={m.id}
@@ -3915,17 +4016,14 @@ export default function Home() {
                                   <button
                                     type="button"
                                     onClick={() => handleMarkVendorFromSearch(m)}
-                                    disabled={isBusy}
                                     title={isConfirmed ? 'Undo entry' : 'Confirm this vendor has entered the venue'}
-                                    className={`shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50 disabled:cursor-wait ${
+                                    className={`shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border transition-colors cursor-pointer whitespace-nowrap ${
                                       isConfirmed
                                         ? 'bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-200'
                                         : 'text-text-secondary bg-white border-border hover:border-emerald-300 hover:text-emerald-700 hover:bg-emerald-50'
                                     }`}
                                   >
-                                    {isBusy ? (
-                                      <Loader2 className="w-3 h-3 animate-spin" />
-                                    ) : isConfirmed ? (
+                                    {isConfirmed ? (
                                       <ShieldCheck className="w-3 h-3" />
                                     ) : (
                                       <DoorOpen className="w-3 h-3" />
@@ -3938,6 +4036,17 @@ export default function Home() {
                           </div>
                         )}
                       </div>
+                      {gateEntry.pendingCount > 0 && (
+                        <button
+                          type="button"
+                          onClick={gateEntry.retryNow}
+                          title={`${gateEntry.pendingCount} entry mark${gateEntry.pendingCount === 1 ? '' : 's'} saved on this device and syncing. Click to retry now.`}
+                          className="shrink-0 inline-flex items-center gap-1.5 text-[11px] font-bold px-3 py-2 rounded-lg border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 transition-colors cursor-pointer whitespace-nowrap"
+                        >
+                          <RefreshCw className={`w-3.5 h-3.5 ${gateEntry.syncing ? 'animate-spin' : ''}`} />
+                          {gateEntry.pendingCount} to sync
+                        </button>
+                      )}
                       <button
                         type="button"
                         onClick={() => setPaidVendorTicketSort(s => s === 'none' ? 'asc' : s === 'asc' ? 'desc' : 'none')}
@@ -4306,15 +4415,10 @@ export default function Home() {
                                         ) : (
                                           <button
                                             onClick={() => handleToggleVendorEntry(pv)}
-                                            disabled={checkingInId === pv.id}
                                             title="Confirm this vendor has entered the venue"
-                                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold text-text-secondary bg-white border border-border hover:border-emerald-300 hover:text-emerald-700 hover:bg-emerald-50 transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50 disabled:cursor-wait"
+                                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold text-text-secondary bg-white border border-border hover:border-emerald-300 hover:text-emerald-700 hover:bg-emerald-50 transition-colors cursor-pointer whitespace-nowrap"
                                           >
-                                            {checkingInId === pv.id ? (
-                                              <Loader2 className="w-3 h-3 animate-spin" />
-                                            ) : (
-                                              <DoorOpen className="w-3 h-3" />
-                                            )}
+                                            <DoorOpen className="w-3 h-3" />
                                             Mark Entry
                                           </button>
                                         )}
@@ -4735,7 +4839,7 @@ export default function Home() {
 
         {/* STICKER PRINTING (super admin only) */}
         {activeNav === 'stickers' && (
-          <StickersView isSuperAdmin={role === 'super_admin'} />
+          <StickersView canPrint={role === 'admin' || role === 'super_admin'} />
         )}
 
         {/* 7. OTHER SYSTEM PLACES (PLACEHOLDERS) */}

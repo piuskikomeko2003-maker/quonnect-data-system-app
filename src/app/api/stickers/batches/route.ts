@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/service';
-import { requireSuperAdmin } from '@/lib/auth/requireAdmin';
+import { requireAdmin } from '@/lib/auth/requireAdmin';
 import { fetchStickerVendors, getStickerTemplate } from '@/lib/stickers/server';
 import { selectBatch } from '@/lib/stickers/layout';
 
@@ -8,9 +8,9 @@ export const runtime = 'nodejs';
 
 const DEFAULT_SLOTS_PER_PAGE = 30;
 
-/** Super-admin only. Lists recent batches so a fresh one can be confirmed. */
+/** Admin or super admin. Lists recent batches so a fresh one can be confirmed. */
 export async function GET(request: NextRequest) {
-  const auth = await requireSuperAdmin();
+  const auth = await requireAdmin();
   if (auth.response) return auth.response;
 
   try {
@@ -35,7 +35,7 @@ export async function GET(request: NextRequest) {
 }
 
 /**
- * Super-admin only. Creates a batch and returns its id.
+ * Admin or super admin. Creates a batch and returns its id.
  *
  * Two modes:
  *  - Print:   { market_day_id, mode: 'all' | 'count', count?, start_position? }
@@ -45,7 +45,7 @@ export async function GET(request: NextRequest) {
  * batch is confirmed (see /api/stickers/batches/confirm).
  */
 export async function POST(request: NextRequest) {
-  const auth = await requireSuperAdmin();
+  const auth = await requireAdmin();
   if (auth.response) return auth.response;
 
   try {

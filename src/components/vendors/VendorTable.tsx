@@ -21,6 +21,8 @@ export interface Vendor {
   ratingNote?: string | null;
   avgRating?: number | null;
   ratedEditionsCount?: number;
+  editionAvgRating?: number | null;
+  editionWeeksRated?: number;
 }
 
 export interface VendorTableProps {
@@ -285,6 +287,16 @@ export const VendorTable: React.FC<VendorTableProps> = ({
                           size="sm"
                           showNumber={true}
                         />
+                        {vendor.editionAvgRating !== null && vendor.editionAvgRating !== undefined && (
+                          <span
+                            className="text-[10px] font-mono font-bold text-blue-700 bg-blue-50 border border-blue-200 px-1.5 py-0.5 rounded whitespace-nowrap"
+                            title={`Edition average across ${vendor.editionWeeksRated || 0} weekly rating${
+                              (vendor.editionWeeksRated || 0) === 1 ? '' : 's'
+                            }`}
+                          >
+                            avg {vendor.editionAvgRating}
+                          </span>
+                        )}
                         {isAdmin && (
                           <span className="opacity-0 group-hover:opacity-100 text-[10px] text-amber-600 font-semibold transition-opacity ml-1">
                             ✎

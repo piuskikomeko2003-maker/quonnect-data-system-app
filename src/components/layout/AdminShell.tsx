@@ -114,7 +114,7 @@ export const AdminShell: React.FC<AdminShellProps> = ({
       items: [
         { id: 'formbuilder', name: 'Form Builder', icon: <ClipboardList className="w-5 h-5" /> },
         { id: 'markets', name: 'Create Market', icon: <Store className="w-5 h-5" /> },
-        { id: 'stickers', name: 'Stickers', icon: <Sticker className="w-5 h-5" />, superAdminOnly: true },
+        { id: 'stickers', name: 'Stickers', icon: <Sticker className="w-5 h-5" /> },
         { id: 'settings', name: 'Settings', icon: <Settings className="w-5 h-5" /> },
       ]
     }

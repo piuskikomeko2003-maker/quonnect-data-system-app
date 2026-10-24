@@ -1,7 +1,7 @@
 import React from 'react';
 
 export interface MarketingPowerStarsProps {
-  /** 1-10 rating scale (null or undefined for unrated) */
+  /** 0-10 rating scale (null or undefined for unrated). 0 = failed. */
   rating: number | null | undefined;
   /** Average rating across editions (optional) */
   avgRating?: number | null | undefined;
@@ -29,7 +29,7 @@ export const MarketingPowerStars: React.FC<MarketingPowerStarsProps> = ({
   onClick,
   className = '',
 }) => {
-  const isRated = rating !== null && rating !== undefined && rating >= 1 && rating <= 10;
+  const isRated = rating !== null && rating !== undefined && rating >= 0 && rating <= 10;
   const numRating = isRated ? Number(rating) : 0;
 
   const sizeConfig = {
@@ -112,7 +112,7 @@ export const MarketingPowerStars: React.FC<MarketingPowerStarsProps> = ({
       title={
         isRated
           ? `Marketing Power: ${numRating}/10 (${numRating / 2} stars)${
-              avgRating ? ` • Overall Avg: ${avgRating}/10` : ''
+              avgRating !== null && avgRating !== undefined ? ` • Overall Avg: ${avgRating}/10` : ''
             }`
           : 'Unrated for this edition'
       }

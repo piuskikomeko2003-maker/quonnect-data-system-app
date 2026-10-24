@@ -19,7 +19,7 @@ CREATE TABLE IF NOT EXISTS public.vendor_weekly_ratings (
   rated_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  CONSTRAINT vendor_weekly_ratings_rating_check CHECK (rating >= 1 AND rating <= 10),
+  CONSTRAINT vendor_weekly_ratings_rating_check CHECK (rating >= 0 AND rating <= 10),
   CONSTRAINT vendor_weekly_ratings_vendor_edition_week_key
     UNIQUE (vendor_id, edition_id, week_start)
 );

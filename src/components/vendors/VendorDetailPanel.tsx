@@ -41,6 +41,8 @@ export interface VendorDetailPanelProps {
     rating?: number | null;
     ratingNote?: string | null;
     avgRating?: number | null;
+    editionAvgRating?: number | null;
+    editionWeeksRated?: number;
     ratedEditionsCount?: number;
     attendanceHistory: AttendanceHistory[];
     editionAttributes: EditionAttributes[];
@@ -174,6 +176,12 @@ export const VendorDetailPanel: React.FC<VendorDetailPanelProps> = ({
                   size="md"
                   showNumber={true}
                 />
+                {vendor.editionAvgRating !== null && vendor.editionAvgRating !== undefined && (
+                  <span className="text-[10px] text-blue-700 font-semibold block mt-1">
+                    Edition avg {vendor.editionAvgRating}/10
+                    {vendor.editionWeeksRated ? ` · ${vendor.editionWeeksRated} wk${vendor.editionWeeksRated === 1 ? '' : 's'}` : ''}
+                  </span>
+                )}
               </div>
 
               {vendor.avgRating !== null && vendor.avgRating !== undefined && (

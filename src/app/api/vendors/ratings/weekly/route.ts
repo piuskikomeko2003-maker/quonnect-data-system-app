@@ -5,7 +5,7 @@ import { isIsoDate, mondayOf } from '@/lib/ratingWeeks';
 
 export const dynamic = 'force-dynamic';
 
-const MIN_RATING = 1;
+const MIN_RATING = 0;
 const MAX_RATING = 10;
 
 type WeeklyRatingEntry = {
@@ -310,12 +310,32 @@ export async function POST(request: NextRequest) {
             { status: 400 }
           );
         }
+        if ((upsertError as ErrorLike).code === '23514') {
+          return NextResponse.json(
+            {
+              error:
+                "This database still blocks a 0 rating. Run 'allow_zero_vendor_ratings.sql' in the Supabase SQL editor, then try again.",
+              needsZeroMigration: true,
+            },
+            { status: 400 }
+          );
+        }
         throw upsertError;
       }
     }
 
     const affectedVendorIds = Array.from(new Set(entries.map((entry) => entry.vendorId)));
-    await syncEditionRatings(supabase, editionId, affectedVendorIds, ratedBy);
+
+    // The weekly row is the source of truth. Mirroring the latest score into the
+    // legacy per-edition table is a convenience, so never fail the save if it
+    // cannot be updated.
+    let syncWarning: string | null = null;
+    try {
+      await syncEditionRatings(supabase, editionId, affectedVendorIds, ratedBy);
+    } catch (syncErr: unknown) {
+      syncWarning = errorMessage(syncErr, 'Could not update the current edition rating');
+      console.error('[vendor-weekly-ratings] edition sync failed:', syncErr);
+    }
 
     const singleEntry = entries.length === 1 ? entries[0] : null;
 
@@ -324,6 +344,7 @@ export async function POST(request: NextRequest) {
       editionId,
       weekStart,
       updated: entries.length,
+      syncWarning,
       // Top-level fields mirror the single-entry payload so existing optimistic
       // consumers (e.g. the vendor rating modal) can reconcile cleanly.
       rating: singleEntry ? singleEntry.rating : undefined,

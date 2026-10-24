@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/service';
-import { requireSuperAdmin } from '@/lib/auth/requireAdmin';
+import { requireAdmin, requireSuperAdmin } from '@/lib/auth/requireAdmin';
 import {
   createStickerTemplate,
   deleteOrphanedStickerImage,
@@ -14,13 +14,14 @@ import {
 export const runtime = 'nodejs';
 
 /**
- * Super-admin only. Lists the sticker templates so the settings page can edit
+ * Admin or super admin. Lists the sticker templates so the print screen can
+ * resolve the active design and the settings page (super admin only) can edit
  * them. Each template carries a short-lived signed `image_url` for its private
  * design image (the bucket itself is never public). The server role check is the
  * real protection — hiding the UI alone is not relied upon.
  */
 export async function GET(request: NextRequest) {
-  const auth = await requireSuperAdmin();
+  const auth = await requireAdmin();
   if (auth.response) return auth.response;
 
   try {

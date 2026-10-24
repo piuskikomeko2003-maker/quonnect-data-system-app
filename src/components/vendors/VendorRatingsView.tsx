@@ -30,6 +30,13 @@ import {
   previousWeekStart,
   todayDateOnly,
 } from '@/lib/ratingWeeks';
+import {
+  RATING_TIERS,
+  RatingFilterKey,
+  UNRATED_TIER_STYLE,
+  matchesRatingFilter,
+  tierForAverage,
+} from '@/lib/ratingTiers';
 
 export interface VendorRatingsViewProps {
   vendors: Vendor[];
@@ -42,6 +49,8 @@ export interface VendorRatingsViewProps {
   onBulkRate: (selectedIds: string[]) => void;
   onOpenExport: () => void;
   onRowClick?: (vendor: Vendor) => void;
+  /** Keeps the vendor directory's edition-average badge in sync while rating. */
+  onEditionAverageChange?: (vendorId: string, avg: number | null, weeks: number) => void;
 }
 
 type WeeklyEntry = { rating: number; note: string | null };
@@ -50,15 +59,9 @@ type WeeklyRatingsMap = Record<string, Record<string, WeeklyEntry>>;
 const subscribeToNothing = () => () => {};
 const getServerToday = () => '';
 
-const SCORE_TIERS = [
-  { min: 9, dot: 'bg-emerald-500', text: 'text-emerald-700', soft: 'bg-emerald-50 border-emerald-200' },
-  { min: 7, dot: 'bg-blue-500', text: 'text-blue-700', soft: 'bg-blue-50 border-blue-200' },
-  { min: 4, dot: 'bg-slate-500', text: 'text-slate-700', soft: 'bg-slate-50 border-slate-200' },
-  { min: 1, dot: 'bg-rose-500', text: 'text-rose-700', soft: 'bg-rose-50 border-rose-200' },
-];
-
 function scoreTier(score: number | null | undefined) {
-  return SCORE_TIERS.find((tier) => (score || 0) >= tier.min) || SCORE_TIERS[SCORE_TIERS.length - 1];
+  if (score === null || score === undefined) return UNRATED_TIER_STYLE;
+  return tierForAverage(score) || UNRATED_TIER_STYLE;
 }
 
 function DeltaBadge({ delta }: { delta: number | null }) {
@@ -104,7 +107,7 @@ const InlineScorePicker: React.FC<InlineScorePickerProps> = ({
   return (
     <div className="inline-flex items-center gap-1.5">
       <div className="inline-flex items-center gap-0.5">
-        {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => {
+        {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => {
           const isSelected = current === num;
           return (
             <button
@@ -112,11 +115,15 @@ const InlineScorePicker: React.FC<InlineScorePickerProps> = ({
               type="button"
               disabled={disabled}
               onClick={() => onSelect(num)}
-              title={`Rate ${num}/10`}
-              className={`w-[22px] h-[24px] rounded text-[10px] font-mono font-bold border transition-all ${
+              title={num === 0 ? 'Rate 0/10 (failed — did not market)' : `Rate ${num}/10`}
+              className={`w-[21px] h-[24px] rounded text-[10px] font-mono font-bold border transition-all ${
                 isSelected
-                  ? 'bg-amber-500 text-white border-amber-600 shadow-sm'
-                  : 'bg-white text-text-secondary border-border hover:bg-amber-50 hover:border-amber-300 hover:text-amber-700'
+                  ? num === 0
+                    ? 'bg-rose-600 text-white border-rose-700 shadow-sm'
+                    : 'bg-amber-500 text-white border-amber-600 shadow-sm'
+                  : num === 0
+                    ? 'bg-white text-rose-500 border-rose-200 hover:bg-rose-50 hover:border-rose-300'
+                    : 'bg-white text-text-secondary border-border hover:bg-amber-50 hover:border-amber-300 hover:text-amber-700'
               } ${disabled ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
             >
               {num}
@@ -176,6 +183,7 @@ export const VendorRatingsView: React.FC<VendorRatingsViewProps> = ({
   isAdmin,
   onOpenExport,
   onRowClick,
+  onEditionAverageChange,
 }) => {
   const { addToast } = useToast();
 
@@ -186,10 +194,13 @@ export const VendorRatingsView: React.FC<VendorRatingsViewProps> = ({
   const [requestedWeekStart, setRequestedWeekStart] = useState<string | null>(null);
   const [loadingRatings, setLoadingRatings] = useState(false);
   const [unmigrated, setUnmigrated] = useState(false);
+  const [needsZeroMigration, setNeedsZeroMigration] = useState(false);
   const [savingVendors, setSavingVendors] = useState<string[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [filter, setFilter] = useState<'all' | 'unrated' | 'rated' | 'gainers' | 'decliners'>('all');
-  const [sortBy, setSortBy] = useState<'week_desc' | 'week_asc' | 'change_desc' | 'name'>('week_desc');
+  const [filter, setFilter] = useState<RatingFilterKey>('all');
+  const [sortBy, setSortBy] = useState<
+    'name' | 'name_desc' | 'week_desc' | 'week_asc' | 'avg_desc' | 'change_desc'
+  >('name');
   const [selectedVendorIds, setSelectedVendorIds] = useState<string[]>([]);
   const [isBulkOpen, setIsBulkOpen] = useState(false);
   const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
@@ -281,13 +292,33 @@ export const VendorRatingsView: React.FC<VendorRatingsViewProps> = ({
     );
   };
 
+  const publishEditionAverage = useCallback(
+    (vendorId: string, entries: Record<string, WeeklyEntry> | undefined) => {
+      if (!onEditionAverageChange) return;
+      const scores = Object.values(entries || {}).map((entry) => entry.rating);
+      const avg = scores.length
+        ? Math.round((scores.reduce((sum, score) => sum + score, 0) / scores.length) * 10) / 10
+        : null;
+      onEditionAverageChange(vendorId, avg, scores.length);
+    },
+    [onEditionAverageChange]
+  );
+
   const saveRating = async (vendorId: string, rating: number | null) => {
     if (!isAdmin || !activeEdition?.id || !activeWeekStart) return;
 
     const previousEntry = getEntry(vendorId);
     const note = previousEntry?.note ?? null;
 
+    const nextEntries = { ...(weeklyRatings[vendorId] || {}) };
+    if (rating === null) {
+      delete nextEntries[activeWeekStart];
+    } else {
+      nextEntries[activeWeekStart] = { rating, note };
+    }
+
     setLocalRating(vendorId, activeWeekStart, rating, note);
+    publishEditionAverage(vendorId, nextEntries);
     markSaving(vendorId, true);
 
     try {
@@ -305,8 +336,11 @@ export const VendorRatingsView: React.FC<VendorRatingsViewProps> = ({
       const data = await res.json();
       if (!res.ok) {
         if (data?.tableMissing) setUnmigrated(true);
+        if (data?.needsZeroMigration) setNeedsZeroMigration(true);
         throw new Error(data?.error || 'Failed to save rating');
       }
+      setUnmigrated(false);
+      if (rating === 0) setNeedsZeroMigration(false);
       if (!weeksWithData.includes(activeWeekStart)) {
         setWeeksWithData((prev) => [...prev, activeWeekStart]);
       }
@@ -315,6 +349,7 @@ export const VendorRatingsView: React.FC<VendorRatingsViewProps> = ({
       const current = getEntry(vendorId);
       if ((current?.rating ?? null) === rating) {
         setLocalRating(vendorId, activeWeekStart, previousEntry?.rating ?? null, previousEntry?.note ?? null);
+        publishEditionAverage(vendorId, weeklyRatings[vendorId]);
       }
       addToast(`Could not save rating: ${err instanceof Error ? err.message : String(err)}`, 'error');
     } finally {
@@ -345,6 +380,7 @@ export const VendorRatingsView: React.FC<VendorRatingsViewProps> = ({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || 'Failed to save note');
+      setUnmigrated(false);
     } catch (err: unknown) {
       addToast(`Could not save note: ${err instanceof Error ? err.message : String(err)}`, 'error');
     } finally {
@@ -383,6 +419,7 @@ export const VendorRatingsView: React.FC<VendorRatingsViewProps> = ({
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data?.error || 'Failed to copy last week');
+      setUnmigrated(false);
       addToast(`Copied last week's scores for ${entries.length} vendors.`, 'success');
     } catch (err: unknown) {
       addToast(`Could not copy last week: ${err instanceof Error ? err.message : String(err)}`, 'error');
@@ -423,6 +460,15 @@ export const VendorRatingsView: React.FC<VendorRatingsViewProps> = ({
       ? Math.round((avgThisWeek - avgLastWeek) * 10) / 10
       : null;
 
+  const editionOverallAverage = useMemo(() => {
+    const scores: number[] = [];
+    Object.values(weeklyRatings).forEach((entryMap) => {
+      Object.values(entryMap).forEach((entry) => scores.push(entry.rating));
+    });
+    if (scores.length === 0) return null;
+    return Math.round((scores.reduce((sum, score) => sum + score, 0) / scores.length) * 10) / 10;
+  }, [weeklyRatings]);
+
   const weekIndex = selectedWeek ? weeks.findIndex((week) => week.weekStart === selectedWeek.weekStart) + 1 : 0;
   const progressPct = totalVendors > 0 ? Math.round((ratedThisWeek / totalVendors) * 100) : 0;
   const daysLeft = selectedWeek?.daysUntilEvent ?? null;
@@ -437,6 +483,42 @@ export const VendorRatingsView: React.FC<VendorRatingsViewProps> = ({
     [getEntry, previousWeekKey]
   );
 
+  /**
+   * Automatic edition average for one vendor: the mean of every weekly score
+   * recorded for this vendor within the selected edition.
+   */
+  const getEditionAverage = useCallback(
+    (vendorId: string): { avg: number | null; weeks: number } => {
+      const entries = weeklyRatings[vendorId];
+      if (!entries) return { avg: null, weeks: 0 };
+      const scores = Object.values(entries).map((entry) => entry.rating);
+      if (scores.length === 0) return { avg: null, weeks: 0 };
+      const avg = Math.round((scores.reduce((sum, score) => sum + score, 0) / scores.length) * 10) / 10;
+      return { avg, weeks: scores.length };
+    },
+    [weeklyRatings]
+  );
+
+  const tierCounts = useMemo(() => {
+    const counts: Record<string, number> = {
+      all: vendors.length,
+      unrated: 0,
+      ...Object.fromEntries(RATING_TIERS.map((tier) => [tier.key, 0])),
+    };
+
+    vendors.forEach((vendor) => {
+      const average = getEditionAverage(vendor.id).avg;
+      if (average === null) {
+        counts.unrated += 1;
+        return;
+      }
+      const tier = tierForAverage(average);
+      if (tier) counts[tier.key] += 1;
+    });
+
+    return counts;
+  }, [vendors, getEditionAverage]);
+
   const filteredVendors = useMemo(() => {
     return vendors
       .filter((vendor) => {
@@ -450,12 +532,11 @@ export const VendorRatingsView: React.FC<VendorRatingsViewProps> = ({
           if (!matches) return false;
         }
 
-        const current = getEntry(vendor.id);
-        if (filter === 'unrated') return !current;
-        if (filter === 'rated') return Boolean(current);
-        if (filter === 'gainers') return (getVendorDelta(vendor.id) || 0) > 0;
-        if (filter === 'decliners') return (getVendorDelta(vendor.id) || 0) < 0;
-        return true;
+        const editionAverage = getEditionAverage(vendor.id).avg;
+
+        // Tier filters use the automatic edition average, so a vendor is
+        // classified by all their weekly scores for this edition.
+        return matchesRatingFilter(editionAverage, filter);
       })
       .sort((a, b) => {
         if (sortBy === 'week_desc' || sortBy === 'week_asc') {
@@ -463,14 +544,20 @@ export const VendorRatingsView: React.FC<VendorRatingsViewProps> = ({
           const bScore = getEntry(b.id)?.rating ?? -1;
           return sortBy === 'week_desc' ? bScore - aScore : aScore - bScore;
         }
+        if (sortBy === 'avg_desc') {
+          const aAvg = getEditionAverage(a.id).avg ?? -1;
+          const bAvg = getEditionAverage(b.id).avg ?? -1;
+          return bAvg - aAvg;
+        }
         if (sortBy === 'change_desc') {
           const aDelta = getVendorDelta(a.id) ?? -99;
           const bDelta = getVendorDelta(b.id) ?? -99;
           return bDelta - aDelta;
         }
-        return (a.businessName || a.name || '').localeCompare(b.businessName || b.name || '');
+        const comparison = (a.businessName || a.name || '').localeCompare(b.businessName || b.name || '');
+        return sortBy === 'name_desc' ? -comparison : comparison;
       });
-  }, [vendors, searchTerm, filter, sortBy, getEntry, getVendorDelta]);
+  }, [vendors, searchTerm, filter, sortBy, getEntry, getVendorDelta, getEditionAverage]);
 
   const isAllSelected =
     filteredVendors.length > 0 && filteredVendors.every((vendor) => selectedVendorIds.includes(vendor.id));
@@ -565,6 +652,19 @@ export const VendorRatingsView: React.FC<VendorRatingsViewProps> = ({
         </div>
       )}
 
+      {needsZeroMigration && (
+        <div className="bg-rose-50 border border-rose-200 text-rose-900 rounded-xl p-4 flex items-start gap-3 text-xs">
+          <Info className="w-4 h-4 shrink-0 mt-0.5" />
+          <div>
+            <div className="font-bold">One more database step is needed to use 0 (Failed)</div>
+            <div className="mt-0.5">
+              Run <code className="font-mono bg-rose-100 px-1 rounded">supabase/migrations/allow_zero_vendor_ratings.sql</code>{' '}
+              in the Supabase SQL editor. Until then, the database only accepts scores 1–10.
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Rating window / week selector */}
       {weeks.length > 0 && (
         <div className="bg-white border border-border rounded-xl p-4 sm:p-5 shadow-xs space-y-4">
@@ -602,7 +702,7 @@ export const VendorRatingsView: React.FC<VendorRatingsViewProps> = ({
               </div>
             </div>
 
-            <div className="grid grid-cols-3 gap-2 sm:gap-3 min-w-0">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 sm:gap-3 min-w-0">
               <div className="bg-slate-50 border border-border rounded-lg px-3 py-2">
                 <div className="text-[9px] font-bold uppercase tracking-wider text-text-tertiary">
                   Rated this week
@@ -619,6 +719,15 @@ export const VendorRatingsView: React.FC<VendorRatingsViewProps> = ({
                 <div className="text-lg font-extrabold font-mono text-amber-700 leading-tight">
                   {avgThisWeek !== null ? `${avgThisWeek}` : '—'}
                   {avgThisWeek !== null && <span className="text-xs font-medium text-amber-600">/10</span>}
+                </div>
+              </div>
+              <div className="bg-blue-50/70 border border-blue-200 rounded-lg px-3 py-2">
+                <div className="text-[9px] font-bold uppercase tracking-wider text-blue-700">
+                  Edition avg
+                </div>
+                <div className="text-lg font-extrabold font-mono text-blue-700 leading-tight">
+                  {editionOverallAverage !== null ? `${editionOverallAverage}` : '—'}
+                  {editionOverallAverage !== null && <span className="text-xs font-medium text-blue-600">/10</span>}
                 </div>
               </div>
               <div className="bg-white border border-border rounded-lg px-3 py-2">
@@ -745,34 +854,58 @@ export const VendorRatingsView: React.FC<VendorRatingsViewProps> = ({
               onChange={(event) => setSortBy(event.target.value as typeof sortBy)}
               className="bg-white border border-border rounded-lg px-2.5 py-1.5 text-xs text-text-primary focus:border-accent outline-none cursor-pointer"
             >
+              <option value="name">Business name (A–Z) · stable</option>
+              <option value="name_desc">Business name (Z–A)</option>
+              <option value="avg_desc">Highest edition average</option>
               <option value="week_desc">Highest this week</option>
               <option value="week_asc">Lowest / unrated first</option>
               <option value="change_desc">Biggest improvement</option>
-              <option value="name">Business name (A–Z)</option>
             </select>
+            <span className="hidden lg:inline text-[10px] text-text-tertiary whitespace-nowrap">
+              Rows stay in place while you rate
+            </span>
           </div>
         </div>
 
         <div className="flex items-center gap-1.5 overflow-x-auto pb-1 border-t border-border/60 pt-3 text-xs">
-          <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider mr-1">Filter:</span>
-          {([
-            ['all', `All (${totalVendors})`],
-            ['unrated', `Unrated (${totalVendors - ratedThisWeek})`],
-            ['rated', `Rated (${ratedThisWeek})`],
-            ['gainers', 'Improving'],
-            ['decliners', 'Declining'],
-          ] as const).map(([value, label]) => (
+          <span className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider mr-1">
+            Filter by edition avg:
+          </span>
+          <button
+            type="button"
+            onClick={() => setFilter('all')}
+            className={`px-3 py-1 rounded-full font-semibold transition-colors cursor-pointer whitespace-nowrap ${
+              filter === 'all'
+                ? 'bg-text-primary text-white font-bold'
+                : 'bg-slate-100 hover:bg-slate-200 text-text-secondary'
+            }`}
+          >
+            All ({tierCounts.all})
+          </button>
+          <button
+            type="button"
+            onClick={() => setFilter('unrated')}
+            className={`px-3 py-1 rounded-full font-semibold transition-colors cursor-pointer whitespace-nowrap border ${
+              filter === 'unrated'
+                ? 'bg-text-primary text-white border-text-primary font-bold'
+                : 'bg-slate-100 hover:bg-slate-200 text-slate-600 border-slate-200'
+            }`}
+          >
+            Unrated ({tierCounts.unrated})
+          </button>
+          {RATING_TIERS.map((tier) => (
             <button
-              key={value}
+              key={tier.key}
               type="button"
-              onClick={() => setFilter(value)}
-              className={`px-3 py-1 rounded-full font-semibold transition-colors cursor-pointer whitespace-nowrap ${
-                filter === value
-                  ? 'bg-text-primary text-white font-bold'
-                  : 'bg-slate-100 hover:bg-slate-200 text-text-secondary'
+              onClick={() => setFilter(tier.key)}
+              title={`${tier.range} · ${tier.description}`}
+              className={`px-3 py-1 rounded-full font-semibold transition-colors cursor-pointer whitespace-nowrap border ${
+                filter === tier.key
+                  ? 'bg-text-primary text-white border-text-primary font-bold'
+                  : `${tier.badge} hover:opacity-80`
               }`}
             >
-              {label}
+              {tier.shortLabel} ({tierCounts[tier.key]})
             </button>
           ))}
         </div>
@@ -812,7 +945,7 @@ export const VendorRatingsView: React.FC<VendorRatingsViewProps> = ({
               )}
             </div>
           ) : (
-            <table className="w-full border-collapse min-w-[980px] text-xs">
+            <table className="w-full border-collapse min-w-[1120px] text-xs">
               <thead>
                 <tr className="bg-slate-50/90 border-b border-border text-[10px] font-semibold text-text-secondary uppercase tracking-wider">
                   <th className="p-3.5 w-[46px] text-center border-r border-border">
@@ -827,10 +960,16 @@ export const VendorRatingsView: React.FC<VendorRatingsViewProps> = ({
                   <th className="p-3.5 text-left">
                     This week&apos;s score
                     <div className="text-[9px] font-medium normal-case text-text-tertiary mt-0.5">
-                      {selectedWeek?.label || 'Select a week'} · tap 1–10
+                      {selectedWeek?.label || 'Select a week'} · tap 0–10
                     </div>
                   </th>
                   <th className="p-3.5 text-left">Last week</th>
+                  <th className="p-3.5 text-left">
+                    Edition avg
+                    <div className="text-[9px] font-medium normal-case text-text-tertiary mt-0.5">
+                      all weekly scores
+                    </div>
+                  </th>
                   <th className="p-3.5 text-left">Trend</th>
                   <th className="p-3.5 text-left">Note</th>
                   <th className="p-3.5 text-center w-[90px]">Actions</th>
@@ -845,6 +984,8 @@ export const VendorRatingsView: React.FC<VendorRatingsViewProps> = ({
                   const saving = savingVendors.includes(vendor.id);
                   const vendorWeeks = weeklyRatings[vendor.id];
                   const weeksRated = vendorWeeks ? Object.keys(vendorWeeks).length : 0;
+                  const editionAvg = getEditionAverage(vendor.id);
+                  const editionTier = tierForAverage(editionAvg.avg);
                   const isEditingNote = editingNoteId === vendor.id;
 
                   return (
@@ -897,6 +1038,29 @@ export const VendorRatingsView: React.FC<VendorRatingsViewProps> = ({
                           )}
                           <DeltaBadge delta={delta} />
                         </div>
+                      </td>
+
+                      <td className="p-3.5 align-top">
+                        {editionAvg.avg !== null ? (
+                          <div className="flex flex-col gap-1">
+                            <div className="inline-flex items-center gap-1.5">
+                              <span className={`font-mono font-bold text-[11px] px-1.5 py-0.5 rounded border ${scoreTier(editionAvg.avg).soft} ${scoreTier(editionAvg.avg).text}`}>
+                                {editionAvg.avg}/10
+                              </span>
+                              <span className="text-[10px] text-text-tertiary font-mono whitespace-nowrap">
+                                {editionAvg.weeks} wk{editionAvg.weeks === 1 ? '' : 's'}
+                              </span>
+                            </div>
+                            {editionTier && (
+                              <span className={`inline-flex w-fit items-center gap-1 px-1.5 py-0.5 rounded border text-[9px] font-bold uppercase tracking-wider ${editionTier.badge}`}>
+                                <span className={`w-1.5 h-1.5 rounded-full ${editionTier.dot}`} />
+                                {editionTier.shortLabel}
+                              </span>
+                            )}
+                          </div>
+                        ) : (
+                          <span className="text-[11px] text-text-tertiary font-mono">—</span>
+                        )}
                       </td>
 
                       <td className="p-3.5 align-top">
@@ -1035,6 +1199,13 @@ export const VendorRatingsView: React.FC<VendorRatingsViewProps> = ({
           if (!activeWeekStart) return;
           vendorIds.forEach((vendorId) => {
             setLocalRating(vendorId, activeWeekStart, rating, note);
+            const nextEntries = { ...(weeklyRatings[vendorId] || {}) };
+            if (rating === null) {
+              delete nextEntries[activeWeekStart];
+            } else {
+              nextEntries[activeWeekStart] = { rating, note };
+            }
+            publishEditionAverage(vendorId, nextEntries);
           });
           setSelectedVendorIds([]);
         }}

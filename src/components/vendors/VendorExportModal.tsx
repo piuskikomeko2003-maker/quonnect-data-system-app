@@ -55,7 +55,7 @@ const PRESET_TEMPLATES: Record<string, { label: string; description: string; col
   },
   ratings: {
     label: 'Business + ratings',
-    description: 'Marketing power rating (1-10), stars, notes, and averages',
+    description: 'Marketing power rating (0-10), stars, notes, and averages',
     columns: [
       'business_name',
       'contact_name',

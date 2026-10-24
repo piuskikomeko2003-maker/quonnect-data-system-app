@@ -32,7 +32,7 @@ interface BatchRow {
 const formatTicket = (ticket: number | null) =>
   ticket == null ? '—' : String(ticket).padStart(3, '0');
 
-const StickersView: React.FC<{ isSuperAdmin: boolean }> = ({ isSuperAdmin }) => {
+const StickersView: React.FC<{ canPrint: boolean }> = ({ canPrint }) => {
   const { activeEdition } = useRegion();
   const marketDayId = activeEdition?.id || '';
 
@@ -228,11 +228,11 @@ const StickersView: React.FC<{ isSuperAdmin: boolean }> = ({ isSuperAdmin }) => 
     }
   };
 
-  if (!isSuperAdmin) {
+  if (!canPrint) {
     return (
       <div className="py-20 text-center border border-dashed border-border rounded-lg animate-fade-in">
         <AlertCircle className="w-10 h-10 text-red mx-auto mb-3" />
-        <h3 className="text-sm font-bold text-text-primary">Super admin access required</h3>
+        <h3 className="text-sm font-bold text-text-primary">Admin access required</h3>
         <p className="text-xs text-text-secondary mt-2">You do not have permission to print stickers.</p>
       </div>
     );

@@ -1,12 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/service';
-import { requireSuperAdmin } from '@/lib/auth/requireAdmin';
+import { requireAdmin } from '@/lib/auth/requireAdmin';
 import type { StickerBatchItem } from '@/types/sticker';
 
 export const runtime = 'nodejs';
 
 /**
- * Super-admin only. Confirms a batch was printed.
+ * Admin or super admin. Confirms a batch was printed.
  *
  * This is the only place `stickers_printed` moves. It runs after the sheet comes
  * out correctly, so a jam or bad print can be regenerated instead of wrongly
@@ -14,7 +14,7 @@ export const runtime = 'nodejs';
  * Reprint batches are logged but never change the counts.
  */
 export async function POST(request: NextRequest) {
-  const auth = await requireSuperAdmin();
+  const auth = await requireAdmin();
   if (auth.response) return auth.response;
 
   try {

@@ -69,9 +69,8 @@ export async function requireAdmin(): Promise<AdminAuthResult> {
 }
 
 /**
- * Super-admin-only gate. Every page, API route and server action in the sticker
- * printing feature must call this before doing any work, so that regular admins
- * are rejected on the server even if they reach the endpoint directly.
+ * Super-admin-only gate. Used for sticker design/template editing (settings),
+ * which regular admins must never reach. Printing itself uses requireAdmin.
  */
 export async function requireSuperAdmin(): Promise<AdminAuthResult> {
   const result = await loadAuthProfile();

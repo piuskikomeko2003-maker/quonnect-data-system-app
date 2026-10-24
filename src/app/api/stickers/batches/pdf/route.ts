@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/service';
-import { requireSuperAdmin } from '@/lib/auth/requireAdmin';
+import { requireAdmin } from '@/lib/auth/requireAdmin';
 import { STICKER_ASSETS_BUCKET, getStickerTemplate } from '@/lib/stickers/server';
 import { renderStickerPdf, type StickerPdfImage } from '@/lib/stickers/pdf';
 import type { StickerBatchItem, StickerNeed } from '@/types/sticker';
@@ -8,12 +8,12 @@ import type { StickerBatchItem, StickerNeed } from '@/types/sticker';
 export const runtime = 'nodejs';
 
 /**
- * Super-admin only. Renders the PDF for an existing batch. Reproducing from the
+ * Admin or super admin. Renders the PDF for an existing batch. Reproducing from the
  * stored batch means the same sheet can be generated again (e.g. after a jam)
  * without touching any printed counts.
  */
 export async function GET(request: NextRequest) {
-  const auth = await requireSuperAdmin();
+  const auth = await requireAdmin();
   if (auth.response) return auth.response;
 
   try {

@@ -1,17 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/service';
-import { requireSuperAdmin } from '@/lib/auth/requireAdmin';
+import { requireAdmin } from '@/lib/auth/requireAdmin';
 import { fetchStickerVendors } from '@/lib/stickers/server';
 import { computeProgress, sortVendorsByTicket } from '@/lib/stickers/layout';
 
 export const runtime = 'nodejs';
 
 /**
- * Super-admin only. Returns the paid vendors for an edition plus overall sticker
- * progress (needed / printed / remaining), used by the print screen.
+ * Admin or super admin. Returns the paid vendors for an edition plus overall
+ * sticker progress (needed / printed / remaining), used by the print screen.
  */
 export async function GET(request: NextRequest) {
-  const auth = await requireSuperAdmin();
+  const auth = await requireAdmin();
   if (auth.response) return auth.response;
 
   try {

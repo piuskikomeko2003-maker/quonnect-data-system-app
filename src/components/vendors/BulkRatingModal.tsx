@@ -128,29 +128,39 @@ export const BulkRatingModal: React.FC<BulkRatingModalProps> = ({
           </div>
         </div>
 
-        {/* 1 to 10 Quick Select Segmented Buttons */}
+        {/* 0 to 10 Quick Select Segmented Buttons */}
         <div>
           <label className="block text-[11px] font-bold text-text-tertiary uppercase tracking-wider mb-2">
             Assign Rating to All Selected
           </label>
-          <div className="grid grid-cols-10 gap-1 sm:gap-1.5">
-            {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => {
+          <div className="grid grid-cols-11 gap-1 sm:gap-1.5">
+            {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((num) => {
               const isSelected = selectedRating === num;
               return (
                 <button
                   key={num}
                   type="button"
                   onClick={() => setSelectedRating(num)}
+                  title={num === 0 ? '0/10 — failed (did not market)' : `${num}/10`}
                   className={`h-9 rounded-md font-mono text-xs font-bold transition-all cursor-pointer border ${
                     isSelected
-                      ? 'bg-amber-500 text-white border-amber-600 shadow-sm scale-105'
-                      : 'bg-white hover:bg-slate-50 text-text-primary border-border'
+                      ? num === 0
+                        ? 'bg-rose-600 text-white border-rose-700 shadow-sm scale-105'
+                        : 'bg-amber-500 text-white border-amber-600 shadow-sm scale-105'
+                      : num === 0
+                        ? 'bg-white hover:bg-rose-50 text-rose-500 border-rose-200'
+                        : 'bg-white hover:bg-slate-50 text-text-primary border-border'
                   }`}
                 >
                   {num}
                 </button>
               );
             })}
+          </div>
+          <div className="flex justify-between text-[9px] text-text-tertiary font-semibold px-0.5 mt-1.5">
+            <span>0 (Failed)</span>
+            <span>5 (Average)</span>
+            <span>10 (Massive crowd puller)</span>
           </div>
         </div>
 

@@ -18,7 +18,7 @@ CREATE TABLE IF NOT EXISTS public.vendor_ratings (
   rated_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
   created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
-  CONSTRAINT vendor_ratings_rating_check CHECK (rating IS NULL OR (rating >= 1 AND rating <= 10)),
+  CONSTRAINT vendor_ratings_rating_check CHECK (rating IS NULL OR (rating >= 0 AND rating <= 10)),
   CONSTRAINT vendor_ratings_vendor_edition_key UNIQUE (vendor_id, edition_id)
 );
 

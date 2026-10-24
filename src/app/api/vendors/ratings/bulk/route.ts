@@ -4,7 +4,7 @@ import { requireAdmin } from '@/lib/auth/requireAdmin';
 
 export const dynamic = 'force-dynamic';
 
-const MIN_RATING = 1;
+const MIN_RATING = 0;
 const MAX_RATING = 10;
 
 /**
@@ -70,6 +70,16 @@ export async function POST(request: NextRequest) {
         if (upsertErr.code === 'PGRST204' || upsertErr.message?.includes('does not exist')) {
           return NextResponse.json(
             { error: "Database table 'vendor_ratings' is missing. Please run 'add_vendor_ratings.sql' in your Supabase SQL Editor.", tableMissing: true },
+            { status: 400 }
+          );
+        }
+        if (upsertErr.code === '23514') {
+          return NextResponse.json(
+            {
+              error:
+                "This database still blocks a 0 rating. Run 'allow_zero_vendor_ratings.sql' in the Supabase SQL editor, then try again.",
+              needsZeroMigration: true,
+            },
             { status: 400 }
           );
         }

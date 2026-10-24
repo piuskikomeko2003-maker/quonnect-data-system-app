@@ -11,7 +11,7 @@ export interface FilterState {
   maxAge: number | '';
   businessType: string;
   registrationType?: 'All' | 'survey' | 'paid' | 'both';
-  ratingFilter?: 'All' | 'unrated' | 'rated' | '1-3' | '4-6' | '7-8' | '9-10';
+  ratingFilter?: 'All' | 'unrated' | 'top' | 'very-good' | 'good' | 'average' | 'below' | 'failed';
 }
 
 export interface FilterBarProps {
@@ -127,13 +127,14 @@ export const FilterBar: React.FC<FilterBarProps> = ({
           onChange={(e) => onFiltersChange({ ratingFilter: e.target.value as any })}
           className="w-full bg-white border border-border text-text-primary text-xs rounded-md px-3 py-2 cursor-pointer outline-none transition-colors focus:border-accent appearance-none bg-[url('data:image/svg+xml;charset=utf-8,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%2020%2020%22%20fill%3D%22none%22%3E%3Cpath%20d%3D%22M7%209l3%203%203-3%22%20stroke%3D%22%2364748b%22%20stroke-width%3D%221.5%22%20stroke-linecap%3D%22round%22%20stroke-linejoin%3D%22round%22%2F%3E%3C%2Fsvg%3E')] bg-[right_10px_center] bg-no-repeat pr-8"
         >
-          <option value="All" className="bg-white">All Ratings (1-10)</option>
+          <option value="All" className="bg-white">All Ratings (0–10)</option>
           <option value="unrated" className="bg-white">Unrated Only</option>
-          <option value="rated" className="bg-white">Rated Only</option>
-          <option value="9-10" className="bg-white">9–10 ★ (Top Crowd Pullers)</option>
-          <option value="7-8" className="bg-white">7–8 ★ (High Power)</option>
-          <option value="4-6" className="bg-white">4–6 ★ (Moderate)</option>
-          <option value="1-3" className="bg-white">1–3 ★ (Low Reach)</option>
+          <option value="top" className="bg-white">Top Tier (8.5 – 10)</option>
+          <option value="very-good" className="bg-white">Very Good (7.5 – 8.4)</option>
+          <option value="good" className="bg-white">Good (6.5 – 7.4)</option>
+          <option value="average" className="bg-white">Average (5 – 6.4)</option>
+          <option value="below" className="bg-white">Below Average (1 – 4.9)</option>
+          <option value="failed" className="bg-white">Failed (0)</option>
         </select>
       </div>
 
