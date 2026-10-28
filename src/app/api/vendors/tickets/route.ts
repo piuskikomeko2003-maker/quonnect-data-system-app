@@ -14,8 +14,7 @@ function isUuid(value: unknown): value is string {
  *   { action: 'check-in', ticketId, checkIn: boolean }
  *
  * Admins add paid days to an existing registration. Any approved user may
- * check a ticket in, but only on that ticket's own event day (enforced in the
- * database function, not just the UI).
+ * check a ticket in for any day of the edition at any time.
  */
 export async function POST(request: NextRequest) {
   try {

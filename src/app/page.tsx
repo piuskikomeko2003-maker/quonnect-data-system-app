@@ -105,6 +105,7 @@ import {
   RefreshCw,
   ArrowUpDown,
   LayoutGrid,
+  CalendarDays,
 } from 'lucide-react';
 
 const CustomGrowthTooltip = ({ active, payload, label }: any) => {
@@ -274,6 +275,8 @@ export default function Home() {
   const [paidVendorTicketSort, setPaidVendorTicketSort] = useState<'none' | 'asc' | 'desc'>('none');
   /** 'all' = everyone | 'confirmed' = entered venue | 'awaiting' = not yet entered */
   const [paidVendorEntryFilter, setPaidVendorEntryFilter] = useState<'all' | 'confirmed' | 'awaiting'>('all');
+  /** Gate list is scoped to one day at a time ('all' only for single-day editions). */
+  const [gateDayId, setGateDayId] = useState<string | 'all'>('all');
   /** Business category filter for the paid vendors table. 'All' = no category filtering. */
   const [paidVendorCategoryFilter, setPaidVendorCategoryFilter] = useState('All');
 
@@ -1264,17 +1267,12 @@ export default function Home() {
     }
   };
 
-  /** Per-day gate entry for multi-day editions. The server validates the day. */
+  /**
+   * Per-day gate entry for multi-day editions. Any day's ticket can be marked
+   * at any time so gate staff are never blocked if a day's setup runs late or
+   * needs a backfill.
+   */
   const handleToggleTicketEntry = async (registrationId: string, ticket: any) => {
-    const day = ticket.edition_days;
-    if (!ticket.check_in_time && day?.event_date && !isTicketDayToday(day)) {
-      addToast(
-        `${dayLabel(day)} (${dayDateLabel(day)}) is not today. This ticket can only be used on its own day.`,
-        'error'
-      );
-      return;
-    }
-
     const checkIn = !ticket.check_in_time;
     const optimisticTime = checkIn ? new Date().toISOString() : null;
 
@@ -1311,6 +1309,28 @@ export default function Home() {
       addToast(err?.message || 'Failed to update entry', 'error');
       void fetchPaidVendors(true);
     }
+  };
+
+  /** Ticket a vendor holds for the gate list's selected day (null on "all days"). */
+  const gateTicketFor = (pv: any, dayId: string | 'all') => {
+    if (dayId === 'all') return null;
+    return (pv.tickets || []).find((t: any) => t.edition_day_id === dayId) || null;
+  };
+
+  /** True when the vendor holds a ticket for the selected gate day. */
+  const hasGateDayTicket = (pv: any, dayId: string | 'all') => {
+    if (dayId === 'all') return true;
+    const tickets = pv.tickets || [];
+    // Vendors with no per-day tickets at all (legacy rows) must never vanish
+    // from the gate list — they fall back to the registration-level entry.
+    if (tickets.length === 0) return true;
+    return tickets.some((t: any) => t.edition_day_id === dayId);
+  };
+
+  /** True when the vendor is already marked in for the selected gate day. */
+  const isEnteredForGateDay = (pv: any, dayId: string | 'all') => {
+    if (dayId === 'all' || (pv.tickets || []).length === 0) return !!pv.check_in_time;
+    return !!gateTicketFor(pv, dayId)?.check_in_time;
   };
 
   /** Begin inline editing of a row's tables count (admin only). */
@@ -1378,10 +1398,14 @@ export default function Home() {
     const scored: { pv: any; score: number }[] = [];
     for (const pv of paidVendors) {
       if (pv.payment_status !== 'paid') continue;
-      const ticket = [
-        pv.ticket_number,
-        ...(pv.tickets || []).map((t: any) => normalizeTicketCode(t.ticket_code)),
-      ].filter(Boolean).join(' ').toLowerCase();
+      // Gate search follows the selected day, so "Enter" can never mark the
+      // wrong day's pass.
+      const dayTicket = gateTicketFor(pv, gateDayId);
+      if (gateDayId !== 'all' && !hasGateDayTicket(pv, gateDayId)) continue;
+      const ticket = (dayTicket
+        ? [normalizeTicketCode(dayTicket.ticket_code)]
+        : [pv.ticket_number, ...(pv.tickets || []).map((t: any) => normalizeTicketCode(t.ticket_code))]
+      ).filter(Boolean).join(' ').toLowerCase();
       const business = String(pv.business_name || '').toLowerCase();
       const contact = String(pv.contact_name || '').toLowerCase();
 
@@ -1397,12 +1421,15 @@ export default function Home() {
 
     scored.sort((a, b) => a.score - b.score);
     return scored.slice(0, 8).map((item) => item.pv);
-  }, [paidVendorSearch, paidVendors]);
+  }, [paidVendorSearch, paidVendors, gateDayId]);
 
   /** Mark entry straight from the search dropdown, then reset the box for the next vendor. */
   const handleMarkVendorFromSearch = (pv: any) => {
-    // handleToggleVendorEntry is optimistic + queued, so this returns immediately.
-    handleToggleVendorEntry(pv);
+    // Same day-scoping as the list: mark the selected day's pass when the
+    // edition has multiple days, otherwise fall back to the legacy entry.
+    const ticket = gateTicketFor(pv, gateDayId);
+    if (ticket) handleToggleTicketEntry(pv.id, ticket);
+    else handleToggleVendorEntry(pv);
     setShowPaidVendorDropdown(false);
     setPaidVendorSearch('');
     // Keep the keyboard/focus in the search box for continuous gate marking.
@@ -1814,12 +1841,18 @@ export default function Home() {
     const supabase = createClient();
     if (!supabase || !activeEdition?.id) {
       setEditionDays([]);
+      setGateDayId('all');
       setSelectedLinkDayIds([]);
       return;
     }
     fetchEditionDays(supabase, activeEdition.id).then((days) => {
       if (cancelled) return;
       setEditionDays(days);
+      // Default the gate list to today's day (or the first day before the
+      // edition starts) so a row only ever has one entry button.
+      const sorted = sortDays(days);
+      const today = sorted.find((d) => isTicketDayToday(d));
+      setGateDayId(sorted.length > 1 ? (today?.id || sorted[0].id) : 'all');
       setSelectedLinkDayIds(days.map((d) => d.id));
     });
     return () => {
@@ -4064,8 +4097,11 @@ export default function Home() {
                       </div>
 
                       {(() => {
-                        const paidRegistered = paidVendors.filter(pv => pv.payment_status === 'paid' && pv.hasFormData);
-                        const confirmed = paidRegistered.filter(pv => pv.check_in_time).length;
+                        const paidRegistered = paidVendors.filter(
+                          (pv) => pv.payment_status === 'paid' && pv.hasFormData && hasGateDayTicket(pv, gateDayId)
+                        );
+                        const confirmed = paidRegistered.filter(pv => isEnteredForGateDay(pv, gateDayId)).length;
+                        const gateDay = gateDayId === 'all' ? null : editionDays.find(d => d.id === gateDayId) || null;
                         return (
                           <div className="bg-white border border-emerald-200 rounded-xl p-3 sm:p-5 flex flex-col justify-between shadow-xs transition-all duration-200 hover:-translate-y-0.5 hover:shadow-elevated animate-card-entrance" style={{ animationDelay: '180ms' }}>
                             <div className="flex items-start justify-between mb-3">
@@ -4074,14 +4110,16 @@ export default function Home() {
                               </div>
                               <span className="flex items-center gap-1 text-[10px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full uppercase tracking-wider">
                                 <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 animate-pulse" />
-                                Live
+                                {gateDay ? dayLabel(gateDay) : 'Live'}
                               </span>
                             </div>
                             <div className="text-3xl font-bold text-text-primary tracking-tight">
                               <AnimatedNumber value={confirmed} />
                               <span className="text-lg text-text-tertiary font-semibold"> / {paidRegistered.length}</span>
                             </div>
-                            <div className="text-xs text-emerald-700 uppercase tracking-wider mt-1 font-semibold">Checked In</div>
+                            <div className="text-xs text-emerald-700 uppercase tracking-wider mt-1 font-semibold">
+                              Checked In{gateDay ? ` · ${dayLabel(gateDay)}` : ''}
+                            </div>
                           </div>
                         );
                       })()}
@@ -4117,7 +4155,10 @@ export default function Home() {
                         {showPaidVendorDropdown && paidVendorMatches.length > 0 && (
                           <div className="absolute z-30 left-0 right-0 mt-1 bg-white border border-border rounded-lg shadow-elevated overflow-hidden text-left">
                             {paidVendorMatches.map((m) => {
-                              const isConfirmed = !!m.check_in_time;
+                              const dayTicket = gateTicketFor(m, gateDayId);
+                              const matchDay = gateDayId === 'all' ? null : editionDays.find((d) => d.id === gateDayId) || null;
+                              const isConfirmed = gateDayId !== 'all' ? !!dayTicket?.check_in_time : !!m.check_in_time;
+                              const code = dayTicket ? normalizeTicketCode(dayTicket.ticket_code) : m.ticket_number;
                               return (
                                 <div
                                   key={m.id}
@@ -4128,13 +4169,13 @@ export default function Home() {
                                       {m.business_name || m.contact_name || '—'}
                                     </span>
                                     <span className="block text-[10px] text-text-tertiary font-mono mt-0.5 truncate">
-                                      {m.contact_name || '—'}{m.ticket_number ? ` · #${m.ticket_number}` : ''}
+                                      {m.contact_name || '—'}{code ? ` · #${code}` : ''}{matchDay ? ` · ${dayLabel(matchDay)}` : ''}
                                     </span>
                                   </span>
                                   <button
                                     type="button"
                                     onClick={() => handleMarkVendorFromSearch(m)}
-                                    title={isConfirmed ? 'Undo entry' : 'Confirm this vendor has entered the venue'}
+                                    title={isConfirmed ? 'Undo entry' : `Confirm this vendor has entered the venue${matchDay ? ` (${dayLabel(matchDay)})` : ''}`}
                                     className={`shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border transition-colors cursor-pointer whitespace-nowrap ${
                                       isConfirmed
                                         ? 'bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-200'
@@ -4200,33 +4241,75 @@ export default function Home() {
                             )}
                           </div>
                         </div>
-                        {/* Tab pills */}
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <button
-                            onClick={() => setPaidVendorTab('registered')}
-                            className={`flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-colors cursor-pointer ${paidVendorTab === 'registered'
-                                ? 'bg-accent-soft border-accent text-accent'
-                                : 'bg-white border-border text-text-secondary hover:text-text-primary hover:border-border-light'
-                              }`}
-                          >
-                            <span className="w-1.5 h-1.5 rounded-full bg-accent shrink-0" />
-                            Registered ({paidVendors.filter(pv => pv.payment_status === 'paid' && pv.hasFormData).length})
-                          </button>
-                          <button
-                            onClick={() => setPaidVendorTab('pending')}
-                            className={`flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-colors cursor-pointer ${paidVendorTab === 'pending'
-                                ? 'bg-amber-50 border-amber-300 text-amber-700'
-                                : 'bg-white border-border text-text-secondary hover:text-text-primary hover:border-border-light'
-                              }`}
-                          >
-                            <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
-                            Not Yet Registered ({paidVendors.filter(pv => pv.payment_status === 'paid' && !pv.hasFormData).length})
-                          </button>
+                        {/* Tab pills + day switcher: day buttons sit on the right and lead the gate workflow */}
+                        <div className="flex items-center justify-between gap-3 flex-wrap">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <button
+                              onClick={() => setPaidVendorTab('registered')}
+                              className={`flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-colors cursor-pointer ${paidVendorTab === 'registered'
+                                  ? 'bg-accent-soft border-accent text-accent'
+                                  : 'bg-white border-border text-text-secondary hover:text-text-primary hover:border-border-light'
+                                }`}
+                            >
+                              <span className="w-1.5 h-1.5 rounded-full bg-accent shrink-0" />
+                              Registered ({paidVendors.filter(pv => pv.payment_status === 'paid' && pv.hasFormData).length})
+                            </button>
+                            <button
+                              onClick={() => setPaidVendorTab('pending')}
+                              className={`flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-colors cursor-pointer ${paidVendorTab === 'pending'
+                                  ? 'bg-amber-50 border-amber-300 text-amber-700'
+                                  : 'bg-white border-border text-text-secondary hover:text-text-primary hover:border-border-light'
+                                }`}
+                            >
+                              <span className="w-1.5 h-1.5 rounded-full bg-amber-500 shrink-0" />
+                              Not Yet Registered ({paidVendors.filter(pv => pv.payment_status === 'paid' && !pv.hasFormData).length})
+                            </button>
+                          </div>
+                          {/* Day switcher — scopes the gate list to vendors who paid for that day */}
+                          {paidVendorTab === 'registered' && editionDays.length > 1 && (
+                            <div className="flex items-center gap-2 flex-wrap ml-auto">
+                              <span className="flex items-center gap-1 text-[10px] font-semibold text-text-tertiary uppercase tracking-widest">
+                                <CalendarDays className="w-3.5 h-3.5" />
+                                Gate day
+                              </span>
+                              {sortDays(editionDays).map((day) => {
+                                const active = gateDayId === day.id;
+                                const isToday = isTicketDayToday(day);
+                                const dayCount = paidVendors.filter(
+                                  (pv) => pv.payment_status === 'paid' && pv.hasFormData && hasGateDayTicket(pv, day.id)
+                                ).length;
+                                return (
+                                  <button
+                                    key={day.id}
+                                    onClick={() => setGateDayId(day.id)}
+                                    aria-pressed={active}
+                                    title={`${dayDateLabel(day)}${isToday ? ' — today' : ''}`}
+                                    className={`flex flex-col items-start gap-1 px-4 py-2 rounded-xl border-2 transition-all cursor-pointer ${active
+                                        ? 'bg-accent border-accent text-white shadow-sm'
+                                        : 'bg-white border-border text-text-secondary hover:text-text-primary hover:border-accent/40 hover:shadow-xs'
+                                      }`}
+                                  >
+                                    <span className="flex items-center gap-1.5 text-sm font-bold leading-none">
+                                      {isToday && (
+                                        <span className={`w-2 h-2 rounded-full shrink-0 ${active ? 'bg-white' : 'bg-emerald-500'}`} />
+                                      )}
+                                      {dayLabel(day)}
+                                    </span>
+                                    <span className={`text-[10px] font-semibold leading-none ${active ? 'text-white/80' : 'text-text-tertiary'}`}>
+                                      {isToday ? 'Today · ' : ''}{dayCount} vendor{dayCount === 1 ? '' : 's'}
+                                    </span>
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          )}
                         </div>
                         {/* Gate entry filter — only meaningful for registered vendors (they hold tickets) */}
                         {paidVendorTab === 'registered' && (() => {
-                          const registered = paidVendors.filter(pv => pv.payment_status === 'paid' && pv.hasFormData);
-                          const confirmedCount = registered.filter(pv => pv.check_in_time).length;
+                          const registered = paidVendors.filter(
+                            (pv) => pv.payment_status === 'paid' && pv.hasFormData && hasGateDayTicket(pv, gateDayId)
+                          );
+                          const confirmedCount = registered.filter(pv => isEnteredForGateDay(pv, gateDayId)).length;
                           const awaitingCount = registered.length - confirmedCount;
                           const pill = 'flex items-center gap-1.5 text-[11px] font-bold px-3 py-1.5 rounded-lg border transition-colors cursor-pointer';
                           return (
@@ -4271,8 +4354,10 @@ export default function Home() {
                             if (pv.payment_status !== 'paid') return false;
                             if (paidVendorTab === 'registered' ? !pv.hasFormData : pv.hasFormData) return false;
                             if (paidVendorTab === 'registered') {
-                              if (paidVendorEntryFilter === 'confirmed' && !pv.check_in_time) return false;
-                              if (paidVendorEntryFilter === 'awaiting' && pv.check_in_time) return false;
+                              if (!hasGateDayTicket(pv, gateDayId)) return false;
+                              const entered = isEnteredForGateDay(pv, gateDayId);
+                              if (paidVendorEntryFilter === 'confirmed' && !entered) return false;
+                              if (paidVendorEntryFilter === 'awaiting' && entered) return false;
                             }
                             return true;
                           });
@@ -4333,8 +4418,10 @@ export default function Home() {
                           if (pv.payment_status !== 'paid') return false;
                           if (paidVendorTab === 'registered' ? !pv.hasFormData : pv.hasFormData) return false;
                           if (paidVendorTab === 'registered') {
-                            if (paidVendorEntryFilter === 'confirmed' && !pv.check_in_time) return false;
-                            if (paidVendorEntryFilter === 'awaiting' && pv.check_in_time) return false;
+                            if (!hasGateDayTicket(pv, gateDayId)) return false;
+                            const entered = isEnteredForGateDay(pv, gateDayId);
+                            if (paidVendorEntryFilter === 'confirmed' && !entered) return false;
+                            if (paidVendorEntryFilter === 'awaiting' && entered) return false;
                           }
                           if (paidVendorCategoryFilter !== 'All' &&
                               (pv.category || '').trim().toLowerCase() !== paidVendorCategoryFilter.trim().toLowerCase()) {
@@ -4385,8 +4472,16 @@ export default function Home() {
                               ) : (
                                 <>
                                   <CreditCard className="w-10 h-10 text-text-tertiary mx-auto mb-3" />
-                                  <p className="text-sm text-text-primary font-semibold">No registered vendors yet.</p>
-                                  <p className="text-xs text-text-secondary mt-1">Vendors who complete the registration form will appear here.</p>
+                                  <p className="text-sm text-text-primary font-semibold">
+                                    {gateDayId !== 'all'
+                                      ? `No registered vendors for ${(() => { const d = editionDays.find((x) => x.id === gateDayId); return d ? dayLabel(d) : 'this day'; })()}.`
+                                      : 'No registered vendors yet.'}
+                                  </p>
+                                  <p className="text-xs text-text-secondary mt-1">
+                                    {gateDayId !== 'all'
+                                      ? 'Switch to another day above, or check that vendors have tickets for this day.'
+                                      : 'Vendors who complete the registration form will appear here.'}
+                                  </p>
                                 </>
                               )
                             ) : (
@@ -4410,7 +4505,11 @@ export default function Home() {
                                   <th className="p-4 text-[10px] font-semibold text-text-secondary uppercase tracking-widest text-center">Tables</th>
                                   <th className="p-4 text-[10px] font-semibold text-text-secondary uppercase tracking-widest text-center">Status</th>
                                   {paidVendorTab === 'registered' && (
-                                    <th className="p-4 text-[10px] font-semibold text-text-secondary uppercase tracking-widest text-center">Entry</th>
+                                    <th className="p-4 text-[10px] font-semibold text-text-secondary uppercase tracking-widest text-center">
+                                      Entry{gateDayId !== 'all' && editionDays.length > 1
+                                        ? ` · ${(() => { const d = editionDays.find((x) => x.id === gateDayId); return d ? dayLabel(d) : ''; })()}`
+                                        : ''}
+                                    </th>
                                   )}
                                   <th className="p-4 text-[10px] font-semibold text-text-secondary uppercase tracking-widest text-right">Amount Paid</th>
                                   {paidVendorTab === 'registered' ? (
@@ -4422,19 +4521,28 @@ export default function Home() {
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-border text-xs">
-                                {tabVendors.map((pv) => (
+                                {tabVendors.map((pv) => {
+                                  // Row is scoped to the selected gate day when the
+                                  // edition is multi-day, so one row = one entry button.
+                                  const gateTicket = gateTicketFor(pv, gateDayId);
+                                  const gateDay = gateTicket
+                                    ? gateTicket.edition_days || editionDays.find((d) => d.id === gateTicket.edition_day_id)
+                                    : null;
+                                  const visibleTickets = gateDayId === 'all' ? (pv.tickets || []) : gateTicket ? [gateTicket] : [];
+                                  const rowEntered = isEnteredForGateDay(pv, gateDayId);
+                                  return (
                                   <tr
                                     key={pv.id}
                                     onClick={() => {
                                       setSelectedVendorForChoice(pv);
                                       setIsChoiceModalOpen(true);
                                     }}
-                                    className={`hover:bg-slate-50/70 transition-colors cursor-pointer ${pv.check_in_time ? 'bg-emerald-50/50' : ''}`}
+                                    className={`hover:bg-slate-50/70 transition-colors cursor-pointer ${rowEntered ? 'bg-emerald-50/50' : ''}`}
                                   >
                                     <td className="p-4 text-center">
-                                      {(pv.tickets || []).length > 1 ? (
+                                      {visibleTickets.length > 1 ? (
                                         <div className="inline-flex flex-col gap-1">
-                                          {(pv.tickets || []).map((ticket: any) => {
+                                          {visibleTickets.map((ticket: any) => {
                                             const day = ticket.edition_days || editionDays.find((d) => d.id === ticket.edition_day_id);
                                             return (
                                               <span
@@ -4448,9 +4556,21 @@ export default function Home() {
                                             );
                                           })}
                                         </div>
-                                      ) : pv.ticket_number || (pv.tickets || [])[0] ? (
+                                      ) : visibleTickets.length === 1 ? (
+                                        <span
+                                          className="inline-block px-2 py-0.5 rounded font-mono text-[11px] font-bold bg-accent-soft text-accent border border-accent/20"
+                                          title={gateDay ? dayDateLabel(gateDay) : undefined}
+                                        >
+                                          {gateDay && (
+                                            <span className="text-[8px] uppercase font-sans mr-1">{dayLabel(gateDay)}</span>
+                                          )}
+                                          {gateDay
+                                            ? normalizeTicketCode(visibleTickets[0]?.ticket_code) || pv.ticket_number || '—'
+                                            : pv.ticket_number || normalizeTicketCode(visibleTickets[0]?.ticket_code) || '—'}
+                                        </span>
+                                      ) : pv.ticket_number ? (
                                         <span className="inline-block px-2 py-0.5 rounded font-mono text-[11px] font-bold bg-accent-soft text-accent border border-accent/20">
-                                          {pv.ticket_number || normalizeTicketCode((pv.tickets || [])[0]?.ticket_code)}
+                                          {pv.ticket_number}
                                         </span>
                                       ) : (
                                         <span className="text-text-tertiary font-mono text-[11px]">—</span>
@@ -4537,11 +4657,27 @@ export default function Home() {
                                     </td>
                                     {paidVendorTab === 'registered' && (
                                       <td className="p-4 text-center" onClick={(e) => e.stopPropagation()}>
-                                        {(pv.tickets || []).length > 1 || (editionDays.length > 1 && (pv.tickets || []).length > 0) ? (
+                                        {gateTicket ? (
+                                          <button
+                                            onClick={() => handleToggleTicketEntry(pv.id, gateTicket)}
+                                            title={
+                                              rowEntered
+                                                ? `${gateDay ? dayLabel(gateDay) : 'Ticket'} checked in. Click to undo.`
+                                                : `Mark entry for ${gateDay ? dayLabel(gateDay) : 'this day'}`
+                                            }
+                                            className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border whitespace-nowrap transition-colors cursor-pointer ${
+                                              rowEntered
+                                                ? 'bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-200'
+                                                : 'bg-white text-text-secondary border-border hover:border-emerald-300 hover:text-emerald-700 hover:bg-emerald-50'
+                                            }`}
+                                          >
+                                            {rowEntered ? <ShieldCheck className="w-3 h-3" /> : <DoorOpen className="w-3 h-3" />}
+                                            {gateDay ? dayLabel(gateDay) : 'Day'} · {rowEntered ? 'In' : 'Mark Entry'}
+                                          </button>
+                                        ) : visibleTickets.length > 0 && editionDays.length > 1 ? (
                                           <div className="inline-flex flex-col items-center gap-1">
-                                            {(pv.tickets || []).map((ticket: any) => {
+                                            {visibleTickets.map((ticket: any) => {
                                               const day = ticket.edition_days || editionDays.find((d) => d.id === ticket.edition_day_id);
-                                              const validToday = isTicketDayToday(day);
                                               const checkedIn = !!ticket.check_in_time;
                                               return (
                                                 <button
@@ -4550,28 +4686,24 @@ export default function Home() {
                                                   title={
                                                     checkedIn
                                                       ? `${day ? dayLabel(day) : 'Ticket'} checked in. Click to undo.`
-                                                      : validToday
-                                                        ? `Mark entry for ${day ? dayLabel(day) : 'this day'}`
-                                                        : `${day ? dayLabel(day) : 'This ticket'} can only be checked in on ${day ? dayDateLabel(day) : 'its own day'}`
+                                                      : `Mark entry for ${day ? dayLabel(day) : 'this day'}`
                                                   }
                                                   className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-[9px] font-bold border whitespace-nowrap transition-colors cursor-pointer ${
                                                     checkedIn
                                                       ? 'bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-200'
-                                                      : validToday
-                                                        ? 'bg-white text-text-secondary border-border hover:border-emerald-300 hover:text-emerald-700 hover:bg-emerald-50'
-                                                        : 'bg-slate-50 text-slate-400 border-slate-200'
+                                                      : 'bg-white text-text-secondary border-border hover:border-emerald-300 hover:text-emerald-700 hover:bg-emerald-50'
                                                   }`}
                                                 >
                                                   {checkedIn ? <ShieldCheck className="w-3 h-3" /> : <DoorOpen className="w-3 h-3" />}
-                                                  {day ? dayLabel(day) : 'Day'} · {checkedIn ? 'In' : validToday ? 'Entry' : 'Not today'}
+                                                  {day ? dayLabel(day) : 'Day'} · {checkedIn ? 'In' : 'Entry'}
                                                 </button>
                                               );
                                             })}
                                           </div>
-                                        ) : pv.check_in_time ? (
+                                        ) : rowEntered ? (
                                           <button
                                             onClick={() => handleToggleVendorEntry(pv)}
-                                            title={`Checked in ${new Date(pv.check_in_time).toLocaleString()} — click to undo`}
+                                            title={`Checked in ${new Date(pv.check_in_time!).toLocaleString()} — click to undo`}
                                             className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 hover:bg-emerald-200 transition-colors cursor-pointer whitespace-nowrap"
                                           >
                                             <ShieldCheck className="w-3 h-3" />
@@ -4636,7 +4768,8 @@ export default function Home() {
                                       </button>
                                     </td>
                                   </tr>
-                                ))}
+                                  );
+                                })}
                               </tbody>
                             </table>
                           </div>

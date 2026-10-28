@@ -267,20 +267,19 @@ async function main() {
   check('Existing Day 1 ticket is preserved and Day 2 added', day1After.length === 2,
     `tickets=${day1After.length}`);
 
-  // 7. Wrong-day check-in is rejected by the DB function.
+  // 7. Any day's ticket can be checked in, regardless of today's date.
   const day1Ticket = day1After.find((t) => t.edition_day_id === day1.id);
   const { error: checkInErr } = await supabase.rpc('check_in_vendor_ticket', {
     p_ticket_id: day1Ticket?.id,
     p_check_in: true,
   });
-  // Day 1 is today in this fixture, so it should succeed. Day 2 must fail.
   const day2Ticket = day1After.find((t) => t.edition_day_id === day2.id);
   const { error: wrongDayErr } = await supabase.rpc('check_in_vendor_ticket', {
     p_ticket_id: day2Ticket?.id,
     p_check_in: true,
   });
-  check('Day 2 ticket cannot be checked in on Day 1', !!wrongDayErr,
-    wrongDayErr?.message || 'accepted');
+  check('Day 2 ticket can be checked in even when it is not Day 2', !wrongDayErr,
+    wrongDayErr?.message || '');
   if (checkInErr) {
     console.log(`  (note) Day 1 check-in returned: ${checkInErr.message}`);
   }

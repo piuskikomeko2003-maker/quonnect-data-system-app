@@ -886,7 +886,6 @@ AS $$
 DECLARE
   v_ticket public.vendor_tickets%rowtype;
   v_day public.edition_days%rowtype;
-  v_today DATE := (now() AT TIME ZONE 'Africa/Kampala')::date;
   v_time TIMESTAMPTZ;
 BEGIN
   -- Approved staff can call directly; the API route calls with the service
@@ -908,12 +907,8 @@ BEGIN
     RAISE EXCEPTION 'Edition day not found' USING ERRCODE = 'P0001';
   END IF;
 
-  IF p_check_in AND v_day.event_date <> v_today THEN
-    RAISE EXCEPTION 'This ticket is only valid on % (%)',
-      COALESCE(NULLIF(v_day.label, ''), 'Day ' || v_day.day_number),
-      to_char(v_day.event_date, 'YYYY-MM-DD')
-      USING ERRCODE = 'P0001';
-  END IF;
+  -- Day-of rule intentionally not enforced: gate staff may mark any day's
+  -- ticket at any time (late setup, backfills, early check-in).
 
   v_time := CASE WHEN p_check_in THEN now() ELSE NULL END;
 
@@ -957,8 +952,8 @@ CREATE POLICY "allow_read_vendor_tickets"
   TO anon, authenticated USING (true);
 
 -- No direct INSERT/UPDATE/DELETE policy: tickets are written by SECURITY DEFINER
--- functions and the service-role API only. This is what makes the check-in day
--- rule and per-day numbering unskippable from the browser.
+-- functions and the service-role API only. This keeps per-day numbering and
+-- check-in writes unskippable from the browser.
 
 GRANT SELECT ON public.edition_days TO anon, authenticated;
 GRANT INSERT, UPDATE, DELETE ON public.edition_days TO authenticated;
