@@ -35,6 +35,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const editionId = searchParams.get('edition_id');
+    const editionDayIdParam = searchParams.get('edition_day_id');
     const isPreview = searchParams.get('preview') === 'true';
     const token = searchParams.get('token');
 
@@ -115,6 +116,27 @@ export async function GET(request: NextRequest) {
           paymentStatus: reg?.payment_status || 'paid',
           registeredAt: ticket.created_at || reg?.created_at || new Date().toISOString(),
         };
+      }
+    }
+
+    // Designer preview: resolve the selected day even without a real ticket.
+    if (!ticketId && editionDayIdParam) {
+      const { data: day } = await supabase
+        .from('edition_days')
+        .select('id, edition_id, day_number, label, event_date, ticket_template_id, market_days(name)')
+        .eq('id', editionDayIdParam)
+        .maybeSingle();
+
+      if (day) {
+        resolvedEditionDayId = day.id;
+        resolvedDayLabel = day.label || `Day ${day.day_number}`;
+        resolvedDayTemplateId = day.ticket_template_id || null;
+        if (isPreview) {
+          const dayEditionName = (day.market_days as any)?.name || ticketData.editionName;
+          ticketData.editionName = [dayEditionName, resolvedDayLabel]
+            .filter(Boolean)
+            .join(' — ');
+        }
       }
     }
 

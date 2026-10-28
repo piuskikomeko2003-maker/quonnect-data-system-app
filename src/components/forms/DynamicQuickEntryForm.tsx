@@ -194,7 +194,15 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
     const editionId = activeEdition?.id;
     if (!editionId) return;
 
-    fetch(`/api/tickets/templates?edition_id=${editionId}`)
+    // Resolve the day template when the issued ticket belongs to a day.
+    const dayId =
+      successState.ticketData?.dayId ||
+      successState.ticketData?.tickets?.[0]?.dayId ||
+      null;
+    const params = new URLSearchParams({ edition_id: editionId });
+    if (dayId) params.set('edition_day_id', dayId);
+
+    fetch(`/api/tickets/templates?${params.toString()}`)
       .then((res) => res.json())
       .then((data) => {
         if (data?.template && data.template.background_image_url) {
@@ -207,7 +215,11 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
         console.warn('Could not load custom ticket template, using default:', err);
         setTicketTemplate(null);
       });
-  }, [activeEdition?.id]);
+  }, [
+    activeEdition?.id,
+    successState.ticketData?.dayId,
+    successState.ticketData?.tickets?.[0]?.dayId,
+  ]);
 
   // Preload the ticket background so the pass paints complete (no half-rendered flash).
   // State is only set from the async image callbacks, so no cascade on mount.

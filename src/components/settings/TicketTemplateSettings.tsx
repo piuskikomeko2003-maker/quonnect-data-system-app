@@ -768,7 +768,7 @@ export const TicketTemplateSettings: React.FC = () => {
               {/* Test Render Button */}
               {selectedEditionId && (
                 <a
-                  href={`/api/tickets/render?edition_id=${selectedEditionId}&preview=true`}
+                  href={`/api/tickets/render?edition_id=${selectedEditionId}&preview=true${selectedDayId ? `&edition_day_id=${selectedDayId}` : ''}`}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 bg-accent-soft/40 hover:bg-accent-soft text-accent text-xs font-bold rounded-lg transition-all"
