@@ -20,6 +20,8 @@ import {
 import type { StickerTemplate, StickerVendor } from '@/types/sticker';
 import type { StickerProgress } from '@/lib/stickers/layout';
 import { computeProgress, selectBatch } from '@/lib/stickers/layout';
+import { fetchEditionDays, dayLabel, dayDateLabel, type EditionDay } from '@/lib/editionDays';
+import { createClient } from '@/lib/supabase/client';
 
 interface BatchRow {
   id: string;
@@ -36,6 +38,8 @@ const StickersView: React.FC<{ canPrint: boolean }> = ({ canPrint }) => {
   const { activeEdition } = useRegion();
   const marketDayId = activeEdition?.id || '';
 
+  const [editionDays, setEditionDays] = useState<EditionDay[]>([]);
+  const [selectedDayId, setSelectedDayId] = useState<string>('');
   const [vendors, setVendors] = useState<StickerVendor[]>([]);
   const [progress, setProgress] = useState<StickerProgress | null>(null);
   const [templates, setTemplates] = useState<StickerTemplate[]>([]);
@@ -60,17 +64,45 @@ const StickersView: React.FC<{ canPrint: boolean }> = ({ canPrint }) => {
   // Edition design wins; the globally active preset is the fallback.
   const activeTemplate = useMemo(() => {
     if (templates.length === 0) return null;
+    const dayTemplate = selectedDayId
+      ? templates.find((t) => t.edition_day_id === selectedDayId)
+      : null;
     const editionTemplate = marketDayId
-      ? templates.find((t) => t.edition_id === marketDayId)
+      ? templates.find((t) => t.edition_id === marketDayId && !t.edition_day_id)
       : null;
     return (
+      dayTemplate ||
       editionTemplate ||
       templates.find((t) => !t.edition_id && t.is_active) ||
       templates.find((t) => !t.edition_id) ||
       templates[0]
     );
-  }, [templates, marketDayId]);
+  }, [templates, marketDayId, selectedDayId]);
   const slotsPerPage = activeTemplate ? Math.max(1, activeTemplate.columns * activeTemplate.rows) : 30;
+
+  useEffect(() => {
+    let cancelled = false;
+    const supabase = createClient();
+    if (!supabase || !marketDayId) {
+      setEditionDays([]);
+      setSelectedDayId('');
+      return;
+    }
+    fetchEditionDays(supabase, marketDayId).then((days) => {
+      if (cancelled) return;
+      setEditionDays(days);
+      setSelectedDayId((prev) => {
+        // One-day editions keep the legacy edition-wide flow (and its batch
+        // history). Only multi-day editions opt into per-day printing.
+        if (days.length <= 1) return '';
+        if (prev && days.some((d) => d.id === prev)) return prev;
+        return days[0].id;
+      });
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [marketDayId]);
 
   const load = useCallback(async () => {
     if (!marketDayId) {
@@ -82,13 +114,14 @@ const StickersView: React.FC<{ canPrint: boolean }> = ({ canPrint }) => {
     setLoading(true);
     setError(null);
     try {
+      const dayQuery = selectedDayId ? `&edition_day_id=${selectedDayId}` : '';
       const [vendorsRes, templatesRes, batchesRes] = await Promise.all([
-        fetch(`/api/stickers/vendors?market_day_id=${marketDayId}`, { cache: 'no-store' }),
+        fetch(`/api/stickers/vendors?market_day_id=${marketDayId}${dayQuery}`, { cache: 'no-store' }),
         fetch(
-          `/api/stickers/templates${marketDayId ? `?edition_id=${marketDayId}` : ''}`,
+          `/api/stickers/templates${marketDayId ? `?edition_id=${marketDayId}${dayQuery}` : ''}`,
           { cache: 'no-store' }
         ),
-        fetch(`/api/stickers/batches?market_day_id=${marketDayId}`, { cache: 'no-store' }),
+        fetch(`/api/stickers/batches?market_day_id=${marketDayId}${dayQuery}`, { cache: 'no-store' }),
       ]);
 
       const vendorsData = await vendorsRes.json().catch(() => ({}));
@@ -106,7 +139,7 @@ const StickersView: React.FC<{ canPrint: boolean }> = ({ canPrint }) => {
     } finally {
       setLoading(false);
     }
-  }, [marketDayId]);
+  }, [marketDayId, selectedDayId]);
 
   useEffect(() => {
     load();
@@ -131,6 +164,7 @@ const StickersView: React.FC<{ canPrint: boolean }> = ({ canPrint }) => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           market_day_id: marketDayId,
+          edition_day_id: selectedDayId || null,
           mode: mode === 'all' ? 'all' : 'count',
           count: mode === 'count' ? Number(count) : undefined,
           start_position: Number(startPosition) || 1,
@@ -213,6 +247,8 @@ const StickersView: React.FC<{ canPrint: boolean }> = ({ canPrint }) => {
         body: JSON.stringify({
           kind: 'reprint',
           registration_id: reprintVendor.registration_id,
+          ticket_id: reprintVendor.ticket_id || null,
+          edition_day_id: reprintVendor.edition_day_id || selectedDayId || null,
           table_numbers: selectedTables,
         }),
       });
@@ -296,6 +332,27 @@ const StickersView: React.FC<{ canPrint: boolean }> = ({ canPrint }) => {
             <Printer className="w-4 h-4 text-accent" /> Generate a print batch
           </h2>
 
+          {editionDays.length > 1 && (
+            <label className="flex flex-col gap-1 text-[10px] font-bold uppercase tracking-wider text-text-tertiary">
+              Market day
+              <select
+                value={selectedDayId}
+                onChange={(e) => {
+                  setSelectedDayId(e.target.value);
+                  setSelectedVendorId('');
+                  setSelectedTables([]);
+                }}
+                className="bg-bg-input border border-border rounded-md px-3 py-2 text-xs font-semibold text-text-primary outline-none focus:border-accent"
+              >
+                {editionDays.map((day) => (
+                  <option key={day.id} value={day.id}>
+                    {dayLabel(day)} · {dayDateLabel(day)}
+                  </option>
+                ))}
+              </select>
+            </label>
+          )}
+
           <div className="flex items-center gap-2">
             <button
               onClick={() => setMode('count')}
@@ -346,7 +403,11 @@ const StickersView: React.FC<{ canPrint: boolean }> = ({ canPrint }) => {
             {activeTemplate && (
               <p className="text-text-tertiary">
                 Design: <span className="font-semibold text-text-secondary">{activeTemplate.preset_name}</span>{' '}
-                {activeTemplate.edition_id === marketDayId ? '(this edition)' : '(global default)'}
+                {activeTemplate.edition_day_id === selectedDayId && selectedDayId
+                  ? '(this day)'
+                  : activeTemplate.edition_id === marketDayId
+                  ? '(this edition)'
+                  : '(global default)'}
               </p>
             )}
           </div>

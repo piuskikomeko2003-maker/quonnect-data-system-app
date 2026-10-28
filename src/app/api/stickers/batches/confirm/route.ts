@@ -27,7 +27,7 @@ export async function POST(request: NextRequest) {
     const supabase = createServiceClient();
     const { data: batch, error } = await supabase
       .from('sticker_print_batches')
-      .select('id, kind, items, confirmed_at')
+      .select('id, kind, items, confirmed_at, edition_day_id')
       .eq('id', batchId)
       .maybeSingle();
     if (error) throw error;
@@ -42,6 +42,36 @@ export async function POST(request: NextRequest) {
     if (batch.kind === 'print') {
       const items = (batch.items || []) as StickerBatchItem[];
       for (const item of items) {
+        const increment = item.table_numbers?.length || 0;
+        if (increment === 0) continue;
+
+        if (item.ticket_id) {
+          const { data: ticket } = await supabase
+            .from('vendor_tickets')
+            .select('id, stickers_printed')
+            .eq('id', item.ticket_id)
+            .maybeSingle();
+          if (!ticket) continue;
+
+          const reg = await supabase
+            .from('vendor_registrations')
+            .select('tables')
+            .eq('id', item.registration_id)
+            .maybeSingle();
+          const tables = Math.max(1, Number(reg.data?.tables) || 1);
+          const printed = Math.max(0, Number(ticket.stickers_printed) || 0);
+          const next = Math.min(tables, printed + increment);
+          if (next !== printed) {
+            const { error: updateError } = await supabase
+              .from('vendor_tickets')
+              .update({ stickers_printed: next })
+              .eq('id', item.ticket_id);
+            if (updateError) throw updateError;
+            updated++;
+          }
+          continue;
+        }
+
         const { data: reg } = await supabase
           .from('vendor_registrations')
           .select('id, tables, stickers_printed')
@@ -51,7 +81,7 @@ export async function POST(request: NextRequest) {
 
         const tables = Math.max(1, Number(reg.tables) || 1);
         const printed = Math.max(0, Number(reg.stickers_printed) || 0);
-        const next = Math.min(tables, printed + (item.table_numbers?.length || 0));
+        const next = Math.min(tables, printed + increment);
         if (next !== printed) {
           const { error: updateError } = await supabase
             .from('vendor_registrations')

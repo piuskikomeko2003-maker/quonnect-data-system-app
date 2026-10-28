@@ -16,14 +16,16 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const marketDayId = searchParams.get('market_day_id');
+    const editionDayId = searchParams.get('edition_day_id');
 
     const supabase = createServiceClient();
     let query = supabase
       .from('sticker_print_batches')
-      .select('id, market_day_id, kind, sticker_count, start_position, items, created_at, confirmed_at, confirmed_by')
+      .select('id, market_day_id, edition_day_id, kind, sticker_count, start_position, items, created_at, confirmed_at, confirmed_by')
       .order('created_at', { ascending: false })
       .limit(20);
     if (marketDayId) query = query.eq('market_day_id', marketDayId);
+    if (editionDayId) query = query.eq('edition_day_id', editionDayId);
 
     const { data, error } = await query;
     if (error) throw error;
@@ -56,13 +58,18 @@ export async function POST(request: NextRequest) {
       return createReprintBatch(supabase, auth.user?.id ?? null, body);
     }
 
-    const { market_day_id, mode, count, start_position } = body ?? {};
+    const { market_day_id, edition_day_id, mode, count, start_position } = body ?? {};
     if (!market_day_id || typeof market_day_id !== 'string') {
       return NextResponse.json({ error: 'market_day_id is required.' }, { status: 400 });
     }
 
-    const vendors = await fetchStickerVendors(supabase, market_day_id);
-    const template = await getStickerTemplate(supabase, null, market_day_id);
+    const vendors = await fetchStickerVendors(supabase, market_day_id, edition_day_id || null);
+    const template = await getStickerTemplate(
+      supabase,
+      null,
+      market_day_id,
+      edition_day_id || null
+    );
     const slotsPerPage = template ? Math.max(1, template.columns * template.rows) : DEFAULT_SLOTS_PER_PAGE;
 
     const isAll = mode === 'all';
@@ -88,6 +95,7 @@ export async function POST(request: NextRequest) {
       .from('sticker_print_batches')
       .insert({
         market_day_id,
+        edition_day_id: edition_day_id || null,
         kind: 'print',
         sticker_count: selection.stickerCount,
         start_position: selection.startPosition,
@@ -124,6 +132,8 @@ async function createReprintBatch(
   body: any
 ) {
   const registrationId = body?.registration_id;
+  const editionDayId = body?.edition_day_id || null;
+  const ticketId = body?.ticket_id || null;
   const tableNumbers = Array.isArray(body?.table_numbers) ? body.table_numbers : [];
 
   if (!registrationId || typeof registrationId !== 'string') {
@@ -140,6 +150,19 @@ async function createReprintBatch(
     return NextResponse.json({ error: 'Vendor registration not found.' }, { status: 404 });
   }
 
+  let resolvedDayId: string | null = editionDayId;
+  if (ticketId) {
+    const { data: ticket } = await supabase
+      .from('vendor_tickets')
+      .select('id, edition_day_id, registration_id')
+      .eq('id', ticketId)
+      .maybeSingle();
+    if (!ticket || ticket.registration_id !== registrationId) {
+      return NextResponse.json({ error: 'Ticket not found for this registration.' }, { status: 404 });
+    }
+    resolvedDayId = ticket.edition_day_id;
+  }
+
   const tables = Math.max(1, Number(reg.tables) || 1);
   const cleaned: number[] = tableNumbers
     .map((n: any) => Number(n))
@@ -153,17 +176,28 @@ async function createReprintBatch(
     );
   }
 
-  const template = await getStickerTemplate(supabase, null, reg.market_day_id);
+  const template = await getStickerTemplate(
+    supabase,
+    null,
+    reg.market_day_id,
+    resolvedDayId
+  );
 
   const { data: batch, error } = await supabase
     .from('sticker_print_batches')
     .insert({
       market_day_id: reg.market_day_id,
+      edition_day_id: resolvedDayId,
       kind: 'reprint',
       sticker_count: valid.length,
       start_position: 1,
       template_id: template?.id ?? null,
-      items: [{ registration_id: registrationId, table_numbers: valid }],
+      items: [{
+        registration_id: registrationId,
+        ticket_id: ticketId,
+        edition_day_id: resolvedDayId,
+        table_numbers: valid,
+      }],
       created_by: userId,
     })
     .select()

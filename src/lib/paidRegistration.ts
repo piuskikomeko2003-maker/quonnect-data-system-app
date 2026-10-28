@@ -2,6 +2,11 @@ import type { SupabaseClient } from '@supabase/supabase-js';
 import { formatTicketCode } from '@/utils/ticket';
 
 export interface TicketData {
+  ticketId?: string;
+  dayId?: string;
+  dayNumber?: number;
+  dayLabel?: string;
+  dayDate?: string;
   ticketNumber: number;
   ticketCode: string;
   editionName: string;
@@ -12,6 +17,27 @@ export interface TicketData {
   amountPaid?: number;
   paymentStatus?: string;
   registeredAt: string;
+  /** All day tickets issued by this registration (multi-day editions). */
+  tickets?: TicketData[];
+}
+
+interface TicketJson {
+  ticket_id?: string;
+  day_id?: string;
+  day_number?: number;
+  day_label?: string;
+  event_date?: string;
+  ticket_number?: number | string;
+  ticket_code?: string;
+  fee?: number;
+}
+
+interface MultiRpcResult {
+  registration_id?: string;
+  registered_at?: string;
+  primary_ticket_number?: number | string;
+  primary_ticket_code?: string;
+  tickets?: TicketJson[];
 }
 
 export interface PaidAnswers {
@@ -86,6 +112,59 @@ export function buildTicketData(
   };
 }
 
+function buildTicketFromJson(
+  ticket: TicketJson,
+  fields: PaidFields,
+  editionName: string,
+  registeredAt: string
+): TicketData {
+  const num = Number(ticket.ticket_number) || 1;
+  return {
+    ticketId: ticket.ticket_id,
+    dayId: ticket.day_id,
+    dayNumber: ticket.day_number,
+    dayLabel: ticket.day_label,
+    dayDate: ticket.event_date,
+    ticketNumber: num,
+    ticketCode: ticket.ticket_code || formatTicketCode(num),
+    editionName: editionName || 'Event Edition',
+    vendorName: fields.contactName,
+    businessName: fields.businessName,
+    phone: fields.phone,
+    category: fields.category,
+    amountPaid: fields.amountPaid,
+    paymentStatus: fields.paymentStatus,
+    registeredAt,
+  };
+}
+
+/** Parse the JSONB result of the multi-day RPC into the app's ticket model. */
+export function buildMultiTicketData(
+  result: MultiRpcResult,
+  fields: PaidFields,
+  editionName: string
+): TicketData {
+  const registeredAt = result.registered_at || new Date().toISOString();
+  const tickets = (result.tickets || []).map((t) =>
+    buildTicketFromJson(t, fields, editionName, registeredAt)
+  );
+
+  if (tickets.length === 0) {
+    return buildTicketData(
+      {
+        ticket_number: result.primary_ticket_number ?? 1,
+        ticket_code: result.primary_ticket_code ?? null,
+        registered_at: registeredAt,
+      },
+      fields,
+      editionName
+    );
+  }
+
+  const primary = tickets[0];
+  return { ...primary, tickets };
+}
+
 /**
  * Atomically register a paid vendor and issue exactly one ticket, even under
  * heavy concurrency. Uses the `register_paid_vendor` Postgres function
@@ -106,6 +185,36 @@ export async function registerPaidVendorAtomic(
 ): Promise<TicketData> {
   const { token, editionId, editionName, answers } = params;
   const fields = extractPaidFields(answers);
+
+  // New multi-day allocator. Falls back to the legacy RPC below when the
+  // migration has not been applied yet.
+  const { data: multiData, error: multiError } = await supabase.rpc('register_paid_vendor_multi', {
+    p_token: token,
+    p_edition_id: editionId,
+    p_phone: fields.phone,
+    p_contact_name: fields.contactName,
+    p_business_name: fields.businessName,
+    p_category: fields.category,
+    p_email: fields.email,
+    p_amount_paid: fields.amountPaid,
+    p_payment_status: fields.paymentStatus,
+  });
+
+  if (!multiError && multiData) {
+    const result = (Array.isArray(multiData) ? multiData[0] : multiData) as MultiRpcResult;
+    if (result && Array.isArray(result.tickets) && result.tickets.length > 0) {
+      return buildMultiTicketData(result, fields, editionName);
+    }
+  }
+
+  if (multiError) {
+    if (isBusinessError(multiError.message || '')) {
+      throw new Error(multiError.message);
+    }
+    if (!isMissingRpc(multiError)) {
+      throw new Error(multiError.message || 'Ticket service temporarily unavailable.');
+    }
+  }
 
   const { data: rpcData, error: rpcError } = await supabase.rpc('register_paid_vendor', {
     p_token: token,

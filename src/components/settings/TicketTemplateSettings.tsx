@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { fetchEditionDays, dayDateLabel, dayLabel, type EditionDay } from '@/lib/editionDays';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import {
@@ -43,6 +44,8 @@ interface EditionOption {
 export const TicketTemplateSettings: React.FC = () => {
   const [editions, setEditions] = useState<EditionOption[]>([]);
   const [selectedEditionId, setSelectedEditionId] = useState<string>('');
+  const [editionDays, setEditionDays] = useState<EditionDay[]>([]);
+  const [selectedDayId, setSelectedDayId] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
@@ -127,10 +130,12 @@ export const TicketTemplateSettings: React.FC = () => {
   }, [fetchEditions]);
 
   // 2. Fetch template for currently selected edition
-  const fetchTemplateForEdition = useCallback(async (editionId: string) => {
+  const fetchTemplateForEdition = useCallback(async (editionId: string, dayId?: string) => {
     if (!editionId) return;
     try {
-      const res = await fetch(`/api/tickets/templates?edition_id=${editionId}`);
+      const params = new URLSearchParams({ edition_id: editionId });
+      if (dayId) params.set('edition_day_id', dayId);
+      const res = await fetch(`/api/tickets/templates?${params.toString()}`);
       const data = await res.json();
 
       if (data.tableExists === false) {
@@ -161,10 +166,28 @@ export const TicketTemplateSettings: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    if (selectedEditionId) {
-      fetchTemplateForEdition(selectedEditionId);
+    let cancelled = false;
+    const supabase = createClient();
+    if (!supabase || !selectedEditionId) {
+      setEditionDays([]);
+      setSelectedDayId('');
+      return;
     }
-  }, [selectedEditionId, fetchTemplateForEdition]);
+    fetchEditionDays(supabase, selectedEditionId).then((days) => {
+      if (cancelled) return;
+      setEditionDays(days);
+      setSelectedDayId(days.length > 1 ? days[0].id : '');
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [selectedEditionId]);
+
+  useEffect(() => {
+    if (selectedEditionId) {
+      fetchTemplateForEdition(selectedEditionId, selectedDayId || undefined);
+    }
+  }, [selectedEditionId, selectedDayId, fetchTemplateForEdition]);
 
   // Calculate live preview scaling relative to container width
   useEffect(() => {
@@ -300,6 +323,7 @@ export const TicketTemplateSettings: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           edition_id: selectedEditionId,
+          edition_day_id: selectedDayId || null,
           background_image_url: bgImageUrl,
           canvas_width: canvasWidth,
           canvas_height: canvasHeight,
@@ -332,7 +356,9 @@ export const TicketTemplateSettings: React.FC = () => {
 
     try {
       setDeleting(true);
-      const res = await fetch(`/api/tickets/templates?edition_id=${selectedEditionId}`, {
+      const params = new URLSearchParams({ edition_id: selectedEditionId });
+      if (selectedDayId) params.set('edition_day_id', selectedDayId);
+      const res = await fetch(`/api/tickets/templates?${params.toString()}`, {
         method: 'DELETE',
       });
       if (!res.ok) {
@@ -453,6 +479,25 @@ export const TicketTemplateSettings: React.FC = () => {
               ))}
             </select>
           </div>
+
+          {editionDays.length > 1 && (
+            <div className="flex flex-col">
+              <span className="text-[10px] uppercase font-bold tracking-wider text-text-tertiary mb-1">
+                Ticket Day
+              </span>
+              <select
+                value={selectedDayId}
+                onChange={(e) => setSelectedDayId(e.target.value)}
+                className="bg-bg-input border border-border rounded-lg px-3 py-2 text-xs font-semibold text-text-primary focus:outline-none focus:ring-2 focus:ring-accent"
+              >
+                {editionDays.map((day) => (
+                  <option key={day.id} value={day.id}>
+                    {dayLabel(day)} · {dayDateLabel(day)}
+                  </option>
+                ))}
+              </select>
+            </div>
+          )}
 
           <div className="self-end pb-0.5">
             <Badge variant={currentTemplateId ? 'success' : 'neutral'} size="sm">

@@ -35,6 +35,15 @@ const NEW_VENDOR_AUTO_ANSWERS: Record<string, string> = {
   first_time_at_quonnect: 'Yes',
 };
 
+function passSummaryForTickets(tickets: Array<{ dayLabel?: string; dayNumber?: number }>): string {
+  const labels = tickets
+    .map((t) => t.dayLabel || (t.dayNumber ? `Day ${t.dayNumber}` : ''))
+    .filter(Boolean);
+  const unique = Array.from(new Set(labels));
+  if (unique.length === 0) return 'Your passes are ready';
+  return unique.length === 1 ? `Your pass: ${unique[0]}` : `Your passes: ${unique.join(' + ')}`;
+}
+
 function computeAdaptiveFontSize(
   text: string,
   baseSize: number,
@@ -97,6 +106,11 @@ export interface DynamicQuickEntryFormProps {
     show: boolean;
     name?: string;
     ticketData?: {
+      ticketId?: string;
+      dayId?: string;
+      dayNumber?: number;
+      dayLabel?: string;
+      dayDate?: string;
       ticketNumber: number;
       ticketCode: string;
       editionName: string;
@@ -107,6 +121,23 @@ export interface DynamicQuickEntryFormProps {
       amountPaid?: number;
       paymentStatus?: string;
       registeredAt: string;
+      tickets?: Array<{
+        ticketId?: string;
+        dayId?: string;
+        dayNumber?: number;
+        dayLabel?: string;
+        dayDate?: string;
+        ticketNumber: number;
+        ticketCode: string;
+        editionName: string;
+        vendorName: string;
+        businessName?: string;
+        phone: string;
+        category?: string;
+        amountPaid?: number;
+        paymentStatus?: string;
+        registeredAt: string;
+      }>;
     };
     onAddAnother: () => void;
   };
@@ -712,6 +743,115 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
 
       const ticketCode = normalizeTicketCode(ticket.ticketCode) || ticket.ticketCode;
 
+      const allTickets = ticket.tickets && ticket.tickets.length > 0
+        ? [...ticket.tickets].sort((a, b) => (a.dayNumber || 0) - (b.dayNumber || 0))
+        : [ticket];
+
+      if (allTickets.length > 1) {
+        const downloadDayTicket = async (dayTicket: typeof allTickets[number]) => {
+          const code = normalizeTicketCode(dayTicket.ticketCode) || dayTicket.ticketCode;
+          const params = new URLSearchParams({
+            edition_id: activeEdition?.id || '',
+            ticket_number: code,
+            vendor_name: dayTicket.vendorName || '',
+            business_name: dayTicket.businessName || '',
+            category: dayTicket.category || '',
+            phone: dayTicket.phone || '',
+            edition_name: dayTicket.editionName || '',
+            issued_at: dayTicket.registeredAt || '',
+            day_label: dayTicket.dayLabel || '',
+            event_date: dayTicket.dayDate || '',
+          });
+          if (dayTicket.ticketId) params.set('ticket_id', dayTicket.ticketId);
+          const res = await fetch(`/api/tickets/render?${params.toString()}`);
+          if (!res.ok) throw new Error('Could not render this ticket');
+          const blob = await res.blob();
+          const blobUrl = window.URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.download = `Vendor-Pass-${dayTicket.dayLabel || 'Ticket'}-${code}.png`;
+          link.href = blobUrl;
+          link.click();
+          window.URL.revokeObjectURL(blobUrl);
+        };
+
+        return (
+          <div className="space-y-4 max-w-[560px] mx-auto animate-fade-in select-none">
+            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-700">
+                Registration complete
+              </p>
+              <p className="text-sm font-bold text-text-primary mt-0.5">
+                {passSummaryForTickets(allTickets)}
+              </p>
+              <p className="text-[10px] text-text-secondary mt-1">
+                One ticket per paid day. Each ticket is valid only on its own day.
+              </p>
+            </div>
+
+            {allTickets.map((dayTicket, index) => {
+              const code = normalizeTicketCode(dayTicket.ticketCode) || dayTicket.ticketCode;
+              return (
+                <div
+                  key={dayTicket.ticketId || `${dayTicket.dayId || index}`}
+                  className="bg-bg-surface border border-green/30 rounded-xl p-5 shadow-lg"
+                >
+                  <div className="flex items-center justify-between gap-3 border-b border-border-light pb-3">
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-9 h-9 rounded-lg bg-green/15 border border-green/30 flex items-center justify-center text-green">
+                        <Ticket className="w-4 h-4" />
+                      </div>
+                      <div>
+                        <p className="text-[10px] font-bold text-green uppercase tracking-widest">
+                          {dayTicket.dayLabel || `Day ${dayTicket.dayNumber || index + 1}`}
+                        </p>
+                        <p className="text-xs font-bold text-text-primary">{dayTicket.editionName}</p>
+                        {dayTicket.dayDate && (
+                          <p className="text-[10px] text-text-tertiary">{dayTicket.dayDate}</p>
+                        )}
+                      </div>
+                    </div>
+                    <span className="font-mono text-lg font-extrabold text-accent">{code}</span>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 pt-3 text-[11px]">
+                    <div>
+                      <span className="block text-[9px] uppercase tracking-wider text-text-tertiary">Vendor</span>
+                      <span className="font-semibold text-text-primary">{dayTicket.vendorName}</span>
+                    </div>
+                    {dayTicket.businessName && (
+                      <div>
+                        <span className="block text-[9px] uppercase tracking-wider text-text-tertiary">Business</span>
+                        <span className="font-semibold text-text-primary">{dayTicket.businessName}</span>
+                      </div>
+                    )}
+                  </div>
+
+                  <Button
+                    type="button"
+                    variant="primary"
+                    onClick={() => downloadDayTicket(dayTicket)}
+                    className="mt-4 w-full py-2.5 flex items-center justify-center gap-2 text-xs font-bold"
+                  >
+                    <Download className="w-4 h-4" />
+                    Download {dayTicket.dayLabel || 'Ticket'}
+                  </Button>
+                </div>
+              );
+            })}
+
+            {!allowAddAnother && (
+              <div className="p-3 bg-amber/10 border border-amber/20 rounded-md text-[11px] text-amber flex items-start gap-2">
+                <AlertCircle className="w-4 h-4 shrink-0 mt-0.5" />
+                <span>
+                  <strong>Single-Use Link Closed:</strong> This link cannot be reused for another vendor.
+                  Download or screenshot every pass for check-in.
+                </span>
+              </div>
+            )}
+          </div>
+        );
+      }
+
       const fieldValues: Record<RequiredTicketField, string> = {
         vendor_name: ticket.vendorName || '',
         business_name: ticket.businessName || '',
@@ -740,14 +880,17 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
             try {
               const params = new URLSearchParams({
                 edition_id: activeEdition?.id || '',
-        ticket_number: ticketCode,
+                ticket_number: ticketCode,
                 vendor_name: ticket.vendorName || '',
                 business_name: ticket.businessName || '',
                 category: ticket.category || '',
                 phone: ticket.phone || '',
                 edition_name: ticket.editionName || '',
                 issued_at: ticket.registeredAt || '',
+                day_label: (ticket as any).dayLabel || '',
+                event_date: (ticket as any).dayDate || '',
               });
+              if ((ticket as any).ticketId) params.set('ticket_id', (ticket as any).ticketId);
               const res = await fetch(`/api/tickets/render?${params.toString()}`);
               if (res.ok) {
                 const blob = await res.blob();
@@ -864,8 +1007,13 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
                     <Ticket className="w-5 h-5" />
                   </div>
                   <div>
-                    <span className="text-[10px] font-bold text-green uppercase tracking-widest block">Official Vendor Pass</span>
+                    <span className="text-[10px] font-bold text-green uppercase tracking-widest block">
+                      Official Vendor Pass{(ticket as any).dayLabel ? ` · ${(ticket as any).dayLabel}` : ''}
+                    </span>
                     <h2 className="text-sm font-bold text-text-primary">{ticket.editionName}</h2>
+                    {(ticket as any).dayDate && (
+                      <p className="text-[10px] text-text-tertiary">{(ticket as any).dayDate}</p>
+                    )}
                   </div>
                 </div>
                 <Badge variant="success" size="sm" className="font-mono text-xs uppercase font-extrabold tracking-wider">

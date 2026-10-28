@@ -26,8 +26,17 @@ export interface Market {
   vendorsCount: number;
 }
 import { isTestEdition } from '@/lib/editions';
+import {
+  fetchEditionDays,
+  isTicketDayToday,
+  dayDateLabel,
+  dayLabel,
+  sortDays,
+  type EditionDay,
+} from '@/lib/editionDays';
 import { RatingFilterKey, matchesRatingFilter } from '@/lib/ratingTiers';
 import { isAdmin } from '@/lib/auth/permissions';
+import { buildMultiTicketData, extractPaidFields } from '@/lib/paidRegistration';
 import { GreetingCard } from '@/components/dashboard/GreetingCard';
 import { AlertBanner } from '@/components/dashboard/AlertBanner';
 import { FilterBar, FilterState } from '@/components/dashboard/FilterBar';
@@ -1083,9 +1092,31 @@ export default function Home() {
           (srResult?.data || []).map((r: any) => r.vendor_id).filter(Boolean)
         );
 
+        // Per-day tickets (multi-day editions). Missing table/columns before the
+        // migration simply means no ticket rows and the legacy UI is unchanged.
+        let ticketsByRegistration = new globalThis.Map<string, any[]>();
+        try {
+          const { data: ticketRows } = await supabase
+            .from('vendor_tickets')
+            .select('*, edition_days(id, day_number, event_date, label)')
+            .eq('edition_id', activeEdition.id);
+          for (const ticket of ticketRows || []) {
+            const list = ticketsByRegistration.get(ticket.registration_id) || [];
+            list.push(ticket);
+            ticketsByRegistration.set(ticket.registration_id, list);
+          }
+        } catch {
+          ticketsByRegistration = new globalThis.Map();
+        }
+
         const registrations = regRows.map((r: any) => {
           const ticketNumber = normalizeTicketCode(r.ticket_number || r.stall_number || r.notes?.match(/Ticket #(\d+)/)?.[1]) || '';
           const overlay = entryOverlayRef.current;
+          const tickets = [...(ticketsByRegistration.get(r.id) || [])].sort(
+            (a: any, b: any) =>
+              (a.edition_days?.day_number || 0) - (b.edition_days?.day_number || 0)
+          );
+          const ticketCheckIn = tickets.find((t: any) => t.check_in_time)?.check_in_time || null;
           return {
             id: r.id,
             vendor_id: r.vendors?.id || '',
@@ -1095,7 +1126,8 @@ export default function Home() {
             stall_number: r.stall_number || '',
             notes: r.notes || '',
             ticket_number: ticketNumber,
-            check_in_time: overlay.has(r.id) ? overlay.get(r.id) ?? null : r.check_in_time || null,
+            tickets,
+            check_in_time: overlay.has(r.id) ? overlay.get(r.id) ?? null : (r.check_in_time || ticketCheckIn),
             created_at: r.created_at,
             tables: Number.isFinite(Number(r.tables)) ? Math.max(1, Number(r.tables)) : 1,
             business_name: r.vendors?.business_name || '',
@@ -1106,7 +1138,7 @@ export default function Home() {
             // Registered = completed registration via a paid vendor link form (auto-assigned a
             // ticket) OR submitted a survey response. CSV-imported rows have neither until the
             // vendor completes the form, so they stay in "Not Yet Registered".
-            hasFormData: surveyVendorSet.has(r.vendors?.id || '') || !!ticketNumber,
+            hasFormData: surveyVendorSet.has(r.vendors?.id || '') || !!ticketNumber || tickets.length > 0,
           };
         });
 
@@ -1234,6 +1266,55 @@ export default function Home() {
     }
   };
 
+  /** Per-day gate entry for multi-day editions. The server validates the day. */
+  const handleToggleTicketEntry = async (registrationId: string, ticket: any) => {
+    const day = ticket.edition_days;
+    if (!ticket.check_in_time && day?.event_date && !isTicketDayToday(day)) {
+      addToast(
+        `${dayLabel(day)} (${dayDateLabel(day)}) is not today. This ticket can only be used on its own day.`,
+        'error'
+      );
+      return;
+    }
+
+    const checkIn = !ticket.check_in_time;
+    const optimisticTime = checkIn ? new Date().toISOString() : null;
+
+    setPaidVendors((prev) =>
+      prev.map((p) =>
+        p.id === registrationId
+          ? {
+              ...p,
+              tickets: (p.tickets || []).map((t: any) =>
+                t.id === ticket.id ? { ...t, check_in_time: optimisticTime } : t
+              ),
+              check_in_time:
+                (p.tickets || []).some((t: any) =>
+                  t.id === ticket.id ? checkIn : !!t.check_in_time
+                )
+                  ? optimisticTime || p.check_in_time
+                  : null,
+            }
+          : p
+      )
+    );
+
+    try {
+      const res = await fetch('/api/vendors/tickets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'check-in', ticketId: ticket.id, checkIn }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || 'Failed to update entry');
+      void fetchPaidVendors(true);
+      if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(10);
+    } catch (err: any) {
+      addToast(err?.message || 'Failed to update entry', 'error');
+      void fetchPaidVendors(true);
+    }
+  };
+
   /** Begin inline editing of a row's tables count (admin only). */
   const startEditingTables = (pv: { id: string; tables?: number }) => {
     if (!canEditTables) return;
@@ -1299,7 +1380,10 @@ export default function Home() {
     const scored: { pv: any; score: number }[] = [];
     for (const pv of paidVendors) {
       if (pv.payment_status !== 'paid') continue;
-      const ticket = String(pv.ticket_number || '').toLowerCase();
+      const ticket = [
+        pv.ticket_number,
+        ...(pv.tickets || []).map((t: any) => normalizeTicketCode(t.ticket_code)),
+      ].filter(Boolean).join(' ').toLowerCase();
       const business = String(pv.business_name || '').toLowerCase();
       const contact = String(pv.contact_name || '').toLowerCase();
 
@@ -1728,6 +1812,24 @@ export default function Home() {
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
 
   useEffect(() => {
+    let cancelled = false;
+    const supabase = createClient();
+    if (!supabase || !activeEdition?.id) {
+      setEditionDays([]);
+      setSelectedLinkDayIds([]);
+      return;
+    }
+    fetchEditionDays(supabase, activeEdition.id).then((days) => {
+      if (cancelled) return;
+      setEditionDays(days);
+      setSelectedLinkDayIds(days.map((d) => d.id));
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [activeEdition?.id]);
+
+  useEffect(() => {
     if (activeNav === 'overview' && mounted && !authLoading && role && role !== 'unassigned') {
       fetchOverviewMetrics();
     }
@@ -1748,9 +1850,15 @@ export default function Home() {
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
   useScrollLock(isLinkModalOpen);
   const [generatedLinkUrl, setGeneratedLinkUrl] = useState('');
+  const [generatedLinkUrls, setGeneratedLinkUrls] = useState<string[]>([]);
   const [generatedLinkPass, setGeneratedLinkPass] = useState('');
   const [generatedLinkSlug, setGeneratedLinkSlug] = useState('');
   const [copiedText, setCopiedText] = useState(false);
+
+  // Multi-day edition state
+  const [editionDays, setEditionDays] = useState<EditionDay[]>([]);
+  const [selectedLinkDayIds, setSelectedLinkDayIds] = useState<string[]>([]);
+  const [linkBatchCount, setLinkBatchCount] = useState(1);
 
   // Edit Vendor Modal State
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -1813,6 +1921,11 @@ export default function Home() {
     show: boolean;
     vendorName?: string;
     ticketData?: {
+      ticketId?: string;
+      dayId?: string;
+      dayNumber?: number;
+      dayLabel?: string;
+      dayDate?: string;
       ticketNumber: number;
       ticketCode: string;
       editionName: string;
@@ -1823,6 +1936,7 @@ export default function Home() {
       amountPaid?: number;
       paymentStatus?: string;
       registeredAt: string;
+      tickets?: any[];
     };
     onAddAnother: () => void;
   }>({
@@ -2018,8 +2132,8 @@ export default function Home() {
 
       // Atomic per-edition allocation shared with the single-use link flow.
       // Guarantees a unique, sequential ticket even if several admins register
-      // vendors at the same moment.
-      const { data: rpcData, error: rpcError } = await supabase.rpc('register_paid_vendor_admin', {
+      // vendors at the same moment. Multi-day editions default to all days.
+      const { data: rpcData, error: rpcError } = await supabase.rpc('register_paid_vendor_admin_multi', {
         p_edition_id: activeEdition.id,
         p_phone: phone,
         p_contact_name: contactName,
@@ -2028,17 +2142,21 @@ export default function Home() {
         p_email: answers.email || '',
         p_amount_paid: Number.isFinite(amountPaid) ? amountPaid : 0,
         p_payment_status: paymentStatus,
+        p_day_ids: null,
       });
 
       if (rpcError) throw new Error(rpcError.message);
 
-      const rpcRow = Array.isArray(rpcData) ? rpcData[0] : rpcData;
-      if (!rpcRow || rpcRow.ticket_number == null) {
+      const rpcRow = (Array.isArray(rpcData) ? rpcData[0] : rpcData) as any;
+      if (!rpcRow) {
         throw new Error('Could not issue ticket. Please retry.');
       }
 
-      const finalTicketNumber = Number(rpcRow.ticket_number) || 1;
-      const finalTicketCode = rpcRow.ticket_code || formatTicketCode(finalTicketNumber);
+      const ticketData = buildMultiTicketData(
+        rpcRow,
+        extractPaidFields(answers),
+        activeEdition.name
+      );
 
       fetchPaidVendors();
       fetchVendors();
@@ -2058,18 +2176,7 @@ export default function Home() {
       setPaidSuccessState({
         show: true,
         vendorName: contactName,
-        ticketData: {
-          ticketNumber: finalTicketNumber,
-          ticketCode: finalTicketCode,
-          editionName: activeEdition.name,
-          vendorName: contactName,
-          businessName,
-          phone,
-          category,
-          amountPaid,
-          paymentStatus,
-          registeredAt: rpcRow.registered_at || new Date().toISOString(),
-        },
+        ticketData,
         onAddAnother: () => resetPaidForm()
       });
 
@@ -2571,35 +2678,47 @@ export default function Home() {
       const supabase = createClient();
       if (!supabase) throw new Error("Client not initialized");
 
-      const token = crypto.randomUUID();
-      const baseUrl = window.location.origin;
-      const linkUrl = `${baseUrl}/collect/${token}`;
-
-      const linkPayload: Record<string, unknown> = {
-        token,
-        form_slug: slug,
-        edition_id: activeEdition.id,
-        is_single_use: slug === 'paid_vendor_registration',
-      };
-
-      try {
-        const { error: linkError } = await supabase
-          .from('form_links')
-          .insert(linkPayload);
-        if (linkError && (linkError.code === '42703' || linkError.message?.includes('is_single_use'))) {
-          delete linkPayload.is_single_use;
-          const { error: fallbackError } = await supabase.from('form_links').insert(linkPayload);
-          if (fallbackError) throw fallbackError;
-        } else if (linkError) {
-          throw linkError;
-        }
-      } catch {
-        delete linkPayload.is_single_use;
-        const { error: fallbackError } = await supabase.from('form_links').insert(linkPayload);
-        if (fallbackError) throw fallbackError;
+      const isPaid = slug === 'paid_vendor_registration';
+      // Multi-day paid links must explicitly say which days were paid for.
+      const allowedDayIds = isPaid && editionDays.length > 1 ? selectedLinkDayIds : [];
+      if (isPaid && editionDays.length > 1 && allowedDayIds.length === 0) {
+        addToast("Choose at least one paid day for this vendor.", "error");
+        return;
       }
 
-      setGeneratedLinkUrl(linkUrl);
+      const count = isPaid ? Math.max(1, Math.min(50, Number(linkBatchCount) || 1)) : 1;
+      const baseUrl = window.location.origin;
+      const urls: string[] = [];
+
+      for (let i = 0; i < count; i++) {
+        const token = crypto.randomUUID();
+        urls.push(`${baseUrl}/collect/${token}`);
+        const linkPayload: Record<string, unknown> = {
+          token,
+          form_slug: slug,
+          edition_id: activeEdition.id,
+          is_single_use: isPaid,
+        };
+        if (isPaid && allowedDayIds.length > 0) {
+          linkPayload.allowed_day_ids = allowedDayIds;
+        }
+
+        let { error: linkError } = await supabase.from('form_links').insert(linkPayload);
+        if (linkError && (
+          linkError.code === '42703' ||
+          linkError.message?.includes('is_single_use') ||
+          linkError.message?.includes('allowed_day_ids')
+        )) {
+          delete linkPayload.is_single_use;
+          delete linkPayload.allowed_day_ids;
+          const retry = await supabase.from('form_links').insert(linkPayload);
+          linkError = retry.error;
+        }
+        if (linkError) throw linkError;
+      }
+
+      setGeneratedLinkUrl(urls[0] || '');
+      setGeneratedLinkUrls(urls);
       setGeneratedLinkPass(activeEdition.name);
       setGeneratedLinkSlug(slug);
       setIsLinkModalOpen(true);
@@ -2609,7 +2728,8 @@ export default function Home() {
   };
 
   const handleCopyLink = () => {
-    navigator.clipboard.writeText(generatedLinkUrl);
+    const text = generatedLinkUrls.length > 1 ? generatedLinkUrls.join('\n') : generatedLinkUrl;
+    navigator.clipboard.writeText(text);
     setCopiedText(true);
     setTimeout(() => setCopiedText(false), 2000);
   };
@@ -4314,9 +4434,25 @@ export default function Home() {
                                     className={`hover:bg-slate-50/70 transition-colors cursor-pointer ${pv.check_in_time ? 'bg-emerald-50/50' : ''}`}
                                   >
                                     <td className="p-4 text-center">
-                                      {pv.ticket_number ? (
+                                      {(pv.tickets || []).length > 1 ? (
+                                        <div className="inline-flex flex-col gap-1">
+                                          {(pv.tickets || []).map((ticket: any) => {
+                                            const day = ticket.edition_days || editionDays.find((d) => d.id === ticket.edition_day_id);
+                                            return (
+                                              <span
+                                                key={ticket.id}
+                                                title={day ? dayDateLabel(day) : undefined}
+                                                className="inline-flex items-center gap-1 px-2 py-0.5 rounded font-mono text-[10px] font-bold bg-accent-soft text-accent border border-accent/20 whitespace-nowrap"
+                                              >
+                                                <span className="text-[8px] uppercase font-sans">{day ? dayLabel(day) : 'Day'}</span>
+                                                {normalizeTicketCode(ticket.ticket_code)}
+                                              </span>
+                                            );
+                                          })}
+                                        </div>
+                                      ) : pv.ticket_number || (pv.tickets || [])[0] ? (
                                         <span className="inline-block px-2 py-0.5 rounded font-mono text-[11px] font-bold bg-accent-soft text-accent border border-accent/20">
-                                          {pv.ticket_number}
+                                          {pv.ticket_number || normalizeTicketCode((pv.tickets || [])[0]?.ticket_code)}
                                         </span>
                                       ) : (
                                         <span className="text-text-tertiary font-mono text-[11px]">—</span>
@@ -4403,7 +4539,38 @@ export default function Home() {
                                     </td>
                                     {paidVendorTab === 'registered' && (
                                       <td className="p-4 text-center" onClick={(e) => e.stopPropagation()}>
-                                        {pv.check_in_time ? (
+                                        {(pv.tickets || []).length > 1 || (editionDays.length > 1 && (pv.tickets || []).length > 0) ? (
+                                          <div className="inline-flex flex-col items-center gap-1">
+                                            {(pv.tickets || []).map((ticket: any) => {
+                                              const day = ticket.edition_days || editionDays.find((d) => d.id === ticket.edition_day_id);
+                                              const validToday = isTicketDayToday(day);
+                                              const checkedIn = !!ticket.check_in_time;
+                                              return (
+                                                <button
+                                                  key={ticket.id}
+                                                  onClick={() => handleToggleTicketEntry(pv.id, ticket)}
+                                                  title={
+                                                    checkedIn
+                                                      ? `${day ? dayLabel(day) : 'Ticket'} checked in. Click to undo.`
+                                                      : validToday
+                                                        ? `Mark entry for ${day ? dayLabel(day) : 'this day'}`
+                                                        : `${day ? dayLabel(day) : 'This ticket'} can only be checked in on ${day ? dayDateLabel(day) : 'its own day'}`
+                                                  }
+                                                  className={`inline-flex items-center gap-1 px-2 py-1 rounded-full text-[9px] font-bold border whitespace-nowrap transition-colors cursor-pointer ${
+                                                    checkedIn
+                                                      ? 'bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-200'
+                                                      : validToday
+                                                        ? 'bg-white text-text-secondary border-border hover:border-emerald-300 hover:text-emerald-700 hover:bg-emerald-50'
+                                                        : 'bg-slate-50 text-slate-400 border-slate-200'
+                                                  }`}
+                                                >
+                                                  {checkedIn ? <ShieldCheck className="w-3 h-3" /> : <DoorOpen className="w-3 h-3" />}
+                                                  {day ? dayLabel(day) : 'Day'} · {checkedIn ? 'In' : validToday ? 'Entry' : 'Not today'}
+                                                </button>
+                                              );
+                                            })}
+                                          </div>
+                                        ) : pv.check_in_time ? (
                                           <button
                                             onClick={() => handleToggleVendorEntry(pv)}
                                             title={`Checked in ${new Date(pv.check_in_time).toLocaleString()} — click to undo`}
@@ -4538,6 +4705,15 @@ export default function Home() {
               onWalkinSubmit={handleDynamicWalkinSubmit}
               onPhoneLookup={handleDynamicPhoneLookup}
               onGenerateLink={handleGenerateQuickEntryLink}
+              editionDays={editionDays}
+              selectedLinkDayIds={selectedLinkDayIds}
+              onToggleLinkDay={(dayId) =>
+                setSelectedLinkDayIds((prev) =>
+                  prev.includes(dayId) ? prev.filter((id) => id !== dayId) : [...prev, dayId]
+                )
+              }
+              linkBatchCount={linkBatchCount}
+              onLinkBatchCountChange={setLinkBatchCount}
               paidCount={runningCount}
               collectionCount={dataCollectedListCount}
               walkinCount={runningWalkins}
@@ -5142,6 +5318,32 @@ export default function Home() {
                   </button>
                 </div>
               </div>
+
+              {generatedLinkUrls.length > 1 && (
+                <div className="space-y-1">
+                  <span className="text-[10px] text-text-tertiary uppercase font-bold">
+                    {generatedLinkUrls.length} links generated (one per vendor)
+                  </span>
+                  <div className="max-h-40 overflow-y-auto rounded-md border border-border bg-slate-50 p-2 space-y-1">
+                    {generatedLinkUrls.map((url, index) => (
+                      <div key={url} className="flex items-center gap-2">
+                        <span className="text-[9px] font-mono text-text-tertiary w-4">{index + 1}</span>
+                        <code className="flex-1 truncate text-[9px] font-mono text-accent">{url}</code>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {generatedLinkSlug === 'paid_vendor_registration' && editionDays.length > 1 && (
+                <div className="bg-emerald-50 border border-emerald-200 rounded-lg p-3 text-[11px] text-emerald-800">
+                  <span className="font-bold">Paid days on this link:</span>{' '}
+                  {editionDays
+                    .filter((d) => selectedLinkDayIds.includes(d.id))
+                    .map((d) => d.label?.trim() || `Day ${d.day_number}`)
+                    .join(' + ') || 'None selected'}
+                </div>
+              )}
 
               {/* Password credentials */}
               <div className="bg-slate-50 border border-border rounded-lg p-3 text-xs select-none">

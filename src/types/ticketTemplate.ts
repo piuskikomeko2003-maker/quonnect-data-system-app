@@ -33,6 +33,7 @@ export type FieldPositionsMap = Record<RequiredTicketField, FieldPosition>;
 export interface TicketTemplate {
   id?: string;
   edition_id: string | null;
+  edition_day_id?: string | null;
   is_default?: boolean;
   background_image_url: string;
   canvas_width: number;

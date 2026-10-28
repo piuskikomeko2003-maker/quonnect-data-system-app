@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { formatTicketCode } from '@/utils/ticket';
+import { buildMultiTicketData } from '@/lib/paidRegistration';
 
 interface TicketRow {
   ticket_number: number | string | null;
@@ -90,8 +91,55 @@ export async function POST(request: NextRequest) {
       paymentStatus,
     };
 
-    // ─── OPTION A: Atomic PostgreSQL function (advisory lock + counter) ───
-    // Handles unlimited concurrency across server instances and regions.
+    // ─── OPTION A: Atomic multi-day PostgreSQL function ───
+    // The link's allowed_day_ids are read server-side inside the function; the
+    // request body cannot choose days.
+    const { data: multiData, error: multiError } = await serviceClient.rpc('register_paid_vendor_multi', {
+      p_token: token,
+      p_edition_id: edition_id,
+      p_phone: phone,
+      p_contact_name: contactName,
+      p_business_name: businessName,
+      p_category: category,
+      p_email: email,
+      p_amount_paid: amountPaid,
+      p_payment_status: paymentStatus,
+    });
+
+    if (!multiError && multiData) {
+      const result = (Array.isArray(multiData) ? multiData[0] : multiData) as any;
+      if (result && Array.isArray(result.tickets) && result.tickets.length > 0) {
+        const ticketData = buildMultiTicketData(
+          result,
+          {
+            phone,
+            contactName,
+            businessName,
+            category,
+            email,
+            amountPaid,
+            paymentStatus,
+          },
+          body.edition_name || 'Event Edition'
+        );
+        return NextResponse.json({ success: true, ticketData });
+      }
+    }
+
+    if (multiError) {
+      if (isBusinessError(multiError.message || '')) {
+        return NextResponse.json({ error: multiError.message }, { status: 400 });
+      }
+      if (!isMissingRpc(multiError)) {
+        console.error('register_paid_vendor_multi RPC failed:', multiError);
+        return NextResponse.json(
+          { error: 'Ticket service temporarily unavailable. Please retry.' },
+          { status: 503 }
+        );
+      }
+    }
+
+    // ─── OPTION A (legacy compatibility): single-ticket RPC ───
     const { data: rpcData, error: rpcError } = await serviceClient.rpc('register_paid_vendor', {
       p_token: token,
       p_edition_id: edition_id,
@@ -115,9 +163,6 @@ export async function POST(request: NextRequest) {
       if (isBusinessError(rpcError.message || '')) {
         return NextResponse.json({ error: rpcError.message }, { status: 400 });
       }
-      // Function not deployed yet → fall through to the legacy path below.
-      // Any other DB error is transient from the client's perspective and must
-      // NOT be silently retried against the non-atomic path.
       if (!isMissingRpc(rpcError)) {
         console.error('register_paid_vendor RPC failed:', rpcError);
         return NextResponse.json(

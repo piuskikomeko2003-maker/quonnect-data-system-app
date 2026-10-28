@@ -28,12 +28,21 @@ import {
   Sparkles
 } from 'lucide-react';
 
+interface EditionDayRow {
+  id?: string;
+  day_number: number;
+  event_date: string;
+  fee: number;
+  label: string | null;
+}
+
 interface Edition {
   id: string;
   name: string;
   date: string;
   venue: string;
   is_active: boolean;
+  days: EditionDayRow[];
 }
 
 interface MarketDay {
@@ -73,6 +82,9 @@ export const MarketConfigurationPanel: React.FC = () => {
   const [newEditionDate, setNewEditionDate] = useState('');
   const [newEditionVenue, setNewEditionVenue] = useState('');
   const [newEditionIsActive, setNewEditionIsActive] = useState(true);
+  const [newEditionDays, setNewEditionDays] = useState<EditionDayRow[]>([
+    { day_number: 1, event_date: '', fee: 0, label: 'Day 1' },
+  ]);
   const [isSavingEdition, setIsSavingEdition] = useState(false);
 
   // Inline Edition Editing States
@@ -81,7 +93,30 @@ export const MarketConfigurationPanel: React.FC = () => {
   const [editEditionDate, setEditEditionDate] = useState('');
   const [editEditionVenue, setEditEditionVenue] = useState('');
   const [editEditionIsActive, setEditEditionIsActive] = useState(true);
+  const [editEditionDays, setEditEditionDays] = useState<EditionDayRow[]>([]);
   const [isUpdatingEdition, setIsUpdatingEdition] = useState(false);
+
+  const setEditionDayCount = (count: number) => {
+    const safe = Math.max(1, Math.min(14, count));
+    setNewEditionDays((prev) => {
+      const next = [...prev];
+      while (next.length < safe) {
+        next.push({
+          day_number: next.length + 1,
+          event_date: '',
+          fee: 0,
+          label: `Day ${next.length + 1}`,
+        });
+      }
+      return next.slice(0, safe).map((d, i) => ({ ...d, day_number: i + 1, label: `Day ${i + 1}` }));
+    });
+  };
+
+  const updateNewDay = (index: number, patch: Partial<EditionDayRow>) => {
+    setNewEditionDays((prev) =>
+      prev.map((d, i) => (i === index ? { ...d, ...patch } : d))
+    );
+  };
 
   // Accordion Expand States (for full view below stepper)
   const [expandedRegions, setExpandedRegions] = useState<Record<string, boolean>>({});
@@ -134,7 +169,15 @@ export const MarketConfigurationPanel: React.FC = () => {
             edition,
             status,
             notes,
-            created_at
+            created_at,
+            standard_fee,
+            edition_days (
+              id,
+              day_number,
+              event_date,
+              fee,
+              label
+            )
           )
         `);
 
@@ -162,7 +205,10 @@ export const MarketConfigurationPanel: React.FC = () => {
               name: row.edition || 'Untitled Edition',
               date: row.event_date || '',
               venue: row.notes || '',
-              is_active: row.status === 'upcoming' || row.status === 'ongoing' || row.status === 'active'
+              is_active: row.status === 'upcoming' || row.status === 'ongoing' || row.status === 'active',
+              days: ((row.edition_days || []) as EditionDayRow[]).sort(
+                (a, b) => a.day_number - b.day_number
+              ),
             }))
             .sort((a: Edition, b: Edition) => new Date(a.date).getTime() - new Date(b.date).getTime());
 
@@ -422,6 +468,18 @@ export const MarketConfigurationPanel: React.FC = () => {
       return;
     }
 
+    const dayRows = newEditionDays.map((day, index) => ({
+      ...day,
+      day_number: index + 1,
+      // Day 1 stays in sync with the main Event Date field.
+      event_date: index === 0 ? newEditionDate : day.event_date,
+      label: `Day ${index + 1}`,
+    }));
+    if (dayRows.some((day) => !day.event_date)) {
+      addToast("Every day needs a date before the edition can be created.", "error");
+      return;
+    }
+
     setIsSavingEdition(true);
     try {
       const supabase = createClient();
@@ -438,6 +496,7 @@ export const MarketConfigurationPanel: React.FC = () => {
           event_date: newEditionDate,
           edition: newEditionName.trim(),
           notes: newEditionVenue.trim(),
+          standard_fee: Number(dayRows[0]?.fee) || 0,
           status: newEditionIsActive ? 'upcoming' : 'completed'
         }])
         .select()
@@ -446,6 +505,26 @@ export const MarketConfigurationPanel: React.FC = () => {
       if (error) {
         console.error("Supabase edition insert error:", error.message, error.code, error.details);
         throw error;
+      }
+
+      // The DB trigger creates Day 1 automatically; upsert all configured days
+      // so fees/dates and extra days are exact.
+      const { error: daysError } = await supabase
+        .from('edition_days')
+        .upsert(
+          dayRows.map((day) => ({
+            edition_id: data.id,
+            day_number: day.day_number,
+            event_date: day.event_date,
+            fee: Number(day.fee) || 0,
+            label: day.label,
+          })),
+          { onConflict: 'edition_id,day_number' }
+        );
+
+      if (daysError) {
+        await supabase.from('market_days').delete().eq('id', data.id);
+        throw daysError;
       }
 
       // F3 FIX: Auto-select the new edition in the global context so the header,
@@ -464,6 +543,7 @@ export const MarketConfigurationPanel: React.FC = () => {
       setNewEditionDate('');
       setNewEditionVenue('');
       setNewEditionIsActive(true);
+      setNewEditionDays([{ day_number: 1, event_date: '', fee: 0, label: 'Day 1' }]);
       await refreshRegions();
       fetchRegionsData();
     } catch (err: any) {
@@ -485,17 +565,44 @@ export const MarketConfigurationPanel: React.FC = () => {
       const supabase = createClient();
       if (!supabase) throw new Error("Supabase client not available");
 
+      const updatedDays = editEditionDays.map((day, index) => ({
+        ...day,
+        day_number: index + 1,
+        event_date: index === 0 ? editEditionDate : day.event_date,
+        label: `Day ${index + 1}`,
+        fee: Number(day.fee) || 0,
+      }));
+      if (updatedDays.some((day) => !day.event_date)) {
+        addToast("Every day needs a date.", "error");
+        return;
+      }
+
       const { error } = await supabase
         .from('market_days')
         .update({
           edition: editEditionName.trim(),
           event_date: editEditionDate,
           notes: editEditionVenue.trim(),
+          standard_fee: Number(updatedDays[0]?.fee) || 0,
           status: editEditionIsActive ? 'upcoming' : 'completed'
         })
         .eq('id', id);
 
       if (error) throw error;
+
+      const { error: daysError } = await supabase
+        .from('edition_days')
+        .upsert(
+          updatedDays.map((day) => ({
+            edition_id: id,
+            day_number: day.day_number,
+            event_date: day.event_date,
+            fee: day.fee,
+            label: day.label,
+          })),
+          { onConflict: 'edition_id,day_number' }
+        );
+      if (daysError) throw daysError;
 
       addToast("Edition updated successfully!", "success");
       setEditingEditionId(null);
@@ -575,6 +682,11 @@ export const MarketConfigurationPanel: React.FC = () => {
     setEditEditionDate(ed.date);
     setEditEditionVenue(ed.venue);
     setEditEditionIsActive(ed.is_active);
+    setEditEditionDays(
+      ed.days?.length
+        ? ed.days.map((d) => ({ ...d }))
+        : [{ day_number: 1, event_date: ed.date, fee: 0, label: 'Day 1' }]
+    );
   };
 
   // Stepper UI helper
@@ -833,6 +945,48 @@ export const MarketConfigurationPanel: React.FC = () => {
                   />
                 </div>
                 <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider block">Number of Days</label>
+                  <select
+                    value={newEditionDays.length}
+                    onChange={(e) => setEditionDayCount(Number(e.target.value))}
+                    className="w-full bg-white border border-border rounded-md px-3 py-2 text-xs text-text-primary outline-none focus:border-accent cursor-pointer"
+                  >
+                    {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14].map((count) => (
+                      <option key={count} value={count}>{count} {count === 1 ? 'day' : 'days'}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider block">Day 1 Fee (UGX)</label>
+                  <input
+                    type="number"
+                    min={0}
+                    value={newEditionDays[0]?.fee ?? 0}
+                    onChange={(e) => updateNewDay(0, { fee: Number(e.target.value) || 0 })}
+                    className="w-full bg-white border border-border rounded-md px-3 py-2 text-xs text-text-primary outline-none focus:border-accent font-mono"
+                  />
+                </div>
+                {newEditionDays.slice(1).map((day, offset) => (
+                  <div key={day.day_number} className="rounded-lg border border-border bg-slate-50 p-2.5 space-y-2">
+                    <span className="text-[10px] font-bold text-accent uppercase tracking-wider">Day {day.day_number}</span>
+                    <input
+                      type="date"
+                      value={day.event_date}
+                      onChange={(e) => updateNewDay(offset + 1, { event_date: e.target.value })}
+                      className="w-full bg-white border border-border rounded-md px-2.5 py-1.5 text-xs text-text-primary outline-none focus:border-accent cursor-pointer"
+                      required
+                    />
+                    <input
+                      type="number"
+                      min={0}
+                      value={day.fee}
+                      onChange={(e) => updateNewDay(offset + 1, { fee: Number(e.target.value) || 0 })}
+                      placeholder="Day fee (UGX)"
+                      className="w-full bg-white border border-border rounded-md px-2.5 py-1.5 text-xs text-text-primary outline-none focus:border-accent font-mono"
+                    />
+                  </div>
+                ))}
+                <div className="space-y-1">
                   <label className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider block">Venue/Location</label>
                   <input 
                     type="text" 
@@ -907,6 +1061,56 @@ export const MarketConfigurationPanel: React.FC = () => {
                               className="bg-white border border-border rounded px-2.5 py-1 text-xs text-text-primary outline-none focus:border-accent animate-none"
                               placeholder="Venue"
                             />
+                            <div className="col-span-full space-y-1.5">
+                              <div className="flex items-center justify-between">
+                                <span className="text-[9px] font-bold uppercase tracking-wider text-text-tertiary">
+                                  {editEditionDays.length} {editEditionDays.length === 1 ? 'day' : 'days'}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() =>
+                                    setEditEditionDays((prev) => [
+                                      ...prev,
+                                      {
+                                        day_number: prev.length + 1,
+                                        event_date: '',
+                                        fee: 0,
+                                        label: `Day ${prev.length + 1}`,
+                                      },
+                                    ])
+                                  }
+                                  className="text-[9px] font-bold text-accent hover:underline cursor-pointer"
+                                >
+                                  + Add day
+                                </button>
+                              </div>
+                              {editEditionDays.map((day, index) => (
+                                <div key={`${day.id || 'new'}-${index}`} className="grid grid-cols-[1fr_1fr_72px] gap-1.5 items-center">
+                                  <span className="text-[9px] font-semibold text-text-secondary">Day {index + 1}</span>
+                                  <input
+                                    type="date"
+                                    value={index === 0 ? editEditionDate : day.event_date}
+                                    onChange={(e) => {
+                                      if (index === 0) setEditEditionDate(e.target.value);
+                                      else setEditEditionDays((prev) => prev.map((d, i) => i === index ? { ...d, event_date: e.target.value } : d));
+                                    }}
+                                    className="bg-white border border-border rounded px-2 py-1 text-[10px] text-text-primary outline-none focus:border-accent cursor-pointer"
+                                  />
+                                  <input
+                                    type="number"
+                                    min={0}
+                                    value={day.fee}
+                                    onChange={(e) =>
+                                      setEditEditionDays((prev) =>
+                                        prev.map((d, i) => i === index ? { ...d, fee: Number(e.target.value) || 0 } : d)
+                                      )
+                                    }
+                                    className="bg-white border border-border rounded px-2 py-1 text-[10px] font-mono text-text-primary outline-none focus:border-accent"
+                                    placeholder="Fee"
+                                  />
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         ) : (
                           <div className="min-w-0 flex-1">

@@ -5,6 +5,7 @@ import { useScrollLock } from '@/hooks/useScrollLock';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { createClient } from '@/lib/supabase/client';
 import { normalizeTicketCode } from '@/utils/ticket';
+import { fetchEditionDays, dayLabel, dayDateLabel, type EditionDay } from '@/lib/editionDays';
 import {
   X,
   ChevronLeft,
@@ -78,6 +79,11 @@ export const PaidVendorDetailsModal: React.FC<PaidVendorDetailsModalProps> = ({
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [editionDays, setEditionDays] = useState<EditionDay[]>([]);
+  const [ownedDayIds, setOwnedDayIds] = useState<string[]>([]);
+  const [selectedDayIds, setSelectedDayIds] = useState<string[]>([]);
+  const [addingDays, setAddingDays] = useState(false);
+  const [daysError, setDaysError] = useState<string | null>(null);
 
   // Pre-fill form when vendor changes
   useEffect(() => {
@@ -95,6 +101,59 @@ export const PaidVendorDetailsModal: React.FC<PaidVendorDetailsModalProps> = ({
       setSuccess(false);
     }
   }, [isOpen, vendor]);
+
+  // Load the edition's days and the days this registration already owns.
+  useEffect(() => {
+    let cancelled = false;
+    const loadDays = async () => {
+      if (!isOpen || !vendor?.id || !activeEdition?.id) return;
+      const supabase = createClient();
+      if (!supabase) return;
+      const days = await fetchEditionDays(supabase, activeEdition.id);
+      if (cancelled) return;
+      setEditionDays(days);
+      setSelectedDayIds([]);
+      setDaysError(null);
+
+      const { data: tickets } = await supabase
+        .from('vendor_tickets')
+        .select('edition_day_id')
+        .eq('registration_id', vendor.id);
+      if (!cancelled) {
+        setOwnedDayIds((tickets || []).map((t: any) => t.edition_day_id));
+      }
+    };
+    void loadDays();
+    return () => {
+      cancelled = true;
+    };
+  }, [isOpen, vendor?.id, activeEdition?.id]);
+
+  const handleAddDays = async () => {
+    if (!vendor?.id || selectedDayIds.length === 0) return;
+    setAddingDays(true);
+    setDaysError(null);
+    try {
+      const res = await fetch('/api/vendors/tickets', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          action: 'add-days',
+          registrationId: vendor.id,
+          dayIds: selectedDayIds,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || 'Failed to add day tickets');
+      setOwnedDayIds((prev) => Array.from(new Set([...prev, ...selectedDayIds])));
+      setSelectedDayIds([]);
+      onSaved();
+    } catch (err: any) {
+      setDaysError(err?.message || 'Failed to add day tickets');
+    } finally {
+      setAddingDays(false);
+    }
+  };
 
   const set = (field: string, value: string) =>
     setForm(prev => ({ ...prev, [field]: value }));
@@ -402,6 +461,63 @@ export const PaidVendorDetailsModal: React.FC<PaidVendorDetailsModalProps> = ({
               </div>
             </div>
           </div>
+
+          {editionDays.length > 1 && (
+            <>
+              <div className="border-t border-border" />
+              <div className="space-y-3">
+                <h3 className="text-[10px] font-bold text-text-tertiary uppercase tracking-widest flex items-center gap-1.5">
+                  <BadgeCheck className="w-3 h-3" /> Day Tickets
+                </h3>
+                <p className="text-[10px] text-text-secondary leading-relaxed">
+                  This vendor keeps one registration and vendor profile. Add a ticket for another paid day without duplicating them.
+                </p>
+                <div className="space-y-1.5">
+                  {editionDays.map((day) => {
+                    const owned = ownedDayIds.includes(day.id);
+                    return (
+                      <label
+                        key={day.id}
+                        className={`flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-xs ${
+                          owned ? 'border-emerald-200 bg-emerald-50' : 'border-border bg-slate-50'
+                        }`}
+                      >
+                        <span>
+                          <span className="block font-semibold text-text-primary">
+                            {dayLabel(day)} {owned && <span className="text-[9px] text-emerald-700">(ticket issued)</span>}
+                          </span>
+                          <span className="block text-[10px] text-text-tertiary">{dayDateLabel(day)} · UGX {Number(day.fee || 0).toLocaleString()}</span>
+                        </span>
+                        {!owned && (
+                          <input
+                            type="checkbox"
+                            checked={selectedDayIds.includes(day.id)}
+                            onChange={(e) =>
+                              setSelectedDayIds((prev) =>
+                                e.target.checked ? [...prev, day.id] : prev.filter((id) => id !== day.id)
+                              )
+                            }
+                            className="h-4 w-4 rounded border-border text-accent cursor-pointer"
+                          />
+                        )}
+                      </label>
+                    );
+                  })}
+                </div>
+                {daysError && (
+                  <p className="text-[10px] font-semibold text-red-600">{daysError}</p>
+                )}
+                <button
+                  type="button"
+                  onClick={handleAddDays}
+                  disabled={addingDays || selectedDayIds.length === 0}
+                  className="w-full rounded-lg border border-accent/30 bg-accent-soft px-3 py-2 text-xs font-bold text-accent disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
+                >
+                  {addingDays ? 'Adding tickets…' : `Add selected day ticket${selectedDayIds.length === 1 ? '' : 's'}`}
+                </button>
+              </div>
+            </>
+          )}
 
           {/* Actions */}
           <div className="flex gap-2 justify-end pt-2 border-t border-border">

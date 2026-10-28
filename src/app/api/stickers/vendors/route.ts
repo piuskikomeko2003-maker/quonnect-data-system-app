@@ -17,12 +17,13 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const marketDayId = searchParams.get('market_day_id');
+    const editionDayId = searchParams.get('edition_day_id');
     if (!marketDayId) {
       return NextResponse.json({ error: 'market_day_id is required.' }, { status: 400 });
     }
 
     const supabase = createServiceClient();
-    const vendors = await fetchStickerVendors(supabase, marketDayId);
+    const vendors = await fetchStickerVendors(supabase, marketDayId, editionDayId || null);
 
     return NextResponse.json({
       progress: computeProgress(vendors),

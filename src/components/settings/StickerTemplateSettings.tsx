@@ -2,6 +2,7 @@
 
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { createClient } from '@/lib/supabase/client';
+import { fetchEditionDays, dayLabel, dayDateLabel, type EditionDay } from '@/lib/editionDays';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { Badge } from '@/components/ui/Badge';
@@ -42,6 +43,7 @@ interface EditionOption {
 
 const toPatch = (t: StickerTemplate): StickerTemplatePatch => ({
   edition_id: t.edition_id ?? null,
+  edition_day_id: t.edition_day_id ?? null,
   orientation: t.orientation,
   page_width_mm: Number(t.page_width_mm),
   page_height_mm: Number(t.page_height_mm),
@@ -75,6 +77,9 @@ export const StickerTemplateSettings: React.FC = () => {
   /** 'global' or an edition id. */
   const [scope, setScope] = useState<string>('global');
   const [editions, setEditions] = useState<EditionOption[]>([]);
+  const [editionDays, setEditionDays] = useState<EditionDay[]>([]);
+  /** '' = edition fallback; otherwise an edition day id. */
+  const [selectedDayId, setSelectedDayId] = useState<string>('');
   const [selectedId, setSelectedId] = useState<string>('');
   const [draft, setDraft] = useState<StickerTemplatePatch | null>(null);
   const [imageUrl, setImageUrl] = useState<string | null>(null);
@@ -90,16 +95,22 @@ export const StickerTemplateSettings: React.FC = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isEditionScope = scope !== 'global';
+  const isDayScope = isEditionScope && Boolean(selectedDayId);
 
   const globalTemplates = useMemo(() => templates.filter((t) => !t.edition_id), [templates]);
   const defaultTemplate = useMemo(
     () => globalTemplates.find((t) => t.is_active) || globalTemplates[0] || null,
     [globalTemplates]
   );
-  const editionTemplate = useMemo(
-    () => (isEditionScope ? templates.find((t) => t.edition_id === scope) || null : null),
-    [templates, scope, isEditionScope]
-  );
+  const editionTemplate = useMemo(() => {
+    if (!isEditionScope) return null;
+    if (selectedDayId) {
+      return templates.find((t) => t.edition_day_id === selectedDayId) || null;
+    }
+    return (
+      templates.find((t) => t.edition_id === scope && !t.edition_day_id) || null
+    );
+  }, [templates, scope, isEditionScope, selectedDayId]);
 
   const selected = useMemo(() => {
     if (isEditionScope) return editionTemplate;
@@ -137,7 +148,7 @@ export const StickerTemplateSettings: React.FC = () => {
     }
   }, []);
 
-  const loadTemplates = useCallback(async (preferId?: string, preferScope: string = 'global') => {
+  const loadTemplates = useCallback(async (preferId?: string, preferScope: string = 'global', preferDayId?: string) => {
     setLoading(true);
     try {
       const res = await fetch('/api/stickers/templates', { cache: 'no-store' });
@@ -153,7 +164,11 @@ export const StickerTemplateSettings: React.FC = () => {
       const globals = list.filter((t) => !t.edition_id);
       const fallback = globals.find((t) => t.is_active) || globals[0] || list[0] || null;
       const scoped =
-        preferScope !== 'global' ? list.find((t) => t.edition_id === preferScope) || null : null;
+        preferScope !== 'global'
+          ? preferDayId
+            ? list.find((t) => t.edition_day_id === preferDayId) || null
+            : list.find((t) => t.edition_id === preferScope && !t.edition_day_id) || null
+          : null;
       const preferred =
         preferId && list.some((t) => t.id === preferId && !t.edition_id)
           ? list.find((t) => t.id === preferId) || null
@@ -191,14 +206,42 @@ export const StickerTemplateSettings: React.FC = () => {
 
   const selectScope = (nextScope: string) => {
     setScope(nextScope);
+    setSelectedDayId('');
+    setEditionDays([]);
     setWarnings([]);
     setStatus(null);
 
     const next =
       nextScope === 'global'
         ? defaultTemplate
-        : templates.find((t) => t.edition_id === nextScope) || null;
+        : templates.find((t) => t.edition_id === nextScope && !t.edition_day_id) || null;
 
+    setSelectedId(next?.id || '');
+    setDraft(next ? toPatch(next) : null);
+    setImageUrl(next?.image_url ?? null);
+
+    if (nextScope !== 'global') {
+      const supabase = createClient();
+      if (supabase) {
+        fetchEditionDays(supabase, nextScope).then((days) => {
+          setEditionDays(days);
+          if (days.length === 1) {
+            // One-day editions behave exactly like before: edit the edition
+            // fallback rather than forcing a day-specific duplicate.
+            setSelectedDayId('');
+          }
+        });
+      }
+    }
+  };
+
+  const selectDay = (dayId: string) => {
+    setSelectedDayId(dayId);
+    setWarnings([]);
+    setStatus(null);
+    const next = dayId
+      ? templates.find((t) => t.edition_day_id === dayId) || null
+      : templates.find((t) => t.edition_id === scope && !t.edition_day_id) || null;
     setSelectedId(next?.id || '');
     setDraft(next ? toPatch(next) : null);
     setImageUrl(next?.image_url ?? null);
@@ -361,13 +404,19 @@ export const StickerTemplateSettings: React.FC = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           edition_id: scope,
-          duplicate_of: defaultTemplate?.id,
+          edition_day_id: selectedDayId || null,
+          duplicate_of: editionTemplate?.id || defaultTemplate?.id,
         }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || 'Failed to create edition design');
-      await loadTemplates(data.template?.id, scope);
-      flash('Custom sticker design created for this edition.', 'success');
+      await loadTemplates(data.template?.id, scope, selectedDayId || undefined);
+      flash(
+        selectedDayId
+          ? 'Custom sticker design created for this day.'
+          : 'Custom sticker design created for this edition.',
+        'success'
+      );
     } catch (err: any) {
       flash(err?.message || 'Failed to create edition design', 'error');
     } finally {
@@ -416,7 +465,9 @@ export const StickerTemplateSettings: React.FC = () => {
     if (
       !confirm(
         removingEdition
-          ? `Remove this edition's custom sticker design? It will fall back to the global default.`
+          ? selected.edition_day_id
+            ? `Remove this day's custom sticker design? It will fall back to the edition then global default.`
+            : `Remove this edition's custom sticker design? It will fall back to the global default.`
           : `Delete "${selected.preset_name}"? This cannot be undone.`
       )
     ) {
@@ -486,8 +537,13 @@ export const StickerTemplateSettings: React.FC = () => {
   }
 
   const editionLabel = editions.find((e) => e.id === scope)?.name || 'This edition';
+  const activeDay = editionDays.find((d) => d.id === selectedDayId) || null;
+  const scopeLabel = activeDay ? `${editionLabel} · ${dayLabel(activeDay)}` : editionLabel;
   const editionIdsWithTemplate = new Set(
-    templates.filter((t) => t.edition_id).map((t) => t.edition_id as string)
+    templates.filter((t) => t.edition_id && !t.edition_day_id).map((t) => t.edition_id as string)
+  );
+  const dayIdsWithTemplate = new Set(
+    templates.filter((t) => t.edition_day_id).map((t) => t.edition_day_id as string)
   );
 
   const numField = (
@@ -575,11 +631,36 @@ export const StickerTemplateSettings: React.FC = () => {
             </option>
           ))}
         </select>
+        {isEditionScope && editionDays.length > 1 && (
+          <div className="flex items-center gap-2">
+            <label htmlFor="sticker-template-day" className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">
+              Day
+            </label>
+            <select
+              id="sticker-template-day"
+              value={selectedDayId}
+              onChange={(e) => selectDay(e.target.value)}
+              className="min-w-[200px] bg-bg-input border border-border rounded-md px-3 py-2 text-xs text-text-primary outline-none focus:border-accent"
+            >
+              <option value="">Edition fallback</option>
+              {editionDays.map((day) => (
+                <option key={day.id} value={day.id}>
+                  {dayLabel(day)} · {dayDateLabel(day)}
+                  {dayIdsWithTemplate.has(day.id) ? ' (custom design)' : ''}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
         <p className="text-[11px] text-text-tertiary sm:ml-auto">
           {isEditionScope && editionTemplate
-            ? 'Editing the design used only by this edition.'
+            ? isDayScope
+              ? 'Editing the design used only by this day.'
+              : 'Editing the fallback design used by this edition.'
             : isEditionScope
-            ? 'This edition currently uses the global default.'
+            ? isDayScope
+              ? 'This day currently uses the edition/global fallback.'
+              : 'This edition currently uses the global default.'
             : 'Editing the fallback design used by all editions.'}
         </p>
       </div>
@@ -610,7 +691,7 @@ export const StickerTemplateSettings: React.FC = () => {
             <Sparkles className="w-5 h-5 text-accent shrink-0 mt-0.5" />
             <div>
               <p className="text-sm font-bold text-text-primary">
-                {editionLabel} uses the global default sticker design
+                {scopeLabel} has no custom sticker design yet
               </p>
               <p className="text-[11px] text-text-secondary mt-1">
                 {defaultTemplate
@@ -631,7 +712,7 @@ export const StickerTemplateSettings: React.FC = () => {
             ) : (
               <Sparkles className="w-3.5 h-3.5" />
             )}
-            Customize for this edition
+            {isDayScope ? 'Customize for this day' : 'Customize for this edition'}
           </Button>
         </div>
       )}
@@ -653,7 +734,7 @@ export const StickerTemplateSettings: React.FC = () => {
             )}
             {isEditionScope && (
               <Badge variant="info" size="sm">
-                Custom design for {editionLabel}
+                Custom design for {scopeLabel}
               </Badge>
             )}
             <div className="flex items-center gap-2 ml-auto">

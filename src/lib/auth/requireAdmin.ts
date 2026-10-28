@@ -52,6 +52,26 @@ async function loadAuthProfile(): Promise<AdminAuthResult> {
   }
 }
 
+/**
+ * Any approved staff member (user / admin / super_admin). Gate check-in uses
+ * this rather than requireAdmin so field operators can keep working.
+ */
+export async function requireApprovedUser(): Promise<AdminAuthResult> {
+  const result = await loadAuthProfile();
+  if (result.response) return result;
+
+  if (!['user', 'admin', 'super_admin'].includes(result.profile?.role)) {
+    return {
+      response: NextResponse.json(
+        { error: 'Insufficient permissions.' },
+        { status: 403 }
+      ),
+    };
+  }
+
+  return result;
+}
+
 export async function requireAdmin(): Promise<AdminAuthResult> {
   const result = await loadAuthProfile();
   if (result.response) return result;

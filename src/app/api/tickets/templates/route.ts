@@ -31,15 +31,28 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const editionId = searchParams.get('edition_id');
+    const editionDayId = searchParams.get('edition_day_id');
 
     const supabase = createServiceClient();
 
+    if (editionDayId) {
+      const { data: dayTemplate } = await supabase
+        .from('ticket_templates')
+        .select('*')
+        .eq('edition_day_id', editionDayId)
+        .maybeSingle();
+      if (dayTemplate) {
+        return NextResponse.json({ template: dayTemplate, tableExists: true });
+      }
+    }
+
     if (editionId) {
-      // 1. Try to find edition-specific template
+      // 1. Try to find edition-specific fallback template
       const { data: editionTemplate, error: edErr } = await supabase
         .from('ticket_templates')
         .select('*')
         .eq('edition_id', editionId)
+        .is('edition_day_id', null)
         .maybeSingle();
 
       if (editionTemplate) {
@@ -94,6 +107,7 @@ export async function POST(request: NextRequest) {
     const body = await request.json();
     const {
       edition_id,
+      edition_day_id,
       background_image_url,
       canvas_width,
       canvas_height,
@@ -127,6 +141,7 @@ export async function POST(request: NextRequest) {
 
     const payload: Partial<TicketTemplate> = {
       edition_id: edition_id || null,
+      edition_day_id: edition_day_id || null,
       is_default: !!is_default,
       background_image_url,
       canvas_width: width,
@@ -136,12 +151,35 @@ export async function POST(request: NextRequest) {
     };
 
     let result;
-    if (edition_id) {
-      const { data, error } = await supabase
+    if (edition_day_id) {
+      // A day template always belongs to an edition as well, which keeps the
+      // edition fallback queries simple. Partial unique indexes cannot be used
+      // for PostgREST upsert inference, so look up then insert/update.
+      const { data: existingDay } = await supabase
         .from('ticket_templates')
-        .upsert(payload, { onConflict: 'edition_id' })
-        .select()
-        .single();
+        .select('id')
+        .eq('edition_day_id', edition_day_id)
+        .maybeSingle();
+
+      const query = existingDay?.id
+        ? supabase.from('ticket_templates').update(payload).eq('id', existingDay.id)
+        : supabase.from('ticket_templates').insert(payload);
+      const { data, error } = await query.select().single();
+
+      if (error) throw error;
+      result = data;
+    } else if (edition_id) {
+      const { data: existingEdition } = await supabase
+        .from('ticket_templates')
+        .select('id')
+        .eq('edition_id', edition_id)
+        .is('edition_day_id', null)
+        .maybeSingle();
+
+      const query = existingEdition?.id
+        ? supabase.from('ticket_templates').update(payload).eq('id', existingEdition.id)
+        : supabase.from('ticket_templates').insert(payload);
+      const { data, error } = await query.select().single();
 
       if (error) throw error;
       result = data;
@@ -184,9 +222,10 @@ export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const editionId = searchParams.get('edition_id');
+    const editionDayId = searchParams.get('edition_day_id');
     const templateId = searchParams.get('id');
 
-    if (!editionId && !templateId) {
+    if (!editionId && !editionDayId && !templateId) {
       return NextResponse.json(
         { error: 'edition_id or id is required to delete a template' },
         { status: 400 }
@@ -196,10 +235,12 @@ export async function DELETE(request: NextRequest) {
     const supabase = createServiceClient();
     let query = supabase.from('ticket_templates').delete();
 
-    if (editionId) {
-      query = query.eq('edition_id', editionId);
-    } else if (templateId) {
+    if (templateId) {
       query = query.eq('id', templateId);
+    } else if (editionDayId) {
+      query = query.eq('edition_day_id', editionDayId);
+    } else if (editionId) {
+      query = query.eq('edition_id', editionId).is('edition_day_id', null);
     }
 
     const { error } = await query;

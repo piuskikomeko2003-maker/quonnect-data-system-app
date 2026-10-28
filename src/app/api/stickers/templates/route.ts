@@ -27,6 +27,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const editionId = searchParams.get('edition_id');
+    const editionDayId = searchParams.get('edition_day_id');
 
     const supabase = createServiceClient();
     const templates = await listStickerTemplates(supabase);
@@ -42,7 +43,13 @@ export async function GET(request: NextRequest) {
       withUrls.find((t) => !t.edition_id && t.is_active) ||
       withUrls.find((t) => !t.edition_id) ||
       null;
-    const resolved = (editionId && withUrls.find((t) => t.edition_id === editionId)) || defaultTemplate;
+    const editionFallback = withUrls.find(
+      (t) => editionId && t.edition_id === editionId && !t.edition_day_id
+    );
+    const resolved =
+      (editionDayId && withUrls.find((t) => t.edition_day_id === editionDayId)) ||
+      editionFallback ||
+      defaultTemplate;
 
     return NextResponse.json({ templates: withUrls, template: resolved });
   } catch (err: any) {
@@ -197,13 +204,15 @@ export async function POST(request: NextRequest) {
 
   try {
     const body = await request.json().catch(() => ({}));
-    const { name, duplicate_of, edition_id } = body ?? {};
+    const { name, duplicate_of, edition_id, edition_day_id } = body ?? {};
 
     const supabase = createServiceClient();
     const template = await createStickerTemplate(supabase, {
       name: typeof name === 'string' ? name : undefined,
       duplicateOf: typeof duplicate_of === 'string' ? duplicate_of : undefined,
       editionId: typeof edition_id === 'string' && edition_id ? edition_id : undefined,
+      editionDayId:
+        typeof edition_day_id === 'string' && edition_day_id ? edition_day_id : undefined,
     });
 
     return NextResponse.json({ success: true, template });

@@ -16,6 +16,7 @@ import type { Submission, CachedSchema } from '@/lib/db';
 import { DynamicQuickEntryForm, type FormDataCache } from '@/components/forms/DynamicQuickEntryForm';
 import { Users, Database, Footprints, Loader2, AlertCircle, WifiOff, CloudOff, RefreshCw, Clock, Lock, Ticket } from 'lucide-react';
 import { registerPaidVendorAtomic } from '@/lib/paidRegistration';
+import { fetchEditionDays, passSummary, dayDateLabel, dayLabel, type EditionDay } from '@/lib/editionDays';
 
 // Change to 'latest_closed_edition' to look back only at completed editions
 type AutofillLookback = 'latest_any_edition' | 'latest_closed_edition';
@@ -25,6 +26,7 @@ interface LinkData {
   token: string;
   form_slug: string;
   edition_id: string;
+  allowed_day_ids?: string[];
 }
 
 interface EditionData {
@@ -94,6 +96,7 @@ export default function CollectPage() {
   const [error, setError] = useState<string | null>(null);
   const [linkData, setLinkData] = useState<LinkData | null>(null);
   const [edition, setEdition] = useState<EditionData | null>(null);
+  const [editionDays, setEditionDays] = useState<EditionDay[]>([]);
   const [runningCount, setRunningCount] = useState(0);
   const [syncCounts, setSyncCounts] = useState({ pending: 0, synced: 0 });
   const [pendingSubmissions, setPendingSubmissions] = useState<Submission[]>([]);
@@ -113,6 +116,11 @@ export default function CollectPage() {
     show: boolean;
     name?: string;
     ticketData?: {
+      ticketId?: string;
+      dayId?: string;
+      dayNumber?: number;
+      dayLabel?: string;
+      dayDate?: string;
       ticketNumber: number;
       ticketCode: string;
       editionName: string;
@@ -123,6 +131,7 @@ export default function CollectPage() {
       amountPaid?: number;
       paymentStatus?: string;
       registeredAt: string;
+      tickets?: any[];
     };
     onAddAnother: () => void;
   }>({ show: false, name: undefined, onAddAnother: () => {} });
@@ -255,11 +264,26 @@ export default function CollectPage() {
         const supabase = createClient();
         if (!supabase) throw new Error('Client not initialized');
 
-        const { data: linkResult, error: linkErr } = await supabase
+        let linkResult: any = null;
+        let linkErr: any = null;
+        const richLink = await supabase
           .from('form_links')
-          .select('token, form_slug, edition_id, expires_at')
+          .select('token, form_slug, edition_id, expires_at, allowed_day_ids')
           .eq('token', token)
           .single();
+        if (richLink.error) {
+          // Pre-migration fallback: the column does not exist yet.
+          const basicLink = await supabase
+            .from('form_links')
+            .select('token, form_slug, edition_id, expires_at')
+            .eq('token', token)
+            .single();
+          linkResult = basicLink.data;
+          linkErr = basicLink.error;
+        } else {
+          linkResult = richLink.data;
+          linkErr = richLink.error;
+        }
 
         if (linkErr || !linkResult) {
           throw new Error('Invalid or expired link. Please request a new collection link from your supervisor.');
@@ -299,6 +323,7 @@ export default function CollectPage() {
             .eq('id', linkResult.edition_id)
             .single();
           if (editionData) setEdition(editionData);
+          setEditionDays(await fetchEditionDays(supabase, linkResult.edition_id));
 
           setLinkData(linkResult);
           setLoading(false);
@@ -318,6 +343,7 @@ export default function CollectPage() {
         }
 
         setEdition(editionData);
+        setEditionDays(await fetchEditionDays(supabase, linkResult.edition_id));
         setUsingCachedData(false);
 
         cacheSchema({
@@ -862,6 +888,14 @@ export default function CollectPage() {
   if (!linkData || !edition) return null;
 
   const config = FORM_CONFIG[linkData.form_slug];
+  const allowedDayIds = linkData.allowed_day_ids || [];
+  const assignedDays = editionDays.filter(
+    (d) => allowedDayIds.length === 0 || allowedDayIds.includes(d.id)
+  );
+  const assignedPassLabel =
+    linkData.form_slug === 'paid_vendor_registration' && assignedDays.length > 0
+      ? passSummary(assignedDays)
+      : '';
 
   return (
     <div className="min-h-dvh bg-bg flex flex-col">
@@ -975,6 +1009,24 @@ export default function CollectPage() {
 
       <main className="flex-1 flex items-start justify-center p-3 sm:p-6 pt-10">
         <div className="w-full max-w-[560px]">
+          {assignedPassLabel && (
+            <div className="mb-3 rounded-xl border border-accent/25 bg-accent-soft px-4 py-3 text-left">
+              <p className="text-[10px] font-bold uppercase tracking-widest text-accent">
+                Paid admission
+              </p>
+              <p className="mt-1 text-sm font-bold text-text-primary">{assignedPassLabel}</p>
+              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-0.5">
+                {assignedDays.map((d) => (
+                  <span key={d.id} className="text-[10px] text-text-secondary">
+                    {dayLabel(d)} · {dayDateLabel(d)}
+                  </span>
+                ))}
+              </div>
+              <p className="mt-1.5 text-[10px] text-text-tertiary">
+                These days were paid for and cannot be changed on this form.
+              </p>
+            </div>
+          )}
           <DynamicQuickEntryForm
             formSlug={linkData.form_slug}
             activeEdition={edition}

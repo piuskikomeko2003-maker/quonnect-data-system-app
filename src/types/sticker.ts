@@ -143,6 +143,8 @@ export interface StickerTemplate {
   id: string;
   /** NULL for a global preset; set when this design belongs to one edition. */
   edition_id: string | null;
+  /** Set when this design belongs to one specific day of an edition. */
+  edition_day_id?: string | null;
   preset_key: string;
   preset_name: string;
   is_active: boolean;
@@ -192,6 +194,7 @@ export type StickerTemplatePatch = Omit<
 
 export const DEFAULT_STICKER_TEMPLATE: StickerTemplatePatch = {
   edition_id: null,
+  edition_day_id: null,
   orientation: 'landscape',
   // Landscape A4 = 297 x 210 mm.
   page_width_mm: 297,
@@ -226,6 +229,9 @@ export const DEFAULT_STICKER_TEMPLATE: StickerTemplatePatch = {
 /** One sticker = one table of one vendor. */
 export interface StickerNeed {
   registration_id: string;
+  /** Set for a day-specific ticket; null/undefined for legacy edition-wide rows. */
+  ticket_id?: string | null;
+  edition_day_id?: string | null;
   vendor_id: string;
   business_name: string;
   ticket_number: number | null;
@@ -235,12 +241,16 @@ export interface StickerNeed {
 /** A vendor's stickers within a batch, kept together (never split). */
 export interface StickerBatchItem {
   registration_id: string;
+  ticket_id?: string | null;
+  edition_day_id?: string | null;
   table_numbers: number[];
 }
 
-/** A paid vendor registration summarised for the sticker feature. */
+/** A paid vendor/ticket summarised for the sticker feature. */
 export interface StickerVendor {
   registration_id: string;
+  ticket_id?: string | null;
+  edition_day_id?: string | null;
   vendor_id: string;
   business_name: string;
   ticket_number: number | null;
@@ -267,6 +277,7 @@ export function normalizeTemplate(row: any): StickerTemplate {
   return {
     ...row,
     edition_id: row.edition_id ?? null,
+    edition_day_id: row.edition_day_id ?? null,
     orientation,
     page_width_mm: pageWidth,
     page_height_mm: pageHeight,

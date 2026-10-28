@@ -80,6 +80,52 @@ export async function GET(request: NextRequest) {
       }
     }
 
+    // 1b. Resolve a specific per-day ticket.
+    const ticketId = searchParams.get('ticket_id');
+    let resolvedDayLabel: string | null = null;
+    let resolvedDayTemplateId: string | null = null;
+    let resolvedEditionDayId: string | null = null;
+    if (ticketId) {
+      const { data: ticket } = await supabase
+        .from('vendor_tickets')
+        .select('*, edition_days(id, day_number, label, event_date, ticket_template_id), vendor_registrations(*, vendors(*)), market_days(id, name)')
+        .eq('id', ticketId)
+        .maybeSingle();
+
+      if (ticket) {
+        const day = ticket.edition_days as any;
+        const reg = ticket.vendor_registrations as any;
+        const vendor = reg?.vendors as any;
+        resolvedDayLabel = day?.label || (day?.day_number ? `Day ${day.day_number}` : null);
+        resolvedDayTemplateId = day?.ticket_template_id || null;
+        resolvedEditionDayId = day?.id || null;
+
+        ticketData = {
+          ticketNumber: String(ticket.ticket_number || '1'),
+          ticketCode: normalizeTicketCode(ticket.ticket_code) || '001',
+          editionName: [
+            (ticket.market_days as any)?.name || 'Event Edition',
+            resolvedDayLabel,
+          ].filter(Boolean).join(' — '),
+          vendorName: vendor?.contact_name || vendor?.business_name || 'Vendor',
+          businessName: vendor?.business_name || '',
+          category: vendor?.category || '',
+          phone: vendor?.phone || '',
+          amountPaid: ticket.fee ?? reg?.amount_paid,
+          paymentStatus: reg?.payment_status || 'paid',
+          registeredAt: ticket.created_at || reg?.created_at || new Date().toISOString(),
+        };
+      }
+    }
+
+    const dayLabelOverride = searchParams.get('day_label');
+    if (dayLabelOverride && ticketData.editionName) {
+      resolvedDayLabel = resolvedDayLabel || dayLabelOverride;
+      if (!ticketData.editionName.includes(dayLabelOverride)) {
+        ticketData.editionName = `${ticketData.editionName} — ${dayLabelOverride}`;
+      }
+    }
+
     // Override with any explicit query parameters if provided
     if (searchParams.get('vendor_name')) {
       ticketData.vendorName = searchParams.get('vendor_name')!;
@@ -106,11 +152,33 @@ export async function GET(request: NextRequest) {
     // 2. Fetch template for edition (or fallback to default template)
     let template = null;
     try {
-      if (editionId) {
+      // A day-specific template always wins over the edition fallback.
+      if (resolvedDayTemplateId) {
+        const { data: dayTemplate, error: dayErr } = await supabase
+          .from('ticket_templates')
+          .select('*')
+          .eq('id', resolvedDayTemplateId)
+          .maybeSingle();
+        if (!dayErr && dayTemplate) template = dayTemplate;
+      }
+
+      // Settings saves day templates with edition_day_id. They may not have
+      // been linked from edition_days.ticket_template_id, so look them up too.
+      if (!template && resolvedEditionDayId) {
+        const { data: dayTemplate } = await supabase
+          .from('ticket_templates')
+          .select('*')
+          .eq('edition_day_id', resolvedEditionDayId)
+          .maybeSingle();
+        if (dayTemplate) template = dayTemplate;
+      }
+
+      if (!template && editionId) {
         const { data: edTemplate, error: edErr } = await supabase
           .from('ticket_templates')
           .select('*')
           .eq('edition_id', editionId)
+          .is('edition_day_id', null)
           .maybeSingle();
 
         if (!edErr && edTemplate) template = edTemplate;
@@ -195,6 +263,29 @@ export async function GET(request: NextRequest) {
                 objectFit: 'cover',
               }}
             />
+
+            {/* Day badge: multi-day tickets must always be clearly labelled,
+                even when the custom background was designed for one day. */}
+            {resolvedDayLabel && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '18px',
+                  right: '18px',
+                  display: 'flex',
+                  backgroundColor: 'rgba(13, 17, 23, 0.82)',
+                  color: '#4ade80',
+                  border: '1px solid rgba(74, 222, 128, 0.55)',
+                  borderRadius: '9999px',
+                  padding: '7px 16px',
+                  fontSize: '18px',
+                  fontWeight: 800,
+                  letterSpacing: '1px',
+                }}
+              >
+                {resolvedDayLabel}
+              </div>
+            )}
 
             {/* Dynamic Field Overlays */}
             {REQUIRED_TICKET_FIELDS.map((field) => {

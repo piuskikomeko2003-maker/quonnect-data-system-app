@@ -30,6 +30,8 @@ export function buildStickerNeeds(vendors: StickerVendor[]): StickerNeed[] {
     for (let table = printed + 1; table <= tables; table++) {
       needs.push({
         registration_id: vendor.registration_id,
+        ticket_id: vendor.ticket_id ?? null,
+        edition_day_id: vendor.edition_day_id ?? null,
         vendor_id: vendor.vendor_id,
         business_name: vendor.business_name,
         ticket_number: vendor.ticket_number,
@@ -94,10 +96,19 @@ export function selectBatch(
   const items: StickerBatchItem[] = [];
   for (const need of needs) {
     const last = items[items.length - 1];
-    if (last && last.registration_id === need.registration_id) {
+    if (
+      last &&
+      last.registration_id === need.registration_id &&
+      (last.ticket_id ?? null) === (need.ticket_id ?? null)
+    ) {
       last.table_numbers.push(need.table_number);
     } else {
-      items.push({ registration_id: need.registration_id, table_numbers: [need.table_number] });
+      items.push({
+        registration_id: need.registration_id,
+        ticket_id: need.ticket_id ?? null,
+        edition_day_id: need.edition_day_id ?? null,
+        table_numbers: [need.table_number],
+      });
     }
   }
 

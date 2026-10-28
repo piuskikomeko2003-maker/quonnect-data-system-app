@@ -53,6 +53,11 @@ export interface QuickEntryPanelProps {
   onWalkinSubmit: (answers: Record<string, string>) => Promise<void>;
   onPhoneLookup: (phone: string, formSlug: string) => Promise<Record<string, string> | null>;
   onGenerateLink: () => void;
+  editionDays?: Array<{ id: string; day_number: number; event_date: string; label: string | null }>;
+  selectedLinkDayIds?: string[];
+  onToggleLinkDay?: (dayId: string) => void;
+  linkBatchCount?: number;
+  onLinkBatchCountChange?: (count: number) => void;
   paidCount: number;
   collectionCount: number;
   walkinCount: number;
@@ -60,6 +65,11 @@ export interface QuickEntryPanelProps {
     show: boolean;
     name?: string;
     ticketData?: {
+      ticketId?: string;
+      dayId?: string;
+      dayNumber?: number;
+      dayLabel?: string;
+      dayDate?: string;
       ticketNumber: number;
       ticketCode: string;
       editionName: string;
@@ -70,6 +80,7 @@ export interface QuickEntryPanelProps {
       amountPaid?: number;
       paymentStatus?: string;
       registeredAt: string;
+      tickets?: any[];
     };
     onAddAnother: () => void;
   };
@@ -89,6 +100,11 @@ export const QuickEntryPanel: React.FC<QuickEntryPanelProps> = ({
   onWalkinSubmit,
   onPhoneLookup,
   onGenerateLink,
+  editionDays = [],
+  selectedLinkDayIds = [],
+  onToggleLinkDay,
+  linkBatchCount = 1,
+  onLinkBatchCountChange,
   paidCount,
   collectionCount,
   walkinCount,
@@ -207,6 +223,49 @@ export const QuickEntryPanel: React.FC<QuickEntryPanelProps> = ({
             </button>
           ))}
         </div>
+
+        {activeTab === 'paid' && editionDays.length > 1 && (
+          <div className="border-b border-border bg-white px-4 py-3 space-y-2">
+            <div>
+              <p className="text-[10px] font-bold uppercase tracking-widest text-text-tertiary">
+                Days this vendor paid for
+              </p>
+              <p className="text-[10px] text-text-secondary mt-0.5">
+                Stored on the link and read by the server. The vendor cannot change it.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-1.5">
+              {editionDays.map((day) => {
+                const selected = selectedLinkDayIds.includes(day.id);
+                return (
+                  <button
+                    key={day.id}
+                    type="button"
+                    onClick={() => onToggleLinkDay?.(day.id)}
+                    className={`rounded-md border px-2.5 py-1.5 text-[10px] font-bold transition-colors cursor-pointer ${
+                      selected
+                        ? 'border-accent bg-accent-soft text-accent'
+                        : 'border-border bg-white text-text-secondary hover:border-accent/40'
+                    }`}
+                  >
+                    {day.label?.trim() || `Day ${day.day_number}`}
+                  </button>
+                );
+              })}
+            </div>
+            <div className="flex items-center gap-2">
+              <label className="text-[10px] font-semibold text-text-secondary">Links to generate</label>
+              <input
+                type="number"
+                min={1}
+                max={50}
+                value={linkBatchCount}
+                onChange={(e) => onLinkBatchCountChange?.(Number(e.target.value) || 1)}
+                className="w-16 rounded-md border border-border bg-white px-2 py-1 text-[11px] font-mono outline-none focus:border-accent"
+              />
+            </div>
+          </div>
+        )}
 
         <div className="p-5 bg-transparent relative min-h-[250px] max-h-[70vh] overflow-y-auto">
           {disabled && (

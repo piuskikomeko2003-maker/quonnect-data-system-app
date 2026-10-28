@@ -69,13 +69,15 @@ function isMissingEditionColumn(error: unknown): boolean {
  * Resolves the sticker template to use.
  *
  *  - `templateId` wins (used when reopening a stored batch).
- *  - otherwise `editionId` gets that edition's custom design.
+ *  - otherwise `editionDayId` gets that day's custom design.
+ *  - otherwise `editionId` gets that edition's fallback design.
  *  - otherwise the globally active preset is the fallback.
  */
 export async function getStickerTemplate(
   supabase: ServiceClient,
   templateId?: string | null,
-  editionId?: string | null
+  editionId?: string | null,
+  editionDayId?: string | null
 ): Promise<StickerTemplate | null> {
   if (templateId) {
     const { data, error } = await supabase
@@ -87,11 +89,25 @@ export async function getStickerTemplate(
     return data ? normalizeTemplate(data) : null;
   }
 
+  if (editionDayId) {
+    const { data, error } = await supabase
+      .from('sticker_templates')
+      .select('*')
+      .eq('edition_day_id', editionDayId)
+      .maybeSingle();
+    if (error) {
+      if (!isMissingEditionColumn(error)) throw error;
+    } else if (data) {
+      return normalizeTemplate(data);
+    }
+  }
+
   if (editionId) {
     const { data, error } = await supabase
       .from('sticker_templates')
       .select('*')
       .eq('edition_id', editionId)
+      .is('edition_day_id', null)
       .maybeSingle();
     if (error) {
       // Before the per-edition migration is applied, keep using the global
@@ -142,11 +158,70 @@ async function seedDefaultTemplates(supabase: ServiceClient): Promise<StickerTem
   return (data || []).map(normalizeTemplate);
 }
 
-/** Loads the paid vendor registrations for an edition, shaped for sticker logic. */
+/**
+ * Loads paid vendors shaped for sticker logic.
+ *
+ * With `editionDayId`, one row is returned per paid ticket for that day, using
+ * that ticket's own number and printed count. Without it, the legacy
+ * registration-level view is returned (one row per paid registration).
+ */
 export async function fetchStickerVendors(
   supabase: ServiceClient,
-  marketDayId: string
+  marketDayId: string,
+  editionDayId?: string | null
 ): Promise<StickerVendor[]> {
+  const PAGE_SIZE = 1000;
+
+  if (editionDayId) {
+    const daySelect = `
+      id,
+      registration_id,
+      edition_day_id,
+      ticket_number,
+      ticket_code,
+      stickers_printed,
+      vendor_registrations!inner (
+        id,
+        vendor_id,
+        tables,
+        payment_status,
+        vendors ( business_name, contact_name )
+      )
+    `;
+
+    const rows: any[] = [];
+    for (let from = 0; ; from += PAGE_SIZE) {
+      const { data, error } = await supabase
+        .from('vendor_tickets')
+        .select(daySelect)
+        .eq('edition_day_id', editionDayId)
+        .eq('vendor_registrations.payment_status', 'paid')
+        .order('ticket_number', { ascending: true })
+        .range(from, from + PAGE_SIZE - 1);
+      if (error) throw error;
+      const batch = data || [];
+      rows.push(...batch);
+      if (batch.length < PAGE_SIZE) break;
+    }
+
+    return rows.map((row: any) => {
+      const reg = row.vendor_registrations || {};
+      const ticket = Number.isFinite(Number(row.ticket_number))
+        ? Number(row.ticket_number)
+        : Number(String(row.ticket_code || '').match(/\d+/)?.[0] ?? NaN);
+      return {
+        registration_id: row.registration_id,
+        ticket_id: row.id,
+        edition_day_id: row.edition_day_id,
+        vendor_id: reg.vendor_id,
+        business_name: reg.vendors?.business_name || reg.vendors?.contact_name || 'Unknown vendor',
+        ticket_number: Number.isFinite(ticket) ? ticket : null,
+        tables: Math.max(1, Number(reg.tables) || 1),
+        stickers_printed: Math.max(0, Number(row.stickers_printed) || 0),
+      };
+    });
+  }
+
   const baseSelect = `
       id,
       vendor_id,
@@ -159,7 +234,6 @@ export async function fetchStickerVendors(
 
   // PostgREST caps a single response (often 1000 rows). Page through so a large
   // edition is never silently truncated, which would look like skipped stickers.
-  const PAGE_SIZE = 1000;
   const rows: any[] = [];
   for (let from = 0; ; from += PAGE_SIZE) {
     const { data, error } = await supabase
@@ -181,6 +255,8 @@ export async function fetchStickerVendors(
       : Number(String(row.stall_number || '').match(/\d+/)?.[0] ?? NaN);
     return {
       registration_id: row.id,
+      ticket_id: null,
+      edition_day_id: null,
       vendor_id: row.vendor_id,
       business_name: row.vendors?.business_name || row.vendors?.contact_name || 'Unknown vendor',
       ticket_number: Number.isFinite(ticket) ? ticket : null,
@@ -402,16 +478,29 @@ async function uniquePresetKey(supabase: ServiceClient, base: string): Promise<s
  */
 export async function createStickerTemplate(
   supabase: ServiceClient,
-  options: { name?: string; duplicateOf?: string; editionId?: string }
+  options: { name?: string; duplicateOf?: string; editionId?: string; editionDayId?: string }
 ): Promise<StickerTemplate> {
   const all = await listStickerTemplates(supabase);
 
-  if (options.editionId && all.some((t) => t.edition_id === options.editionId)) {
+  if (options.editionDayId) {
+    if (all.some((t) => t.edition_day_id === options.editionDayId)) {
+      throw new Error('This day already has its own sticker design.');
+    }
+  } else if (options.editionId && all.some((t) => t.edition_id === options.editionId && !t.edition_day_id)) {
     throw new Error('This edition already has its own sticker design.');
   }
 
+  const editionFallback = options.editionId
+    ? all.find((t) => t.edition_id === options.editionId && !t.edition_day_id) || null
+    : null;
+
   const source = options.duplicateOf
     ? all.find((t) => t.id === options.duplicateOf) || null
+    : options.editionDayId
+    ? editionFallback ||
+      all.find((t) => !t.edition_id && t.is_active) ||
+      all.find((t) => !t.edition_id) ||
+      null
     : options.editionId
     ? all.find((t) => !t.edition_id && t.is_active) || all.find((t) => !t.edition_id) || null
     : null;
@@ -427,10 +516,22 @@ export async function createStickerTemplate(
     editionName = editionRow?.edition || editionRow?.name || null;
   }
 
+  let dayName: string | null = null;
+  if (options.editionDayId) {
+    const { data: day } = await supabase
+      .from('edition_days')
+      .select('day_number, label')
+      .eq('id', options.editionDayId)
+      .maybeSingle();
+    dayName = (day as any)?.label || ((day as any)?.day_number ? `Day ${(day as any).day_number}` : null);
+  }
+
   const requestedName = String(options.name || '').trim().slice(0, 80);
   const presetName =
     requestedName ||
-    (options.editionId
+    (options.editionDayId
+      ? `${editionName || 'Edition'} · ${dayName || 'Day'} stickers`
+      : options.editionId
       ? `${editionName || 'Edition'} stickers`
       : source
       ? `${source.preset_name} (copy)`
@@ -473,6 +574,7 @@ export async function createStickerTemplate(
     .insert({
       ...grid,
       edition_id: options.editionId ?? null,
+      edition_day_id: options.editionDayId ?? null,
       preset_key: presetKey,
       preset_name: presetName,
       is_active: false,
