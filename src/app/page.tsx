@@ -289,6 +289,17 @@ export default function Home() {
   /** Guards against older list fetches overwriting newer ones. */
   const paidVendorsFetchSeqRef = useRef(0);
 
+  /**
+   * Same idea as entryOverlayRef, but keyed by ticket id for per-day passes.
+   * Applied on every refresh so a slow fetch cannot visually undo a tap.
+   */
+  const ticketEntryOverlayRef = useRef(new globalThis.Map<string, string | null>());
+  /** Latest desired value per ticket; the queue only ever sends this. */
+  const ticketEntryDesiredRef = useRef(new globalThis.Map<string, string | null>());
+  /** Ticket ids with an in-flight write, so taps join the queue instead of racing. */
+  const ticketEntryRunningRef = useRef(new globalThis.Set<string>());
+  const [savingTicketIds, setSavingTicketIds] = useState<globalThis.Set<string>>(() => new globalThis.Set());
+
   // Inline "tables" editing on the paid vendors list (admin only).
   const [editingTablesId, setEditingTablesId] = useState<string | null>(null);
   const [tablesDraft, setTablesDraft] = useState('');
@@ -1026,7 +1037,8 @@ export default function Home() {
               )
             `)
             .eq('market_day_id', activeEdition.id)
-            .order('created_at', { ascending: false }),
+            .order('created_at', { ascending: false })
+            .order('id', { ascending: true }),
           supabase
             .from('survey_responses')
             .select('vendor_id')
@@ -1064,7 +1076,8 @@ export default function Home() {
               )
             `)
             .eq('market_day_id', activeEdition.id)
-            .order('created_at', { ascending: false });
+            .order('created_at', { ascending: false })
+            .order('id', { ascending: true });
 
           if (fallbackReg.error) {
             fallbackReg = await supabase
@@ -1087,7 +1100,8 @@ export default function Home() {
                 )
               `)
               .eq('market_day_id', activeEdition.id)
-              .order('created_at', { ascending: false });
+              .order('created_at', { ascending: false })
+              .order('id', { ascending: true });
           }
 
           if (fallbackReg.error) throw fallbackReg.error;
@@ -1113,10 +1127,23 @@ export default function Home() {
         const registrations = regRows.map((r: any) => {
           const ticketNumber = normalizeTicketCode(r.ticket_number || r.stall_number || r.notes?.match(/Ticket #(\d+)/)?.[1]) || '';
           const overlay = entryOverlayRef.current;
-          const tickets = [...(ticketsByRegistration.get(r.id) || [])].sort(
-            (a: any, b: any) =>
-              (a.edition_days?.day_number || 0) - (b.edition_days?.day_number || 0)
-          );
+          const ticketOverlay = ticketEntryOverlayRef.current;
+          const tickets = [...(ticketsByRegistration.get(r.id) || [])]
+            .sort(
+              (a: any, b: any) =>
+                (a.edition_days?.day_number || 0) - (b.edition_days?.day_number || 0)
+            )
+            .map((t: any) => {
+              // A mark the operator just tapped wins over server data until the
+              // write lands. Once the server agrees, drop the overlay.
+              if (!ticketOverlay.has(t.id)) return t;
+              const desired = ticketOverlay.get(t.id) ?? null;
+              if ((t.check_in_time ?? null) === desired) {
+                ticketOverlay.delete(t.id);
+                return t;
+              }
+              return { ...t, check_in_time: desired };
+            });
           const ticketCheckIn = tickets.find((t: any) => t.check_in_time)?.check_in_time || null;
           return {
             id: r.id,
@@ -1267,48 +1294,97 @@ export default function Home() {
     }
   };
 
+  /** Re-derive a row's tickets + overall flag from the local ticket overlay. */
+  const applyTicketOverlayToVendor = (p: any) => {
+    const overlay = ticketEntryOverlayRef.current;
+    const tickets = (p.tickets || []).map((t: any) =>
+      overlay.has(t.id) ? { ...t, check_in_time: overlay.get(t.id) ?? null } : t
+    );
+    const ticketCheckIn = tickets.find((t: any) => t.check_in_time)?.check_in_time || null;
+    return {
+      ...p,
+      tickets,
+      check_in_time: tickets.length > 0 ? ticketCheckIn : p.check_in_time,
+    };
+  };
+
+  /**
+   * Serialized delivery for per-ticket entry marks. Only the operator's latest
+   * intent per ticket is sent, so a slow request cannot land after a newer one
+   * and flip the row back (mark → unmark → mark).
+   */
+  const flushTicketEntry = async (ticketId: string) => {
+    if (ticketEntryRunningRef.current.has(ticketId)) return;
+    ticketEntryRunningRef.current.add(ticketId);
+    setSavingTicketIds((prev) => {
+      const next = new globalThis.Set(prev);
+      next.add(ticketId);
+      return next;
+    });
+
+    let lastWritten: string | null | undefined;
+    try {
+      while (ticketEntryDesiredRef.current.has(ticketId)) {
+        const desired = ticketEntryDesiredRef.current.get(ticketId) ?? null;
+        ticketEntryDesiredRef.current.delete(ticketId);
+
+        const res = await fetch('/api/vendors/tickets', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action: 'check-in', ticketId, checkIn: !!desired }),
+        });
+        const data = await res.json().catch(() => ({}));
+        if (!res.ok) throw new Error(data?.error || 'Failed to update entry');
+        lastWritten = desired;
+      }
+
+      // Reconcile against the authoritative row. The overlay is NOT dropped
+      // here: fetchPaidVendors removes it only once the server value actually
+      // matches, so a lagging read cannot flash the row back to "Mark Entry".
+      await fetchPaidVendors(true);
+      window.setTimeout(() => {
+        const overlay = ticketEntryOverlayRef.current;
+        if (lastWritten !== undefined && overlay.get(ticketId) === lastWritten) {
+          overlay.delete(ticketId);
+        }
+      }, 8_000);
+      if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(10);
+    } catch (err: any) {
+      ticketEntryOverlayRef.current.delete(ticketId);
+      ticketEntryDesiredRef.current.delete(ticketId);
+      addToast(err?.message || 'Failed to update entry', 'error');
+      void fetchPaidVendors(true);
+    } finally {
+      ticketEntryRunningRef.current.delete(ticketId);
+      setSavingTicketIds((prev) => {
+        const next = new globalThis.Set(prev);
+        next.delete(ticketId);
+        return next;
+      });
+      // A tap that arrived during the final write still needs to be sent.
+      if (ticketEntryDesiredRef.current.has(ticketId)) void flushTicketEntry(ticketId);
+    }
+  };
+
   /**
    * Per-day gate entry for multi-day editions. Any day's ticket can be marked
    * at any time so gate staff are never blocked if a day's setup runs late or
    * needs a backfill.
    */
-  const handleToggleTicketEntry = async (registrationId: string, ticket: any) => {
-    const checkIn = !ticket.check_in_time;
-    const optimisticTime = checkIn ? new Date().toISOString() : null;
+  const handleToggleTicketEntry = (registrationId: string, ticket: any) => {
+    const overlay = ticketEntryOverlayRef.current;
+    const current = overlay.has(ticket.id) ? overlay.get(ticket.id)! : ticket.check_in_time ?? null;
+    const desired = current ? null : new Date().toISOString();
 
+    // Optimistic + overlay first: the button flips instantly and stays flipped
+    // across any refresh that started before this write.
+    overlay.set(ticket.id, desired);
+    ticketEntryDesiredRef.current.set(ticket.id, desired);
     setPaidVendors((prev) =>
-      prev.map((p) =>
-        p.id === registrationId
-          ? {
-              ...p,
-              tickets: (p.tickets || []).map((t: any) =>
-                t.id === ticket.id ? { ...t, check_in_time: optimisticTime } : t
-              ),
-              check_in_time:
-                (p.tickets || []).some((t: any) =>
-                  t.id === ticket.id ? checkIn : !!t.check_in_time
-                )
-                  ? optimisticTime || p.check_in_time
-                  : null,
-            }
-          : p
-      )
+      prev.map((p) => (p.id === registrationId ? applyTicketOverlayToVendor(p) : p))
     );
 
-    try {
-      const res = await fetch('/api/vendors/tickets', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'check-in', ticketId: ticket.id, checkIn }),
-      });
-      const data = await res.json().catch(() => ({}));
-      if (!res.ok) throw new Error(data?.error || 'Failed to update entry');
-      void fetchPaidVendors(true);
-      if (typeof navigator !== 'undefined' && navigator.vibrate) navigator.vibrate(10);
-    } catch (err: any) {
-      addToast(err?.message || 'Failed to update entry', 'error');
-      void fetchPaidVendors(true);
-    }
+    void flushTicketEntry(ticket.id);
   };
 
   /** Ticket a vendor holds for the gate list's selected day (null on "all days"). */
@@ -1423,16 +1499,30 @@ export default function Home() {
     return scored.slice(0, 8).map((item) => item.pv);
   }, [paidVendorSearch, paidVendors, gateDayId]);
 
-  /** Mark entry straight from the search dropdown, then reset the box for the next vendor. */
+  /**
+   * Enter in the quick-search box means "mark this vendor in", never "undo".
+   * Pressing Enter twice must not toggle someone back out at the gate.
+   */
   const handleMarkVendorFromSearch = (pv: any) => {
-    // Same day-scoping as the list: mark the selected day's pass when the
-    // edition has multiple days, otherwise fall back to the legacy entry.
+    const ticket = gateTicketFor(pv, gateDayId);
+    const alreadyIn = ticket ? !!ticket.check_in_time : !!pv.check_in_time;
+    if (!alreadyIn) {
+      if (ticket) handleToggleTicketEntry(pv.id, ticket);
+      else handleToggleVendorEntry(pv);
+    }
+    setShowPaidVendorDropdown(false);
+    setPaidVendorSearch('');
+    // Keep the keyboard/focus in the search box for continuous gate marking.
+    requestAnimationFrame(() => paidVendorSearchInputRef.current?.focus());
+  };
+
+  /** Explicit undo from the search dropdown (the row is already marked in). */
+  const handleUnmarkVendorFromSearch = (pv: any) => {
     const ticket = gateTicketFor(pv, gateDayId);
     if (ticket) handleToggleTicketEntry(pv.id, ticket);
     else handleToggleVendorEntry(pv);
     setShowPaidVendorDropdown(false);
     setPaidVendorSearch('');
-    // Keep the keyboard/focus in the search box for continuous gate marking.
     requestAnimationFrame(() => paidVendorSearchInputRef.current?.focus());
   };
 
@@ -4174,11 +4264,11 @@ export default function Home() {
                                   </span>
                                   <button
                                     type="button"
-                                    onClick={() => handleMarkVendorFromSearch(m)}
-                                    title={isConfirmed ? 'Undo entry' : `Confirm this vendor has entered the venue${matchDay ? ` (${dayLabel(matchDay)})` : ''}`}
+                                    onClick={() => (isConfirmed ? handleUnmarkVendorFromSearch(m) : handleMarkVendorFromSearch(m))}
+                                    title={isConfirmed ? 'Undo entry for this vendor' : `Confirm this vendor has entered the venue${matchDay ? ` (${dayLabel(matchDay)})` : ''}`}
                                     className={`shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border transition-colors cursor-pointer whitespace-nowrap ${
                                       isConfirmed
-                                        ? 'bg-emerald-100 text-emerald-800 border-emerald-300 hover:bg-emerald-200'
+                                        ? 'bg-white text-text-secondary border-border hover:border-red-300 hover:text-red-600 hover:bg-red-50'
                                         : 'text-text-secondary bg-white border-border hover:border-emerald-300 hover:text-emerald-700 hover:bg-emerald-50'
                                     }`}
                                   >
@@ -4187,7 +4277,7 @@ export default function Home() {
                                     ) : (
                                       <DoorOpen className="w-3 h-3" />
                                     )}
-                                    {isConfirmed ? 'Confirmed' : 'Mark Entry'}
+                                    {isConfirmed ? 'Undo' : 'Mark Entry'}
                                   </button>
                                 </div>
                               );
@@ -4660,6 +4750,7 @@ export default function Home() {
                                         {gateTicket ? (
                                           <button
                                             onClick={() => handleToggleTicketEntry(pv.id, gateTicket)}
+                                            aria-busy={savingTicketIds.has(gateTicket.id)}
                                             title={
                                               rowEntered
                                                 ? `${gateDay ? dayLabel(gateDay) : 'Ticket'} checked in. Click to undo.`
@@ -4671,7 +4762,13 @@ export default function Home() {
                                                 : 'bg-white text-text-secondary border-border hover:border-emerald-300 hover:text-emerald-700 hover:bg-emerald-50'
                                             }`}
                                           >
-                                            {rowEntered ? <ShieldCheck className="w-3 h-3" /> : <DoorOpen className="w-3 h-3" />}
+                                            {savingTicketIds.has(gateTicket.id) ? (
+                                              <Loader2 className="w-3 h-3 animate-spin" />
+                                            ) : rowEntered ? (
+                                              <ShieldCheck className="w-3 h-3" />
+                                            ) : (
+                                              <DoorOpen className="w-3 h-3" />
+                                            )}
                                             {gateDay ? dayLabel(gateDay) : 'Day'} · {rowEntered ? 'In' : 'Mark Entry'}
                                           </button>
                                         ) : visibleTickets.length > 0 && editionDays.length > 1 ? (
@@ -4683,6 +4780,7 @@ export default function Home() {
                                                 <button
                                                   key={ticket.id}
                                                   onClick={() => handleToggleTicketEntry(pv.id, ticket)}
+                                                  aria-busy={savingTicketIds.has(ticket.id)}
                                                   title={
                                                     checkedIn
                                                       ? `${day ? dayLabel(day) : 'Ticket'} checked in. Click to undo.`
@@ -4694,7 +4792,13 @@ export default function Home() {
                                                       : 'bg-white text-text-secondary border-border hover:border-emerald-300 hover:text-emerald-700 hover:bg-emerald-50'
                                                   }`}
                                                 >
-                                                  {checkedIn ? <ShieldCheck className="w-3 h-3" /> : <DoorOpen className="w-3 h-3" />}
+                                                  {savingTicketIds.has(ticket.id) ? (
+                                                    <Loader2 className="w-3 h-3 animate-spin" />
+                                                  ) : checkedIn ? (
+                                                    <ShieldCheck className="w-3 h-3" />
+                                                  ) : (
+                                                    <DoorOpen className="w-3 h-3" />
+                                                  )}
                                                   {day ? dayLabel(day) : 'Day'} · {checkedIn ? 'In' : 'Entry'}
                                                 </button>
                                               );
