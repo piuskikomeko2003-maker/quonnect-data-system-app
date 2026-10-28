@@ -1000,7 +1000,7 @@ export default function Home() {
       // Fetch all vendor_registrations for this edition (all statuses so paid/unpaid cards work)
       let regRows: any[] = [];
       try {
-        const [regResult, srResult] = await Promise.all([
+        const [regResult, srResult, ticketResult] = await Promise.all([
           supabase
             .from('vendor_registrations')
             .select(`
@@ -1028,6 +1028,12 @@ export default function Home() {
             .from('survey_responses')
             .select('vendor_id')
             .eq('context_id', activeEdition.id),
+          // Per-day tickets load in the same wave as registrations, so a new
+          // vendor's passes appear immediately instead of after a second trip.
+          supabase
+            .from('vendor_tickets')
+            .select('*, edition_days(id, day_number, event_date, label)')
+            .eq('edition_id', activeEdition.id),
         ]);
 
         if (regResult.error) {
@@ -1094,19 +1100,11 @@ export default function Home() {
 
         // Per-day tickets (multi-day editions). Missing table/columns before the
         // migration simply means no ticket rows and the legacy UI is unchanged.
-        let ticketsByRegistration = new globalThis.Map<string, any[]>();
-        try {
-          const { data: ticketRows } = await supabase
-            .from('vendor_tickets')
-            .select('*, edition_days(id, day_number, event_date, label)')
-            .eq('edition_id', activeEdition.id);
-          for (const ticket of ticketRows || []) {
-            const list = ticketsByRegistration.get(ticket.registration_id) || [];
-            list.push(ticket);
-            ticketsByRegistration.set(ticket.registration_id, list);
-          }
-        } catch {
-          ticketsByRegistration = new globalThis.Map();
+        const ticketsByRegistration = new globalThis.Map<string, any[]>();
+        for (const ticket of ticketResult?.data || []) {
+          const list = ticketsByRegistration.get(ticket.registration_id) || [];
+          list.push(ticket);
+          ticketsByRegistration.set(ticket.registration_id, list);
         }
 
         const registrations = regRows.map((r: any) => {

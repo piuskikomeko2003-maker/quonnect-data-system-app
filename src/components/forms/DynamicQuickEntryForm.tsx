@@ -14,17 +14,21 @@ import {
   ExternalLink,
   WifiOff,
   CloudOff,
-  Ticket,
   Copy,
   Printer,
   Download,
 } from 'lucide-react';
-import {
-  TicketTemplate,
-  RequiredTicketField,
-  REQUIRED_TICKET_FIELDS,
-} from '@/types/ticketTemplate';
+import { TicketTemplate } from '@/types/ticketTemplate';
 import { formatTicketCode, normalizeTicketCode } from '@/utils/ticket';
+import {
+  downloadTicketImage,
+  downloadTicketsPdf,
+  prefetchTicketBlobs,
+  printTicketImage,
+  ticketCacheKey,
+  ticketPngFilename,
+} from '@/lib/tickets/download';
+import { DesignedTicketCard, DefaultTicketCard } from './TicketPassCard';
 import { AmountQuickChips, isAmountQuestion } from './AmountQuickChips';
 
 // Applied on the field collection form when a phone lookup finds no existing
@@ -34,30 +38,6 @@ import { AmountQuickChips, isAmountQuestion } from './AmountQuickChips';
 const NEW_VENDOR_AUTO_ANSWERS: Record<string, string> = {
   first_time_at_quonnect: 'Yes',
 };
-
-function passSummaryForTickets(tickets: Array<{ dayLabel?: string; dayNumber?: number }>): string {
-  const labels = tickets
-    .map((t) => t.dayLabel || (t.dayNumber ? `Day ${t.dayNumber}` : ''))
-    .filter(Boolean);
-  const unique = Array.from(new Set(labels));
-  if (unique.length === 0) return 'Your passes are ready';
-  return unique.length === 1 ? `Your pass: ${unique[0]}` : `Your passes: ${unique.join(' + ')}`;
-}
-
-function computeAdaptiveFontSize(
-  text: string,
-  baseSize: number,
-  maxWidth?: number
-): number {
-  if (!maxWidth || !text || text.length === 0) return baseSize;
-  const approxWidth = text.length * (baseSize * 0.58);
-  if (approxWidth > maxWidth) {
-    const ratio = maxWidth / approxWidth;
-    const scaled = Math.floor(baseSize * ratio);
-    return Math.max(11, Math.min(baseSize, scaled));
-  }
-  return baseSize;
-}
 
 interface FormQuestion {
   id: string;
@@ -153,6 +133,11 @@ export interface DynamicQuickEntryFormProps {
   editMode?: boolean;
   /** Admin quick-entry only: allow registering another entry right from the ticket screen. */
   allowAddAnother?: boolean;
+  /**
+   * Day whose template/background should be warmed while the vendor fills the
+   * form, so the pass paints immediately after registration.
+   */
+  previewDayId?: string;
 }
 
 export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
@@ -172,6 +157,7 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
   initialAnswers,
   editMode = false,
   allowAddAnother = false,
+  previewDayId,
 }) => {
   const [questions, setQuestions] = useState<FormQuestion[]>(cachedData?.questions || []);
   const [sectionQuestions, setSectionQuestions] = useState<Record<string, FormQuestion[]>>({});
@@ -184,20 +170,30 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
   const [submitting, setSubmitting] = useState(false);
   const [copiedTicket, setCopiedTicket] = useState(false);
   const [downloadingImage, setDownloadingImage] = useState(false);
+  const [downloadingAll, setDownloadingAll] = useState(false);
+  const [downloadingTicketKey, setDownloadingTicketKey] = useState<string | null>(null);
+  const [printingTicketKey, setPrintingTicketKey] = useState<string | null>(null);
+  const [downloadError, setDownloadError] = useState<string | null>(null);
+  const [copiedDayKey, setCopiedDayKey] = useState<string | null>(null);
   const ticketCardRef = useRef<HTMLDivElement>(null);
   const customTicketCardRef = useRef<HTMLDivElement>(null);
   const [ticketTemplate, setTicketTemplate] = useState<TicketTemplate | null>(null);
-  const [loadedTicketBgUrl, setLoadedTicketBgUrl] = useState<string | null>(null);
+  const [loadedTicketBgUrls, setLoadedTicketBgUrls] = useState<Set<string>>(() => new Set());
+  /** Per-day templates for multi-day purchases (one designed pass per day). */
+  const [dayTemplates, setDayTemplates] = useState<Record<string, TicketTemplate | null>>({});
 
   // Fetch ticket template for current edition
   useEffect(() => {
     const editionId = activeEdition?.id;
     if (!editionId) return;
 
-    // Resolve the day template when the issued ticket belongs to a day.
+    // Resolve the day template when the issued ticket belongs to a day. Before
+    // registration completes we warm the first assigned day instead, so the
+    // pass is ready the moment the success screen appears.
     const dayId =
       successState.ticketData?.dayId ||
       successState.ticketData?.tickets?.[0]?.dayId ||
+      previewDayId ||
       null;
     const params = new URLSearchParams({ edition_id: editionId });
     if (dayId) params.set('edition_day_id', dayId);
@@ -219,25 +215,107 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
     activeEdition?.id,
     successState.ticketData?.dayId,
     successState.ticketData?.tickets?.[0]?.dayId,
+    previewDayId,
   ]);
 
-  // Preload the ticket background so the pass paints complete (no half-rendered flash).
-  // State is only set from the async image callbacks, so no cascade on mount.
+  // Multi-day purchases need every day's own design. Fetch each day template
+  // in parallel so both passes can render with the correct background/badge.
   useEffect(() => {
-    const url = ticketTemplate?.background_image_url;
-    if (!url) return;
+    if (!successState.show || !successState.ticketData) return;
+    const editionId = activeEdition?.id;
+    if (!editionId) return;
+
+    const tickets =
+      successState.ticketData.tickets && successState.ticketData.tickets.length > 0
+        ? successState.ticketData.tickets
+        : [successState.ticketData];
+    if (tickets.length <= 1) return;
+
+    const dayIds = Array.from(
+      new Set(tickets.map((t) => t.dayId).filter((id): id is string => !!id))
+    );
+    if (dayIds.length === 0) return;
+
     let cancelled = false;
-    const img = new window.Image();
-    const markLoaded = () => {
-      if (!cancelled) setLoadedTicketBgUrl(url);
-    };
-    img.onload = markLoaded;
-    img.onerror = markLoaded;
-    img.src = url;
+    Promise.all(
+      dayIds.map(async (dayId) => {
+        try {
+          const params = new URLSearchParams({ edition_id: editionId, edition_day_id: dayId });
+          const res = await fetch(`/api/tickets/templates?${params.toString()}`);
+          const data = await res.json();
+          const template =
+            data?.template && data.template.background_image_url ? data.template : null;
+          return [dayId, template] as const;
+        } catch {
+          return [dayId, null] as const;
+        }
+      })
+    ).then((entries) => {
+      if (!cancelled) setDayTemplates(Object.fromEntries(entries) as Record<string, TicketTemplate | null>);
+    });
+
     return () => {
       cancelled = true;
     };
-  }, [ticketTemplate?.background_image_url]);
+  }, [successState.show, successState.ticketData, activeEdition?.id]);
+
+  // Preload every ticket background so each pass paints complete (no
+  // half-rendered flash and no layout shift), before the vendor taps download.
+  useEffect(() => {
+    const urls = new Set<string>();
+    if (ticketTemplate?.background_image_url) urls.add(ticketTemplate.background_image_url);
+    for (const template of Object.values(dayTemplates)) {
+      if (template?.background_image_url) urls.add(template.background_image_url);
+    }
+    if (urls.size === 0) return;
+
+    let cancelled = false;
+    for (const url of urls) {
+      if (loadedTicketBgUrls.has(url)) continue;
+      const img = new window.Image();
+      const markLoaded = () => {
+        if (cancelled) return;
+        setLoadedTicketBgUrls((prev) => {
+          if (prev.has(url)) return prev;
+          const next = new Set(prev);
+          next.add(url);
+          return next;
+        });
+      };
+      img.onload = markLoaded;
+      img.onerror = markLoaded;
+      img.src = url;
+    }
+    return () => {
+      cancelled = true;
+    };
+  }, [ticketTemplate, dayTemplates, loadedTicketBgUrls]);
+
+  // Render every issued pass in the background the moment registration
+  // completes. By the time the vendor taps "Download", the PNG is already in
+  // memory instead of waiting on a cold serverless render.
+  useEffect(() => {
+    if (!successState.show || !successState.ticketData) return;
+    const editionId = activeEdition?.id;
+    if (!editionId) return;
+
+    const tickets =
+      successState.ticketData.tickets && successState.ticketData.tickets.length > 0
+        ? successState.ticketData.tickets
+        : [successState.ticketData];
+
+    // A single pass without a custom template downloads from the local canvas,
+    // so there is nothing to prefetch for it.
+    if (tickets.length === 1 && !ticketTemplate) return;
+
+    prefetchTicketBlobs(tickets, editionId);
+    // Warm the PDF chunk too, so "Download all" is one tap rather than a
+    // chunk download plus render.
+    if (tickets.length > 1) {
+      void import('pdf-lib').catch(() => {});
+    }
+  }, [successState.show, successState.ticketData, activeEdition?.id, ticketTemplate]);
+
   const [lookupStatus, setLookupStatus] = useState<'idle' | 'searching' | 'returning' | 'new'>('idle');
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [touchedFields, setTouchedFields] = useState<Set<string>>(new Set());
@@ -760,96 +838,154 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
         : [ticket];
 
       if (allTickets.length > 1) {
-        const downloadDayTicket = async (dayTicket: typeof allTickets[number]) => {
+        const editionIdForRender = activeEdition?.id || '';
+
+        const handleDownloadAll = async () => {
+          setDownloadError(null);
+          setDownloadingAll(true);
+          try {
+            await downloadTicketsPdf(allTickets, editionIdForRender);
+          } catch (err) {
+            console.error('Failed to download all passes:', err);
+            setDownloadError('Could not prepare all passes. Please check your connection and retry.');
+          } finally {
+            setDownloadingAll(false);
+          }
+        };
+
+        const downloadDayTicket = async (dayTicket: typeof allTickets[number], index: number) => {
+          const key = ticketCacheKey(dayTicket, editionIdForRender);
+          setDownloadError(null);
+          setDownloadingTicketKey(key);
+          try {
+            await downloadTicketImage(
+              dayTicket,
+              editionIdForRender,
+              index,
+              ticketPngFilename(dayTicket, index)
+            );
+          } catch (err) {
+            console.error('Failed to download ticket image:', err);
+            setDownloadError(`Could not download the ${dayTicket.dayLabel || 'ticket'}. Please retry.`);
+          } finally {
+            setDownloadingTicketKey(null);
+          }
+        };
+
+        const printDayTicket = async (dayTicket: typeof allTickets[number]) => {
+          const key = ticketCacheKey(dayTicket, editionIdForRender);
+          setDownloadError(null);
+          setPrintingTicketKey(key);
+          try {
+            await printTicketImage(dayTicket, editionIdForRender);
+          } catch (err) {
+            console.error('Failed to print ticket image:', err);
+            setDownloadError(`Could not print the ${dayTicket.dayLabel || 'ticket'}. Please retry.`);
+          } finally {
+            setPrintingTicketKey(null);
+          }
+        };
+
+        const copyDayCode = async (dayTicket: typeof allTickets[number]) => {
+          const key = ticketCacheKey(dayTicket, editionIdForRender);
           const code = normalizeTicketCode(dayTicket.ticketCode) || dayTicket.ticketCode;
-          const params = new URLSearchParams({
-            edition_id: activeEdition?.id || '',
-            ticket_number: code,
-            vendor_name: dayTicket.vendorName || '',
-            business_name: dayTicket.businessName || '',
-            category: dayTicket.category || '',
-            phone: dayTicket.phone || '',
-            edition_name: dayTicket.editionName || '',
-            issued_at: dayTicket.registeredAt || '',
-            day_label: dayTicket.dayLabel || '',
-            event_date: dayTicket.dayDate || '',
-          });
-          if (dayTicket.ticketId) params.set('ticket_id', dayTicket.ticketId);
-          const res = await fetch(`/api/tickets/render?${params.toString()}`);
-          if (!res.ok) throw new Error('Could not render this ticket');
-          const blob = await res.blob();
-          const blobUrl = window.URL.createObjectURL(blob);
-          const link = document.createElement('a');
-          link.download = `Vendor-Pass-${dayTicket.dayLabel || 'Ticket'}-${code}.png`;
-          link.href = blobUrl;
-          link.click();
-          window.URL.revokeObjectURL(blobUrl);
+          try {
+            await navigator.clipboard.writeText(code);
+            setCopiedDayKey(key);
+            setTimeout(() => setCopiedDayKey((current) => (current === key ? null : current)), 2000);
+          } catch (err) {
+            console.warn('Could not copy ticket code:', err);
+          }
         };
 
         return (
           <div className="space-y-4 max-w-[560px] mx-auto animate-fade-in select-none">
-            <div className="rounded-xl border border-emerald-200 bg-emerald-50 px-4 py-3">
-              <p className="text-[10px] font-bold uppercase tracking-widest text-emerald-700">
-                Registration complete
-              </p>
-              <p className="text-sm font-bold text-text-primary mt-0.5">
-                {passSummaryForTickets(allTickets)}
-              </p>
-              <p className="text-[10px] text-text-secondary mt-1">
-                One ticket per paid day. Each ticket is valid only on its own day.
-              </p>
+            {/* One full designed pass per paid day, stacked Day 1 → Day 2. */}
+            <div className="space-y-3">
+              {allTickets.map((dayTicket, index) => {
+                const key = ticketCacheKey(dayTicket, editionIdForRender);
+                const dayTemplate = dayTicket.dayId ? dayTemplates[dayTicket.dayId] : null;
+                const templateResolved = !dayTicket.dayId || dayTicket.dayId in dayTemplates;
+                const backgroundLoaded = !!dayTemplate?.background_image_url &&
+                  loadedTicketBgUrls.has(dayTemplate.background_image_url);
+                const isDownloading = downloadingTicketKey === key;
+                const isPrinting = printingTicketKey === key;
+                const isCopied = copiedDayKey === key;
+
+                return (
+                  <div
+                    key={dayTicket.ticketId || `${dayTicket.dayId || index}`}
+                    className="space-y-2"
+                  >
+                    {!templateResolved ? (
+                      <div
+                        className="w-full aspect-[16/9] rounded-xl border border-border bg-bg-surface flex flex-col items-center justify-center gap-2"
+                        aria-live="polite"
+                      >
+                        <Loader2 className="w-6 h-6 animate-spin text-green" />
+                        <span className="text-[11px] text-text-secondary">
+                          Preparing {dayTicket.dayLabel || `Day ${dayTicket.dayNumber || index + 1}`} pass…
+                        </span>
+                      </div>
+                    ) : dayTemplate && dayTemplate.background_image_url ? (
+                      <DesignedTicketCard
+                        ticket={dayTicket}
+                        template={dayTemplate}
+                        backgroundLoaded={backgroundLoaded}
+                      />
+                    ) : (
+                      <DefaultTicketCard ticket={dayTicket} />
+                    )}
+
+                    <div className="flex flex-wrap sm:flex-nowrap gap-2">
+                      <Button
+                        type="button"
+                        variant="primary"
+                        onClick={() => downloadDayTicket(dayTicket, index)}
+                        disabled={isDownloading || isPrinting}
+                        className="flex-1 min-w-[150px] py-2.5 flex items-center justify-center gap-2 text-xs font-bold"
+                      >
+                        {isDownloading ? (
+                          <Loader2 className="w-4 h-4 animate-spin text-white" />
+                        ) : (
+                          <Download className="w-4 h-4" />
+                        )}
+                        <span>{isDownloading ? 'Generating Image...' : 'Download Ticket (Image)'}</span>
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => printDayTicket(dayTicket)}
+                        disabled={isDownloading || isPrinting}
+                        className="py-2.5 px-3 flex items-center justify-center gap-1.5 text-xs font-semibold"
+                      >
+                        {isPrinting ? (
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                        ) : (
+                          <Printer className="w-4 h-4" />
+                        )}
+                        <span>Print</span>
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={() => copyDayCode(dayTicket)}
+                        className="py-2.5 px-3 flex items-center justify-center gap-1.5 text-xs font-semibold"
+                      >
+                        {isCopied ? <Check className="w-4 h-4 text-green" /> : <Copy className="w-4 h-4" />}
+                        <span>{isCopied ? 'Copied!' : 'Copy Code'}</span>
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
 
-            {allTickets.map((dayTicket, index) => {
-              const code = normalizeTicketCode(dayTicket.ticketCode) || dayTicket.ticketCode;
-              return (
-                <div
-                  key={dayTicket.ticketId || `${dayTicket.dayId || index}`}
-                  className="bg-bg-surface border border-green/30 rounded-xl p-5 shadow-lg"
-                >
-                  <div className="flex items-center justify-between gap-3 border-b border-border-light pb-3">
-                    <div className="flex items-center gap-2.5">
-                      <div className="w-9 h-9 rounded-lg bg-green/15 border border-green/30 flex items-center justify-center text-green">
-                        <Ticket className="w-4 h-4" />
-                      </div>
-                      <div>
-                        <p className="text-[10px] font-bold text-green uppercase tracking-widest">
-                          {dayTicket.dayLabel || `Day ${dayTicket.dayNumber || index + 1}`}
-                        </p>
-                        <p className="text-xs font-bold text-text-primary">{dayTicket.editionName}</p>
-                        {dayTicket.dayDate && (
-                          <p className="text-[10px] text-text-tertiary">{dayTicket.dayDate}</p>
-                        )}
-                      </div>
-                    </div>
-                    <span className="font-mono text-lg font-extrabold text-accent">{code}</span>
-                  </div>
-
-                  <div className="grid grid-cols-2 gap-2 pt-3 text-[11px]">
-                    <div>
-                      <span className="block text-[9px] uppercase tracking-wider text-text-tertiary">Vendor</span>
-                      <span className="font-semibold text-text-primary">{dayTicket.vendorName}</span>
-                    </div>
-                    {dayTicket.businessName && (
-                      <div>
-                        <span className="block text-[9px] uppercase tracking-wider text-text-tertiary">Business</span>
-                        <span className="font-semibold text-text-primary">{dayTicket.businessName}</span>
-                      </div>
-                    )}
-                  </div>
-
-                  <Button
-                    type="button"
-                    variant="primary"
-                    onClick={() => downloadDayTicket(dayTicket)}
-                    className="mt-4 w-full py-2.5 flex items-center justify-center gap-2 text-xs font-bold"
-                  >
-                    <Download className="w-4 h-4" />
-                    Download {dayTicket.dayLabel || 'Ticket'}
-                  </Button>
-                </div>
-              );
-            })}
+            {downloadError && (
+              <p className="text-[11px] text-red bg-red/10 border border-red/20 rounded px-3 py-2">
+                {downloadError}
+              </p>
+            )}
 
             {!allowAddAnother && (
               <div className="p-3 bg-amber/10 border border-amber/20 rounded-md text-[11px] text-amber flex items-start gap-2">
@@ -860,60 +996,39 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
                 </span>
               </div>
             )}
+
+            {/* Optional convenience: both passes in one user-triggered download. */}
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={handleDownloadAll}
+              disabled={downloadingAll || downloadingTicketKey !== null || printingTicketKey !== null}
+              className="w-full py-2.5 flex items-center justify-center gap-2 text-xs font-semibold"
+            >
+              {downloadingAll ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <Download className="w-4 h-4" />
+              )}
+              <span>{downloadingAll ? 'Preparing all passes…' : `Download all ${allTickets.length} passes (PDF)`}</span>
+            </Button>
           </div>
         );
       }
 
-      const fieldValues: Record<RequiredTicketField, string> = {
-        vendor_name: ticket.vendorName || '',
-        business_name: ticket.businessName || '',
-        category: ticket.category || '',
-        phone_number: ticket.phone || '',
-                ticket_number: ticketCode,
-        issued_at: new Date(ticket.registeredAt).toLocaleString([], {
-          dateStyle: 'medium',
-          timeStyle: 'short',
-        }),
-      };
-
-      // Design-space dimensions of the custom ticket template (background + field coords)
-      const canvasWidth = ticketTemplate?.canvas_width || 1920;
-      const canvasHeight = ticketTemplate?.canvas_height || 1080;
-
       // Derived on every render — true only once this exact template's background has decoded.
       const ticketBgUrl = ticketTemplate?.background_image_url || null;
-      const ticketBgLoaded = !!ticketBgUrl && loadedTicketBgUrl === ticketBgUrl;
+      const ticketBgLoaded = !!ticketBgUrl && loadedTicketBgUrls.has(ticketBgUrl);
 
       const handleDownloadImage = async () => {
         setDownloadingImage(true);
         try {
-          // If custom template is active, try downloading pristine server-rendered PNG
+          // If custom template is active, use the cached server-rendered PNG
+          // (prefetched as soon as the pass appeared).
           if (ticketTemplate && (activeEdition?.id || ticket.editionName)) {
             try {
-              const params = new URLSearchParams({
-                edition_id: activeEdition?.id || '',
-                ticket_number: ticketCode,
-                vendor_name: ticket.vendorName || '',
-                business_name: ticket.businessName || '',
-                category: ticket.category || '',
-                phone: ticket.phone || '',
-                edition_name: ticket.editionName || '',
-                issued_at: ticket.registeredAt || '',
-                day_label: (ticket as any).dayLabel || '',
-                event_date: (ticket as any).dayDate || '',
-              });
-              if ((ticket as any).ticketId) params.set('ticket_id', (ticket as any).ticketId);
-              const res = await fetch(`/api/tickets/render?${params.toString()}`);
-              if (res.ok) {
-                const blob = await res.blob();
-                const blobUrl = window.URL.createObjectURL(blob);
-                const link = document.createElement('a');
-                link.download = `Vendor-Pass-${ticketCode || 'Ticket'}.png`;
-                link.href = blobUrl;
-                link.click();
-                window.URL.revokeObjectURL(blobUrl);
-                return;
-              }
+              await downloadTicketImage(ticket, activeEdition?.id || '', 0);
+              return;
             } catch (serverErr) {
               console.warn('Server render failed, falling back to client canvas:', serverErr);
             }
@@ -943,157 +1058,14 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
         <div className="space-y-4 max-w-[560px] mx-auto animate-fade-in select-none">
           {/* Downloadable Ticket Card (Custom Template or Fallback Default) */}
           {ticketTemplate && ticketTemplate.background_image_url ? (
-            <div
-              ref={customTicketCardRef}
-              className="relative rounded-xl overflow-hidden shadow-2xl border border-border/80 w-full select-none"
-              style={{
-                containerType: 'inline-size',
-                aspectRatio: `${canvasWidth} / ${canvasHeight}`,
-              }}
-            >
-              {/* Background Art */}
-              {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img
-                src={ticketTemplate.background_image_url}
-                alt="Official Vendor Admission Pass"
-                className="absolute inset-0 w-full h-full object-cover pointer-events-none"
-              />
-
-              {/* Dynamic Vendor Fields (positioned in % and sized in container units — no JS scaling) */}
-              {ticketBgLoaded &&
-                REQUIRED_TICKET_FIELDS.map((field) => {
-                  const pos = ticketTemplate.field_positions?.[field];
-                  if (!pos) return null;
-                  const text = fieldValues[field];
-                  if (!text) return null;
-
-                  const adaptiveSize = computeAdaptiveFontSize(text, pos.fontSize || 18, pos.maxWidth);
-
-                  return (
-                    <div
-                      key={field}
-                      style={{
-                        position: 'absolute',
-                        left: `${(pos.x / canvasWidth) * 100}%`,
-                        top: `${(pos.y / canvasHeight) * 100}%`,
-                        fontSize: `max(8px, ${(adaptiveSize / canvasWidth) * 100}cqw)`,
-                        color: pos.color || '#000000',
-                        fontWeight: (pos.fontWeight === 'bold' || pos.fontWeight === '700'
-                          ? 700
-                          : pos.fontWeight === 'semibold' || pos.fontWeight === '600'
-                          ? 600
-                          : 400) as any,
-                        maxWidth: pos.maxWidth ? `${(pos.maxWidth / canvasWidth) * 100}%` : undefined,
-                        lineHeight: 1.25,
-                        wordBreak: 'break-word',
-                        display: 'flex',
-                        flexWrap: 'wrap',
-                      }}
-                    >
-                      {text}
-                    </div>
-                  );
-                })}
-
-              {/* Placeholder until the background art has decoded — reserves the correct height, no layout shift */}
-              {!ticketBgLoaded && (
-                <div className="absolute inset-0 bg-bg-surface flex flex-col items-center justify-center gap-2">
-                  <Loader2 className="w-6 h-6 animate-spin text-green" />
-                  <span className="text-[11px] text-text-secondary">Generating your ticket…</span>
-                </div>
-              )}
-            </div>
+            <DesignedTicketCard
+              ticket={ticket}
+              template={ticketTemplate}
+              backgroundLoaded={ticketBgLoaded}
+              cardRef={customTicketCardRef}
+            />
           ) : (
-            <div
-              ref={ticketCardRef}
-              className="bg-bg-surface border border-green/30 rounded-xl p-6 sm:p-8 text-left shadow-2xl relative overflow-hidden"
-            >
-              {/* Decorative Glow */}
-              <div className="absolute -top-24 -right-24 w-48 h-48 bg-green/10 rounded-full blur-3xl pointer-events-none" />
-              <div className="absolute -bottom-24 -left-24 w-48 h-48 bg-green/5 rounded-full blur-3xl pointer-events-none" />
-
-              {/* Ticket Header */}
-              <div className="flex items-center justify-between pb-4 border-b border-border-light relative z-10">
-                <div className="flex items-center gap-2.5">
-                  <div className="w-10 h-10 rounded-lg bg-green/15 border border-green/30 flex items-center justify-center text-green">
-                    <Ticket className="w-5 h-5" />
-                  </div>
-                  <div>
-                    <span className="text-[10px] font-bold text-green uppercase tracking-widest block">
-                      Official Vendor Pass{(ticket as any).dayLabel ? ` · ${(ticket as any).dayLabel}` : ''}
-                    </span>
-                    <h2 className="text-sm font-bold text-text-primary">{ticket.editionName}</h2>
-                    {(ticket as any).dayDate && (
-                      <p className="text-[10px] text-text-tertiary">{(ticket as any).dayDate}</p>
-                    )}
-                  </div>
-                </div>
-                <Badge variant="success" size="sm" className="font-mono text-xs uppercase font-extrabold tracking-wider">
-                  {ticket.paymentStatus || 'Confirmed'}
-                </Badge>
-              </div>
-
-              {/* Ticket Number Hero Box */}
-              <div className="my-6 p-5 bg-slate-50 border border-border rounded-xl text-center relative z-10 shadow-sm">
-                <span className="text-[10px] text-text-tertiary uppercase tracking-widest font-semibold block mb-1">
-                  Admission Ticket Number
-                </span>
-                <div className="text-3xl sm:text-4xl font-extrabold font-mono text-accent tracking-wider my-1">
-                  {ticketCode}
-                </div>
-                <p className="text-[11px] text-text-secondary">
-                  Vendor #{ticket.ticketNumber} &middot; Registered for this edition
-                </p>
-              </div>
-
-              {/* Ticket Details Grid */}
-              <div className="space-y-2.5 bg-bg-input/60 border border-border/50 rounded-lg p-4 text-xs relative z-10">
-                <div className="flex justify-between items-center py-1 border-b border-border/30">
-                  <span className="text-text-tertiary">Vendor Name</span>
-                  <span className="font-semibold text-text-primary">{ticket.vendorName}</span>
-                </div>
-                {ticket.businessName && (
-                  <div className="flex justify-between items-center py-1 border-b border-border/30">
-                    <span className="text-text-tertiary">Business</span>
-                    <span className="font-semibold text-text-primary">{ticket.businessName}</span>
-                  </div>
-                )}
-                {ticket.category && (
-                  <div className="flex justify-between items-center py-1 border-b border-border/30">
-                    <span className="text-text-tertiary">Category</span>
-                    <span className="font-semibold text-text-primary">{ticket.category}</span>
-                  </div>
-                )}
-                {ticket.phone && (
-                  <div className="flex justify-between items-center py-1 border-b border-border/30">
-                    <span className="text-text-tertiary">Phone Number</span>
-                    <span className="font-mono font-medium text-text-secondary">{ticket.phone}</span>
-                  </div>
-                )}
-                <div className="flex justify-between items-center py-1">
-                  <span className="text-text-tertiary">Issued At</span>
-                  <span className="font-mono text-[11px] text-text-secondary">
-                    {new Date(ticket.registeredAt).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}
-                  </span>
-                </div>
-              </div>
-
-              {/* Barcode Graphic */}
-              <div className="pt-5 mt-4 border-t border-border/40 flex flex-col items-center justify-center opacity-80 select-none relative z-10">
-                <div className="h-8 flex items-end gap-1">
-                  {[3, 1, 4, 1, 5, 9, 2, 6, 5, 3, 5, 8, 9, 7, 9, 3, 2, 3, 8, 4, 6, 2, 6, 4, 3, 3, 8, 3, 2, 7, 9, 5, 0, 2, 8, 8, 4, 1, 9, 7, 1, 6, 9, 3, 9, 9, 3, 7].map((h, i) => (
-                    <span
-                      key={i}
-                      className="w-0.5 bg-green/60 inline-block"
-                      style={{ height: `${12 + (h % 5) * 4}px` }}
-                    />
-                  ))}
-                </div>
-                <span className="font-mono text-[9px] tracking-widest text-text-tertiary mt-1">
-                  {ticketCode} &bull; QUONNECT ADMISSION PASS
-                </span>
-              </div>
-            </div>
+            <DefaultTicketCard ticket={ticket} cardRef={ticketCardRef} />
           )}
 
           {/* Single-Use Warning & Actions (outside downloaded card) */}

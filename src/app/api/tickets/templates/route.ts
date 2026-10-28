@@ -27,6 +27,10 @@ async function requireSuperAdmin(): Promise<NextResponse | null> {
 }
 
 // GET /api/tickets/templates?edition_id=...
+const TEMPLATE_CACHE_HEADERS = {
+  'Cache-Control': 'private, max-age=60, stale-while-revalidate=300',
+};
+
 export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
@@ -35,57 +39,54 @@ export async function GET(request: NextRequest) {
 
     const supabase = createServiceClient();
 
-    if (editionDayId) {
-      const { data: dayTemplate } = await supabase
-        .from('ticket_templates')
-        .select('*')
-        .eq('edition_day_id', editionDayId)
-        .maybeSingle();
-      if (dayTemplate) {
-        return NextResponse.json({ template: dayTemplate, tableExists: true });
-      }
-    }
+    // Day → edition → default, resolved from queries run in parallel so the
+    // ticket screen never waits through three sequential round trips.
+    const dayLookup = editionDayId
+      ? supabase
+          .from('ticket_templates')
+          .select('*')
+          .eq('edition_day_id', editionDayId)
+          .maybeSingle()
+      : Promise.resolve({ data: null, error: null } as { data: any; error: any });
 
-    if (editionId) {
-      // 1. Try to find edition-specific fallback template
-      const { data: editionTemplate, error: edErr } = await supabase
-        .from('ticket_templates')
-        .select('*')
-        .eq('edition_id', editionId)
-        .is('edition_day_id', null)
-        .maybeSingle();
+    const editionLookup = editionId
+      ? supabase
+          .from('ticket_templates')
+          .select('*')
+          .eq('edition_id', editionId)
+          .is('edition_day_id', null)
+          .maybeSingle()
+      : Promise.resolve({ data: null, error: null } as { data: any; error: any });
 
-      if (editionTemplate) {
-        return NextResponse.json({ template: editionTemplate, tableExists: true });
-      }
-
-      if (edErr) {
-        if (edErr.code === 'PGRST205' || edErr.message?.includes('schema cache')) {
-          return NextResponse.json({ template: null, tableExists: false });
-        }
-        if (edErr.code !== 'PGRST116') {
-          console.warn('Error fetching edition template:', edErr);
-        }
-      }
-    }
-
-    // 2. Fallback to default template if none set for this edition
-    const { data: defaultTemplate, error: defErr } = await supabase
+    const defaultLookup = supabase
       .from('ticket_templates')
       .select('*')
       .eq('is_default', true)
       .maybeSingle();
 
-    if (defErr) {
-      if (defErr.code === 'PGRST205' || defErr.message?.includes('schema cache')) {
-        return NextResponse.json({ template: null, tableExists: false });
-      }
-      if (defErr.code !== 'PGRST116') {
-        console.warn('Error fetching default template:', defErr);
-      }
+    const [dayResult, editionResult, defaultResult] = await Promise.all([
+      dayLookup,
+      editionLookup,
+      defaultLookup,
+    ]);
+
+    const tableMissing = [dayResult.error, editionResult.error, defaultResult.error].some(
+      (err) =>
+        err &&
+        (err.code === 'PGRST205' || err.message?.includes('schema cache'))
+    );
+    if (tableMissing) {
+      return NextResponse.json(
+        { template: null, tableExists: false },
+        { headers: TEMPLATE_CACHE_HEADERS }
+      );
     }
 
-    return NextResponse.json({ template: defaultTemplate || null, tableExists: true });
+    const template = dayResult.data || editionResult.data || defaultResult.data || null;
+    return NextResponse.json(
+      { template, tableExists: true },
+      { headers: TEMPLATE_CACHE_HEADERS }
+    );
   } catch (err: any) {
     if (err?.code === 'PGRST205' || err?.message?.includes('schema cache')) {
       return NextResponse.json({ template: null, tableExists: false });

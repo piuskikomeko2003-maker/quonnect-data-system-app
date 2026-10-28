@@ -11,6 +11,7 @@
     "test:e2e:ui": "playwright test --ui",
     "test:stickers": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/register-ts-loader.mjs scripts/verify-sticker-layout.mjs",
     "test:gate-entry": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/register-ts-loader.mjs --test tests/gate-entry-queue.test.mjs",
+    "test:tickets": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/register-ts-loader.mjs --test tests/ticket-download.test.mjs",
     "test:multi-day": "node scripts/test_multi_day_editions.mjs",
     "test:multi-day-stickers": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/register-ts-loader.mjs scripts/test_multi_day_stickers.mjs",
     "backup": "bash scripts/backup-db.sh",

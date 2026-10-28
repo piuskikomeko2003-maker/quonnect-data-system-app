@@ -316,14 +316,18 @@ export default function CollectPage() {
             }
           } catch {}
 
-          // Fetch edition data so the ticket header renders nicely
-          const { data: editionData } = await supabase
-            .from('market_days')
-            .select('id, name')
-            .eq('id', linkResult.edition_id)
-            .single();
+          // Fetch edition data so the ticket header renders nicely. Run both
+          // lookups together — they do not depend on each other.
+          const [{ data: editionData }, days] = await Promise.all([
+            supabase
+              .from('market_days')
+              .select('id, name')
+              .eq('id', linkResult.edition_id)
+              .single(),
+            fetchEditionDays(supabase, linkResult.edition_id),
+          ]);
           if (editionData) setEdition(editionData);
-          setEditionDays(await fetchEditionDays(supabase, linkResult.edition_id));
+          setEditionDays(days);
 
           setLinkData(linkResult);
           setLoading(false);
@@ -332,18 +336,24 @@ export default function CollectPage() {
 
         setLinkData(linkResult);
 
-        const { data: editionData, error: edErr } = await supabase
-          .from('market_days')
-          .select('id, name')
-          .eq('id', linkResult.edition_id)
-          .single();
+        // Fetch the edition header and its days concurrently instead of
+        // stacking two round trips before the form can render.
+        const [editionResult, days] = await Promise.all([
+          supabase
+            .from('market_days')
+            .select('id, name')
+            .eq('id', linkResult.edition_id)
+            .single(),
+          fetchEditionDays(supabase, linkResult.edition_id),
+        ]);
 
+        const { data: editionData, error: edErr } = editionResult;
         if (edErr || !editionData) {
           throw new Error('Edition not found for this link.');
         }
 
         setEdition(editionData);
-        setEditionDays(await fetchEditionDays(supabase, linkResult.edition_id));
+        setEditionDays(days);
         setUsingCachedData(false);
 
         cacheSchema({
@@ -1030,6 +1040,7 @@ export default function CollectPage() {
           <DynamicQuickEntryForm
             formSlug={linkData.form_slug}
             activeEdition={edition}
+            previewDayId={assignedDays[0]?.id}
             onSubmit={handleSubmit}
             onPhoneLookup={config.lookupEnabled ? handlePhoneLookup : undefined}
             successState={successState}

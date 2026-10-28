@@ -13,6 +13,15 @@ import { normalizeTicketCode } from '@/utils/ticket';
 export const runtime = 'nodejs';
 
 /**
+ * A pass is immutable once issued, so browser caching makes repeat views and
+ * downloads near-instant. Kept `private` because the image carries vendor
+ * contact details; the client prefetch is what removes the cold-render wait.
+ */
+const TICKET_CACHE_HEADERS = {
+  'Cache-Control': 'private, max-age=300, stale-while-revalidate=600',
+};
+
+/**
  * Auto-shrinks font size if text exceeds specified maxWidth to avoid overflow,
  * clamping to at least 11px.
  */
@@ -171,50 +180,65 @@ export async function GET(request: NextRequest) {
       ticketData.registeredAt = searchParams.get('issued_at')!;
     }
 
-    // 2. Fetch template for edition (or fallback to default template)
-    let template = null;
+    // 2. Fetch template for edition (or fallback to default template).
+    // Every candidate is queried in parallel, then resolved by priority:
+    // day id → day fallback → edition → default. This keeps the render to a
+    // single DB round trip instead of up to four sequential ones.
+    let template: Record<string, any> | null = null;
     try {
-      // A day-specific template always wins over the edition fallback.
+      const lookups: Array<PromiseLike<{ priority: number; template: any } | null>> = [];
+
       if (resolvedDayTemplateId) {
-        const { data: dayTemplate, error: dayErr } = await supabase
-          .from('ticket_templates')
-          .select('*')
-          .eq('id', resolvedDayTemplateId)
-          .maybeSingle();
-        if (!dayErr && dayTemplate) template = dayTemplate;
+        lookups.push(
+          supabase
+            .from('ticket_templates')
+            .select('*')
+            .eq('id', resolvedDayTemplateId)
+            .maybeSingle()
+            .then(({ data, error }) => (!error && data ? { priority: 0, template: data } : null))
+        );
       }
 
       // Settings saves day templates with edition_day_id. They may not have
       // been linked from edition_days.ticket_template_id, so look them up too.
-      if (!template && resolvedEditionDayId) {
-        const { data: dayTemplate } = await supabase
-          .from('ticket_templates')
-          .select('*')
-          .eq('edition_day_id', resolvedEditionDayId)
-          .maybeSingle();
-        if (dayTemplate) template = dayTemplate;
+      if (resolvedEditionDayId) {
+        lookups.push(
+          supabase
+            .from('ticket_templates')
+            .select('*')
+            .eq('edition_day_id', resolvedEditionDayId)
+            .maybeSingle()
+            .then(({ data }) => (data ? { priority: 1, template: data } : null))
+        );
       }
 
-      if (!template && editionId) {
-        const { data: edTemplate, error: edErr } = await supabase
-          .from('ticket_templates')
-          .select('*')
-          .eq('edition_id', editionId)
-          .is('edition_day_id', null)
-          .maybeSingle();
-
-        if (!edErr && edTemplate) template = edTemplate;
+      if (editionId) {
+        lookups.push(
+          supabase
+            .from('ticket_templates')
+            .select('*')
+            .eq('edition_id', editionId)
+            .is('edition_day_id', null)
+            .maybeSingle()
+            .then(({ data, error }) => (!error && data ? { priority: 2, template: data } : null))
+        );
       }
 
-      if (!template) {
-        const { data: defTemplate, error: defErr } = await supabase
+      lookups.push(
+        supabase
           .from('ticket_templates')
           .select('*')
           .eq('is_default', true)
-          .maybeSingle();
+          .maybeSingle()
+          .then(({ data, error }) => (!error && data ? { priority: 3, template: data } : null))
+      );
 
-        if (!defErr && defTemplate) template = defTemplate;
-      }
+      const results = (await Promise.all(lookups)).filter(Boolean) as Array<{
+        priority: number;
+        template: any;
+      }>;
+      results.sort((a, b) => a.priority - b.priority);
+      template = results[0]?.template ?? null;
     } catch {
       // Table doesn't exist yet, proceed with default pass design
     }
@@ -347,6 +371,7 @@ export async function GET(request: NextRequest) {
         {
           width: canvasWidth,
           height: canvasHeight,
+          headers: TICKET_CACHE_HEADERS,
         }
       );
     }
@@ -502,6 +527,7 @@ export async function GET(request: NextRequest) {
       {
         width: 1200,
         height: 630,
+        headers: TICKET_CACHE_HEADERS,
       }
     );
   } catch (err: any) {
