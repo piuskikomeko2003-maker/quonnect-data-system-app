@@ -1,7 +1,18 @@
 import React from 'react';
 import { DynamicQuickEntryForm, DynamicQuickEntryFormProps } from './DynamicQuickEntryForm';
-import { ChevronUp, ChevronDown, Zap, Users, Footprints, Database, Link } from 'lucide-react';
+import {
+  ChevronUp,
+  ChevronDown,
+  Zap,
+  Users,
+  Footprints,
+  Database,
+  Link,
+  Check,
+  CalendarDays,
+} from 'lucide-react';
 import { Button } from '../ui/Button';
+import { dayDateLabel, dayLabel } from '@/lib/editionDays';
 
 type QuickEntryTab = 'paid' | 'collection' | 'walkin';
 
@@ -174,6 +185,9 @@ export const QuickEntryPanel: React.FC<QuickEntryPanelProps> = ({
     }
   };
 
+  const selectedDays = editionDays.filter((day) => selectedLinkDayIds.includes(day.id));
+  const selectedSummary = selectedDays.map(dayLabel).join(' + ');
+
   return (
     <div className="bg-white border border-border rounded-xl overflow-hidden transition-all duration-300 select-none shadow-sm">
       <div 
@@ -225,16 +239,18 @@ export const QuickEntryPanel: React.FC<QuickEntryPanelProps> = ({
         </div>
 
         {activeTab === 'paid' && editionDays.length > 1 && (
-          <div className="border-b border-border bg-white px-4 py-3 space-y-2">
+          <div className="border-b border-border bg-white px-4 py-4 space-y-3">
             <div>
               <p className="text-[10px] font-bold uppercase tracking-widest text-text-tertiary">
                 Days this vendor paid for
               </p>
               <p className="text-[10px] text-text-secondary mt-0.5">
-                Stored on the link and read by the server. The vendor cannot change it.
+                Tap the day cards to include them. Stored on the link and read by the server — the vendor cannot change it.
               </p>
             </div>
-            <div className="flex flex-wrap gap-1.5">
+
+            {/* Large, unmistakable day cards: one tap = one paid day on the link. */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
               {editionDays.map((day) => {
                 const selected = selectedLinkDayIds.includes(day.id);
                 return (
@@ -242,17 +258,65 @@ export const QuickEntryPanel: React.FC<QuickEntryPanelProps> = ({
                     key={day.id}
                     type="button"
                     onClick={() => onToggleLinkDay?.(day.id)}
-                    className={`rounded-md border px-2.5 py-1.5 text-[10px] font-bold transition-colors cursor-pointer ${
+                    aria-pressed={selected}
+                    className={`group relative flex w-full items-start gap-3 rounded-xl border-2 p-4 text-left transition-all cursor-pointer ${
                       selected
-                        ? 'border-accent bg-accent-soft text-accent'
-                        : 'border-border bg-white text-text-secondary hover:border-accent/40'
+                        ? 'border-accent bg-accent-soft shadow-sm ring-2 ring-accent/15'
+                        : 'border-border bg-white hover:border-accent/50 hover:bg-slate-50'
                     }`}
                   >
-                    {day.label?.trim() || `Day ${day.day_number}`}
+                    <span
+                      className={`mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border-2 transition-colors ${
+                        selected
+                          ? 'border-accent bg-accent text-white'
+                          : 'border-border bg-white text-transparent group-hover:border-accent/50'
+                      }`}
+                      aria-hidden="true"
+                    >
+                      <Check className="h-4 w-4 stroke-[3]" />
+                    </span>
+
+                    <span className="min-w-0 flex-1">
+                      <span className="block text-base font-bold leading-tight text-text-primary">
+                        {dayLabel(day)}
+                      </span>
+                      <span className="mt-1 block text-[11px] font-medium text-text-secondary">
+                        {dayDateLabel(day) || 'Date not set'}
+                      </span>
+                      <span
+                        className={`mt-2 inline-block text-[10px] font-bold uppercase tracking-wider ${
+                          selected ? 'text-accent' : 'text-text-tertiary'
+                        }`}
+                      >
+                        {selected ? 'Included on this link' : 'Tap to include'}
+                      </span>
+                    </span>
+
+                    <CalendarDays
+                      className={`h-4 w-4 shrink-0 ${selected ? 'text-accent' : 'text-text-tertiary'}`}
+                      aria-hidden="true"
+                    />
                   </button>
                 );
               })}
             </div>
+
+            {/* Plain-language confirmation of exactly what this link will issue. */}
+            <div
+              className={`rounded-lg border px-3 py-2.5 text-[11px] font-semibold ${
+                selectedDays.length === 0
+                  ? 'border-amber/30 bg-amber/10 text-amber'
+                  : 'border-emerald-200 bg-emerald-50 text-emerald-800'
+              }`}
+              aria-live="polite"
+            >
+              {selectedDays.length === 0
+                ? 'No days selected — choose at least one day before generating a link.'
+                : selectedDays.length === 1
+                ? `This link is for ${selectedSummary} only — 1 ticket will be issued.`
+                : `This link covers ${selectedSummary} — ${selectedDays.length} tickets will be issued.`}
+            </div>
+
             <div className="flex items-center gap-2">
               <label className="text-[10px] font-semibold text-text-secondary">Links to generate</label>
               <input
