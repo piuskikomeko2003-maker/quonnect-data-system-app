@@ -3,6 +3,7 @@ import { createServiceClient } from '@/lib/supabase/service';
 import { requireAdmin } from '@/lib/auth/requireAdmin';
 import { STICKER_ASSETS_BUCKET, getStickerTemplate } from '@/lib/stickers/server';
 import { renderStickerPdf, type StickerPdfImage } from '@/lib/stickers/pdf';
+import { ticketNumberValue } from '@/lib/stickers/layout';
 import type { StickerBatchItem, StickerNeed } from '@/types/sticker';
 
 export const runtime = 'nodejs';
@@ -89,11 +90,8 @@ export async function GET(request: NextRequest) {
       const reg = regMap.get(item.registration_id);
       const dayTicket = item.ticket_id ? ticketMap.get(item.ticket_id) : null;
       const ticket = dayTicket
-        ? Number(dayTicket.ticket_number) ||
-          Number(String(dayTicket.ticket_code || '').match(/\d+/)?.[0] ?? NaN)
-        : Number.isFinite(Number(reg?.ticket_number))
-        ? Number(reg?.ticket_number)
-        : Number(String(reg?.stall_number || '').match(/\d+/)?.[0] ?? NaN);
+        ? ticketNumberValue(dayTicket.ticket_number) ?? ticketNumberValue(dayTicket.ticket_code)
+        : ticketNumberValue(reg?.ticket_number) ?? ticketNumberValue(reg?.stall_number);
       for (const tableNumber of item.table_numbers || []) {
         stickers.push({
           registration_id: item.registration_id,
@@ -101,7 +99,7 @@ export async function GET(request: NextRequest) {
           edition_day_id: item.edition_day_id ?? batchRow.edition_day_id ?? null,
           vendor_id: reg?.vendor_id || '',
           business_name: reg?.vendors?.business_name || reg?.vendors?.contact_name || 'Unknown vendor',
-          ticket_number: Number.isFinite(ticket) ? ticket : null,
+          ticket_number: ticket,
           table_number: tableNumber,
         });
       }

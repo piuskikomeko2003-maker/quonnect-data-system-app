@@ -16,6 +16,7 @@ import {
 } from '@/lib/stickers/image';
 import { computeStickerLayout } from '@/lib/stickers/pageLayout';
 import { layoutSettingsFromTemplate } from '@/lib/stickers/templateLayout';
+import { ticketNumberValue, type TicketRange } from '@/lib/stickers/layout';
 
 type ServiceClient = ReturnType<typeof createServiceClient>;
 
@@ -168,7 +169,8 @@ async function seedDefaultTemplates(supabase: ServiceClient): Promise<StickerTem
 export async function fetchStickerVendors(
   supabase: ServiceClient,
   marketDayId: string,
-  editionDayId?: string | null
+  editionDayId?: string | null,
+  ticketRange?: TicketRange | null
 ): Promise<StickerVendor[]> {
   const PAGE_SIZE = 1000;
 
@@ -191,13 +193,21 @@ export async function fetchStickerVendors(
 
     const rows: any[] = [];
     for (let from = 0; ; from += PAGE_SIZE) {
-      const { data, error } = await supabase
+      let query = supabase
         .from('vendor_tickets')
         .select(daySelect)
         .eq('edition_day_id', editionDayId)
         .eq('vendor_registrations.payment_status', 'paid')
-        .order('ticket_number', { ascending: true })
-        .range(from, from + PAGE_SIZE - 1);
+        // INTEGER column, so this is a numeric sort (100 after 99, not before 20).
+        .order('ticket_number', { ascending: true });
+      // Filter by the ticket NUMBER, never by row position/offset. This keeps a
+      // 100..200 request from inheriting stickers that belong to tickets 1..99.
+      if (ticketRange) {
+        query = query
+          .gte('ticket_number', ticketRange.from)
+          .lte('ticket_number', ticketRange.to);
+      }
+      const { data, error } = await query.range(from, from + PAGE_SIZE - 1);
       if (error) throw error;
       const batch = data || [];
       rows.push(...batch);
@@ -206,16 +216,16 @@ export async function fetchStickerVendors(
 
     return rows.map((row: any) => {
       const reg = row.vendor_registrations || {};
-      const ticket = Number.isFinite(Number(row.ticket_number))
-        ? Number(row.ticket_number)
-        : Number(String(row.ticket_code || '').match(/\d+/)?.[0] ?? NaN);
+      // `Number(null)` is 0, so test with the shared parser (handles "Ticket 084").
+      const ticket =
+        ticketNumberValue(row.ticket_number) ?? ticketNumberValue(row.ticket_code);
       return {
         registration_id: row.registration_id,
         ticket_id: row.id,
         edition_day_id: row.edition_day_id,
         vendor_id: reg.vendor_id,
         business_name: reg.vendors?.business_name || reg.vendors?.contact_name || 'Unknown vendor',
-        ticket_number: Number.isFinite(ticket) ? ticket : null,
+        ticket_number: ticket,
         tables: Math.max(1, Number(reg.tables) || 1),
         stickers_printed: Math.max(0, Number(row.stickers_printed) || 0),
       };
@@ -236,13 +246,20 @@ export async function fetchStickerVendors(
   // edition is never silently truncated, which would look like skipped stickers.
   const rows: any[] = [];
   for (let from = 0; ; from += PAGE_SIZE) {
-    const { data, error } = await supabase
+    let query = supabase
       .from('vendor_registrations')
       .select(baseSelect)
       .eq('market_day_id', marketDayId)
       .eq('payment_status', 'paid')
-      .order('id', { ascending: true })
-      .range(from, from + PAGE_SIZE - 1);
+      // Sort by the numeric ticket number first, then by id for a stable order.
+      .order('ticket_number', { ascending: true, nullsFirst: false })
+      .order('id', { ascending: true });
+    if (ticketRange) {
+      query = query
+        .gte('ticket_number', ticketRange.from)
+        .lte('ticket_number', ticketRange.to);
+    }
+    const { data, error } = await query.range(from, from + PAGE_SIZE - 1);
     if (error) throw error;
     const batch = data || [];
     rows.push(...batch);
@@ -250,16 +267,15 @@ export async function fetchStickerVendors(
   }
 
   return rows.map((row: any) => {
-    const ticket = Number.isFinite(Number(row.ticket_number))
-      ? Number(row.ticket_number)
-      : Number(String(row.stall_number || '').match(/\d+/)?.[0] ?? NaN);
+    const ticket =
+      ticketNumberValue(row.ticket_number) ?? ticketNumberValue(row.stall_number);
     return {
       registration_id: row.id,
       ticket_id: null,
       edition_day_id: null,
       vendor_id: row.vendor_id,
       business_name: row.vendors?.business_name || row.vendors?.contact_name || 'Unknown vendor',
-      ticket_number: Number.isFinite(ticket) ? ticket : null,
+      ticket_number: ticket,
       tables: Math.max(1, Number(row.tables) || 1),
       stickers_printed: Math.max(0, Number(row.stickers_printed) || 0),
     };

@@ -2,7 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { requireAdmin } from '@/lib/auth/requireAdmin';
 import { fetchStickerVendors, getStickerTemplate } from '@/lib/stickers/server';
-import { selectBatch } from '@/lib/stickers/layout';
+import {
+  normalizeTicketRange,
+  selectBatch,
+  summarizeTicketRange,
+  type TicketRange,
+} from '@/lib/stickers/layout';
 
 export const runtime = 'nodejs';
 
@@ -58,12 +63,44 @@ export async function POST(request: NextRequest) {
       return createReprintBatch(supabase, auth.user?.id ?? null, body);
     }
 
-    const { market_day_id, edition_day_id, mode, count, start_position } = body ?? {};
+    const {
+      market_day_id,
+      edition_day_id,
+      mode,
+      count,
+      start_position,
+      ticket_from,
+      ticket_to,
+    } = body ?? {};
     if (!market_day_id || typeof market_day_id !== 'string') {
       return NextResponse.json({ error: 'market_day_id is required.' }, { status: 400 });
     }
 
-    const vendors = await fetchStickerVendors(supabase, market_day_id, edition_day_id || null);
+    // A ticket range is optional, but both bounds must be supplied together.
+    const hasTicketFrom = ticket_from != null && String(ticket_from).trim() !== '';
+    const hasTicketTo = ticket_to != null && String(ticket_to).trim() !== '';
+    if (hasTicketFrom !== hasTicketTo) {
+      return NextResponse.json(
+        { error: 'ticket_from and ticket_to must be provided together.' },
+        { status: 400 }
+      );
+    }
+    const ticketRange: TicketRange | null = hasTicketFrom
+      ? normalizeTicketRange(ticket_from, ticket_to)
+      : null;
+    if (hasTicketFrom && !ticketRange) {
+      return NextResponse.json(
+        { error: 'ticket_from and ticket_to must be whole ticket numbers.' },
+        { status: 400 }
+      );
+    }
+
+    const vendors = await fetchStickerVendors(
+      supabase,
+      market_day_id,
+      edition_day_id || null,
+      ticketRange
+    );
     const template = await getStickerTemplate(
       supabase,
       null,
@@ -72,7 +109,8 @@ export async function POST(request: NextRequest) {
     );
     const slotsPerPage = template ? Math.max(1, template.columns * template.rows) : DEFAULT_SLOTS_PER_PAGE;
 
-    const isAll = mode === 'all';
+    // A range already defines the full batch; `count` is ignored in that case.
+    const isAll = mode === 'all' || !!ticketRange;
     const requestedCount = Number(count);
     if (!isAll && (!Number.isInteger(requestedCount) || requestedCount < 1)) {
       return NextResponse.json({ error: 'count must be a whole number of at least 1.' }, { status: 400 });
@@ -85,11 +123,21 @@ export async function POST(request: NextRequest) {
       mode: isAll ? 'all' : 'count',
       count: isAll ? undefined : requestedCount,
       startPosition,
+      ticketRange,
     });
 
     if (selection.stickerCount === 0) {
-      return NextResponse.json({ error: 'No unprinted stickers remain for this edition.' }, { status: 400 });
+      return NextResponse.json(
+        {
+          error: ticketRange
+            ? `No tickets found for tickets ${ticketRange.from} to ${ticketRange.to}.`
+            : 'No unprinted stickers remain for this edition.',
+        },
+        { status: 400 }
+      );
     }
+
+    const summary = ticketRange ? summarizeTicketRange(vendors, ticketRange) : null;
 
     const { data: batch, error } = await supabase
       .from('sticker_print_batches')
@@ -113,6 +161,11 @@ export async function POST(request: NextRequest) {
       batch,
       selection: {
         stickerCount: selection.stickerCount,
+        ticketCount: selection.ticketCount,
+        ticketRange: selection.ticketRange,
+        includePrinted: selection.includePrinted,
+        reprintStickerCount: selection.reprintStickerCount,
+        summary,
         pages: selection.pages,
         emptySlots: selection.emptySlots,
         slotsPerPage: selection.slotsPerPage,

@@ -32,6 +32,87 @@ import { layoutSettingsFromTemplate } from './templateLayout';
 const mm = (value: number) => value * MM_TO_PT;
 
 /**
+ * Characters that are not in WinAnsi but have a sensible ASCII equivalent.
+ * Everything else outside the font's character set is either dropped (emoji /
+ * pictographs) or replaced with "?".
+ */
+const PDF_TEXT_FALLBACKS: Record<string, string> = {
+  '\u2018': "'",
+  '\u2019': "'",
+  '\u201a': "'",
+  '\u201b': "'",
+  '\u201c': '"',
+  '\u201d': '"',
+  '\u201e': '"',
+  '\u2013': '-',
+  '\u2014': '-',
+  '\u2015': '-',
+  '\u2022': '-',
+  '\u2026': '...',
+  '\u2190': '<-',
+  '\u2192': '->',
+  '\u00a0': ' ',
+  '\u202f': ' ',
+  '\u2007': ' ',
+  '\u2009': ' ',
+  '\u200a': ' ',
+  // Zero-width / variation selectors are parts of emoji sequences.
+  '\u200b': '',
+  '\u200c': '',
+  '\u200d': '',
+  '\u2060': '',
+  '\ufeff': '',
+  '\ufe0e': '',
+  '\ufe0f': '',
+};
+
+const FONT_CHARACTER_SETS = new WeakMap<PDFFont, Set<number>>();
+
+function supportedCodePoints(font: PDFFont): Set<number> {
+  let supported = FONT_CHARACTER_SETS.get(font);
+  if (!supported) {
+    supported = new Set(font.getCharacterSet());
+    FONT_CHARACTER_SETS.set(font, supported);
+  }
+  return supported;
+}
+
+/**
+ * Makes text safe for pdf-lib's built-in fonts, which use WinAnsi encoding.
+ * Without this, an emoji in a vendor name throws:
+ *   WinAnsi cannot encode "🥰" (0x1f970)
+ */
+export function sanitizePdfText(text: string, font: PDFFont): string {
+  const supported = supportedCodePoints(font);
+  let output = '';
+
+  for (const char of Array.from(String(text ?? ''))) {
+    const codePoint = char.codePointAt(0)!;
+    if (supported.has(codePoint)) {
+      output += char;
+      continue;
+    }
+
+    const fallback = PDF_TEXT_FALLBACKS[char];
+    if (fallback !== undefined) {
+      output += fallback;
+      continue;
+    }
+
+    // Emoji, pictographs, regional-indicator flags and tags: drop them.
+    const isEmoji =
+      codePoint >= 0x1f000 ||
+      (codePoint >= 0x2600 && codePoint <= 0x27bf) ||
+      (codePoint >= 0xfe00 && codePoint <= 0xfe0f) ||
+      (codePoint >= 0xe0000 && codePoint <= 0xe007f);
+    output += isEmoji ? '' : '?';
+  }
+
+  // Dropping an emoji can leave a double space; keep the printed text tidy.
+  return output.replace(/\s+/g, ' ').trim();
+}
+
+/**
  * Baseline offset within a text line, as a fraction of the font size. Chosen to
  * match the browser's Arial/Helvetica line-box baseline (~0.907) so the printed
  * text sits where the live preview shows it.
@@ -190,10 +271,11 @@ function drawDesignedFields(
     const style = design[key];
     if (!style || !style.enabled) continue;
 
-    const value = fieldValue(key, sticker);
+    const font = fonts.get(standardFontFor(style.fontFamily, style.bold))!;
+    // The built-in fonts cannot encode emoji or other non-WinAnsi symbols.
+    const value = sanitizePdfText(fieldValue(key, sticker), font);
     if (!value) continue;
 
-    const font = fonts.get(standardFontFor(style.fontFamily, style.bold))!;
     const fb = fieldBox(style, box.width, box.height);
     const boxLeft = box.x + fb.left;
     const boxTop = box.top + fb.top;
@@ -390,8 +472,10 @@ export async function renderStickerPdf({
       usableHeight - tableLineHeight - ticketLineHeight - mm(1)
     );
 
+    const safeBusinessName =
+      sanitizePdfText(sticker.business_name || 'Vendor', bold) || 'Vendor';
     const name = fitBusinessName(
-      sticker.business_name || 'Vendor',
+      safeBusinessName,
       bold,
       usableWidth,
       nameMaxHeight,
@@ -408,7 +492,7 @@ export async function renderStickerPdf({
     });
 
     const ticketTop = box.top + padding + name.lines.length * name.lineHeight + mm(0.6);
-    drawTopText(page, pageHeight, ticketLabel(sticker.ticket_number), {
+    drawTopText(page, pageHeight, sanitizePdfText(ticketLabel(sticker.ticket_number), font), {
       x: box.x + padding,
       top: ticketTop,
       size: ticketSize,
@@ -416,7 +500,7 @@ export async function renderStickerPdf({
       color: textColor,
     });
 
-    const tableText = `Table ${sticker.table_number}`;
+    const tableText = sanitizePdfText(`Table ${sticker.table_number}`, bold);
     const tableWidth = bold.widthOfTextAtSize(tableText, tableSize);
     const tableX = box.x + padding + Math.max(0, (usableWidth - tableWidth) / 2);
     const tableTop = box.top + box.height - padding - tableLineHeight;

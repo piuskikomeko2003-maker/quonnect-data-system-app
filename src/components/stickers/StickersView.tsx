@@ -19,7 +19,13 @@ import {
 } from 'lucide-react';
 import type { StickerTemplate, StickerVendor } from '@/types/sticker';
 import type { StickerProgress } from '@/lib/stickers/layout';
-import { computeProgress, selectBatch } from '@/lib/stickers/layout';
+import {
+  computeProgress,
+  normalizeTicketRange,
+  selectBatch,
+  summarizeTicketRange,
+  ticketNumberValue,
+} from '@/lib/stickers/layout';
 import { fetchEditionDays, dayLabel, dayDateLabel, type EditionDay } from '@/lib/editionDays';
 import { createClient } from '@/lib/supabase/client';
 
@@ -49,7 +55,10 @@ const StickersView: React.FC<{ canPrint: boolean }> = ({ canPrint }) => {
 
   const [mode, setMode] = useState<'count' | 'all'>('count');
   const [count, setCount] = useState('30');
-  const [startPosition, setStartPosition] = useState('1');
+  // Ticket-number range (inclusive). This is what the user asks for: "print
+  // tickets 100 to 200". It is never a row position or a sticker count.
+  const [ticketFrom, setTicketFrom] = useState('');
+  const [ticketTo, setTicketTo] = useState('');
 
   const [generating, setGenerating] = useState(false);
   const [pendingBatch, setPendingBatch] = useState<BatchRow | null>(null);
@@ -145,17 +154,61 @@ const StickersView: React.FC<{ canPrint: boolean }> = ({ canPrint }) => {
     load();
   }, [load]);
 
+  const ticketRange = useMemo(
+    () => normalizeTicketRange(ticketFrom, ticketTo),
+    [ticketFrom, ticketTo]
+  );
+  const hasPartialRange =
+    (ticketFrom.trim() !== '') !== (ticketTo.trim() !== '');
+
   const preview = useMemo(() => {
     const parsedCount = Number(count);
     return selectBatch(vendors, slotsPerPage, {
-      mode: mode === 'all' ? 'all' : 'count',
+      mode: ticketRange || mode === 'all' ? 'all' : 'count',
       count: Number.isFinite(parsedCount) ? parsedCount : 0,
-      startPosition: Number(startPosition) || 1,
+      startPosition: 1,
+      ticketRange,
     });
-  }, [vendors, slotsPerPage, mode, count, startPosition]);
+  }, [vendors, slotsPerPage, mode, count, ticketRange]);
+
+  // Shown before printing: "Printing tickets X to Y: N tickets, M stickers".
+  const rangeSummary = useMemo(
+    () => (ticketRange ? summarizeTicketRange(vendors, ticketRange) : null),
+    [vendors, ticketRange]
+  );
+
+  // Ticket numbers and sticker totals are different scales: a ticket with 3
+  // tables contributes 1 ticket number but 3 stickers. Show both explicitly.
+  const ticketStats = useMemo(() => {
+    const numbers = [
+      ...new Set(
+        vendors
+          .map((vendor) => ticketNumberValue(vendor.ticket_number))
+          .filter((ticket): ticket is number => ticket != null)
+      ),
+    ].sort((a, b) => a - b);
+    return {
+      count: numbers.length,
+      first: numbers[0] ?? null,
+      last: numbers.at(-1) ?? null,
+    };
+  }, [vendors]);
+
+  // Distinguish "gap in the ticket list" from "range goes past the last ticket",
+  // so the warning explains the real cause instead of listing 24 fake tickets.
+  const missingWithinTickets = rangeSummary
+    ? rangeSummary.missingTickets.filter(
+        (ticket) => ticketStats.last == null || ticket <= ticketStats.last
+      )
+    : [];
+  const missingBeyondLastTickets = rangeSummary
+    ? rangeSummary.missingTickets.filter(
+        (ticket) => ticketStats.last != null && ticket > ticketStats.last
+      )
+    : [];
 
   const generate = async () => {
-    if (!marketDayId) return;
+    if (!marketDayId || hasPartialRange) return;
     setGenerating(true);
     setError(null);
     try {
@@ -165,9 +218,11 @@ const StickersView: React.FC<{ canPrint: boolean }> = ({ canPrint }) => {
         body: JSON.stringify({
           market_day_id: marketDayId,
           edition_day_id: selectedDayId || null,
-          mode: mode === 'all' ? 'all' : 'count',
-          count: mode === 'count' ? Number(count) : undefined,
-          start_position: Number(startPosition) || 1,
+          mode: ticketRange || mode === 'all' ? 'all' : 'count',
+          count: ticketRange || mode === 'all' ? undefined : Number(count),
+          start_position: 1,
+          ticket_from: ticketRange?.from ?? null,
+          ticket_to: ticketRange?.to ?? null,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -311,17 +366,27 @@ const StickersView: React.FC<{ canPrint: boolean }> = ({ canPrint }) => {
 
       {/* Progress */}
       {progress && (
-        <div className="grid grid-cols-3 gap-3">
-          {[
-            { label: 'Total needed', value: progress.totalNeeded },
-            { label: 'Printed', value: progress.printed },
-            { label: 'Remaining', value: progress.remaining },
-          ].map((chip) => (
-            <div key={chip.label} className="bg-white border border-border rounded-xl p-4">
-              <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">{chip.label}</p>
-              <p className="text-2xl font-black text-text-primary mt-1">{chip.value}</p>
-            </div>
-          ))}
+        <div className="space-y-2">
+          <div className="grid grid-cols-3 gap-3">
+            {[
+              { label: 'Stickers needed', value: progress.totalNeeded },
+              { label: 'Stickers printed', value: progress.printed },
+              { label: 'Stickers remaining', value: progress.remaining },
+            ].map((chip) => (
+              <div key={chip.label} className="bg-white border border-border rounded-xl p-4">
+                <p className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">{chip.label}</p>
+                <p className="text-2xl font-black text-text-primary mt-1">{chip.value}</p>
+              </div>
+            ))}
+          </div>
+          <p className="text-[11px] text-text-tertiary">
+            {ticketStats.count} paid ticket{ticketStats.count === 1 ? '' : 's'}
+            {ticketStats.first != null && ticketStats.last != null
+              ? ` (numbers ${formatTicket(ticketStats.first)}–${formatTicket(ticketStats.last)})`
+              : ''}
+            . A ticket with multiple tables needs one sticker per table, so sticker totals can be
+            higher than the highest ticket number.
+          </p>
         </div>
       )}
 
@@ -353,46 +418,125 @@ const StickersView: React.FC<{ canPrint: boolean }> = ({ canPrint }) => {
             </label>
           )}
 
-          <div className="flex items-center gap-2">
-            <button
-              onClick={() => setMode('count')}
-              className={`px-3 py-1.5 text-[11px] font-semibold rounded-md border cursor-pointer ${
-                mode === 'count' ? 'bg-accent text-white border-accent' : 'border-border text-text-secondary'
-              }`}
-            >
-              Fixed count
-            </button>
-            <button
-              onClick={() => setMode('all')}
-              className={`px-3 py-1.5 text-[11px] font-semibold rounded-md border cursor-pointer ${
-                mode === 'all' ? 'bg-accent text-white border-accent' : 'border-border text-text-secondary'
-              }`}
-            >
-              All remaining
-            </button>
-          </div>
-
           <div className="grid grid-cols-2 gap-3">
             <Input
-              label="Stickers in this PDF"
+              label="From ticket"
               type="number"
               min={1}
-              value={mode === 'all' ? '' : count}
-              disabled={mode === 'all'}
-              onChange={(e) => setCount(e.target.value)}
-              helperText={mode === 'all' ? 'All unprinted stickers' : undefined}
+              max={ticketStats.last ?? undefined}
+              placeholder="e.g. 100"
+              value={ticketFrom}
+              onChange={(e) => setTicketFrom(e.target.value)}
+              helperText={
+                ticketStats.first != null && ticketStats.last != null
+                  ? `Ticket numbers run ${formatTicket(ticketStats.first)}–${formatTicket(ticketStats.last)}`
+                  : 'First ticket number (inclusive)'
+              }
             />
             <Input
-              label="Start at position"
+              label="To ticket"
               type="number"
               min={1}
-              value={startPosition}
-              onChange={(e) => setStartPosition(e.target.value)}
-              helperText="Slots before this stay blank"
+              max={ticketStats.last ?? undefined}
+              placeholder="e.g. 200"
+              value={ticketTo}
+              onChange={(e) => setTicketTo(e.target.value)}
+              helperText={
+                ticketStats.last != null
+                  ? `Highest ticket number is ${formatTicket(ticketStats.last)}`
+                  : 'Last ticket number (inclusive)'
+              }
             />
           </div>
 
+          {hasPartialRange && (
+            <p className="text-[11px] text-amber flex items-center gap-1.5">
+              <AlertCircle className="w-3.5 h-3.5" />
+              Enter both From and To ticket numbers, or leave both blank.
+            </p>
+          )}
+
+          {ticketRange ? (
+            <p className="text-[11px] text-text-tertiary">
+              Ticket range selected — every unprinted sticker for tickets {ticketRange.from} to{' '}
+              {ticketRange.to} will print, in ticket-number order.
+            </p>
+          ) : (
+            <>
+              <div className="flex items-center gap-2">
+                <button
+                  onClick={() => setMode('count')}
+                  className={`px-3 py-1.5 text-[11px] font-semibold rounded-md border cursor-pointer ${
+                    mode === 'count' ? 'bg-accent text-white border-accent' : 'border-border text-text-secondary'
+                  }`}
+                >
+                  Fixed count
+                </button>
+                <button
+                  onClick={() => setMode('all')}
+                  className={`px-3 py-1.5 text-[11px] font-semibold rounded-md border cursor-pointer ${
+                    mode === 'all' ? 'bg-accent text-white border-accent' : 'border-border text-text-secondary'
+                  }`}
+                >
+                  All remaining
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3">
+                <Input
+                  label="Stickers in this PDF"
+                  type="number"
+                  min={1}
+                  value={mode === 'all' ? '' : count}
+                  disabled={mode === 'all'}
+                  onChange={(e) => setCount(e.target.value)}
+                  helperText={mode === 'all' ? 'All unprinted stickers' : undefined}
+                />
+              </div>
+            </>
+          )}
+
           <div className="rounded-lg bg-bg-elevated border border-border p-3 text-xs text-text-secondary space-y-1">
+            {rangeSummary && (
+              <p className="font-semibold text-text-primary">
+                Printing tickets {rangeSummary.from} to {rangeSummary.to}: {rangeSummary.ticketCount}{' '}
+                ticket{rangeSummary.ticketCount === 1 ? '' : 's'}, {rangeSummary.stickerCount} sticker
+                {rangeSummary.stickerCount === 1 ? '' : 's'}
+              </p>
+            )}
+            {rangeSummary && rangeSummary.reprintStickerCount > 0 && (
+              <p className="text-amber flex items-start gap-1.5">
+                <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                <span>
+                  Includes {rangeSummary.reprintStickerCount} sticker
+                  {rangeSummary.reprintStickerCount === 1 ? '' : 's'} already marked printed. They will
+                  be reprinted so the sheet contains the full range.
+                </span>
+              </p>
+            )}
+            {missingWithinTickets.length > 0 && (
+              <p className="text-amber flex items-start gap-1.5">
+                <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                <span>
+                  Warning: no record for ticket
+                  {missingWithinTickets.length === 1 ? '' : 's'}{' '}
+                  {missingWithinTickets.map(formatTicket).join(', ')}
+                  {missingWithinTickets.length >= 100 ? ' (first 100 shown)' : ''}.
+                  Those numbers will be skipped.
+                </span>
+              </p>
+            )}
+            {missingBeyondLastTickets.length > 0 && ticketStats.last != null && (
+              <p className="text-amber flex items-start gap-1.5">
+                <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                <span>
+                  The range ends at {rangeSummary?.to}, but the highest ticket number is{' '}
+                  {formatTicket(ticketStats.last)}. Tickets{' '}
+                  {formatTicket(missingBeyondLastTickets[0])}–
+                  {formatTicket(missingBeyondLastTickets.at(-1)!)} do not exist and will be skipped.
+                </span>
+              </p>
+            )}
             <p className="font-semibold text-text-primary">
               {preview.stickerCount} stickers · {preview.pages} page{preview.pages === 1 ? '' : 's'} ·{' '}
               {preview.emptySlots} empty slots
@@ -415,7 +559,7 @@ const StickersView: React.FC<{ canPrint: boolean }> = ({ canPrint }) => {
           <Button
             variant="primary"
             onClick={generate}
-            disabled={generating || preview.stickerCount === 0 || !marketDayId}
+            disabled={generating || preview.stickerCount === 0 || !marketDayId || hasPartialRange}
             fullWidth
           >
             {generating ? <Loader2 className="w-4 h-4 animate-spin" /> : <FileDown className="w-4 h-4" />}
