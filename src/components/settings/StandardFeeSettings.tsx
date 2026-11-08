@@ -5,6 +5,8 @@ import { createClient } from '@/lib/supabase/client';
 import { isTestEdition } from '@/lib/editions';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
+import { Modal } from '@/components/ui/Modal';
+import { PAID_VENDOR_AMOUNT_PRESETS } from '@/components/forms/AmountQuickChips';
 import { useToast } from '@/components/ui/ToastProvider';
 import {
   DollarSign,
@@ -17,7 +19,11 @@ import {
   Info,
   Calendar,
   MapPin,
-  Users
+  Users,
+  Pencil,
+  Plus,
+  Trash2,
+  Zap
 } from 'lucide-react';
 
 interface EditionFeeItem {
@@ -32,7 +38,24 @@ interface EditionFeeItem {
   standardVendorsCount: number;
   overrideVendorsCount: number;
   status: string;
+  quickAmounts: number[];
 }
+
+/** Normalises the JSON column from the DB into a clean list of positive amounts. */
+const parseQuickAmounts = (raw: unknown): number[] => {
+  let value = raw;
+  if (typeof raw === 'string') {
+    try {
+      value = JSON.parse(raw);
+    } catch {
+      return [];
+    }
+  }
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((entry) => Number(entry))
+    .filter((entry) => Number.isFinite(entry) && entry > 0);
+};
 
 export const StandardFeeSettings: React.FC = () => {
   const [editions, setEditions] = useState<EditionFeeItem[]>([]);
@@ -40,6 +63,9 @@ export const StandardFeeSettings: React.FC = () => {
   const [feeInputs, setFeeInputs] = useState<Record<string, string>>({});
   const [savingId, setSavingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
+  const [quickAmountsEdition, setQuickAmountsEdition] = useState<EditionFeeItem | null>(null);
+  const [quickAmountDrafts, setQuickAmountDrafts] = useState<string[]>([]);
+  const [savingQuickAmounts, setSavingQuickAmounts] = useState(false);
   const { addToast } = useToast();
 
   const fetchEditionsData = useCallback(async () => {
@@ -110,7 +136,20 @@ export const StandardFeeSettings: React.FC = () => {
         regList = vrWithSource.data || [];
       }
 
-      processMarketDays(marketDays, regList);
+      // 3. Quick-pick amounts for the paid vendor form (optional column).
+      const quickAmountsMap: Record<string, number[]> = {};
+      const quickAmountsRes = await supabase
+        .from('market_days')
+        .select('id, paid_vendor_quick_amounts');
+
+      if (!quickAmountsRes.error) {
+        (quickAmountsRes.data || []).forEach((row: { id: string; paid_vendor_quick_amounts?: unknown }) => {
+          const parsed = parseQuickAmounts(row.paid_vendor_quick_amounts);
+          if (parsed.length > 0) quickAmountsMap[row.id] = parsed;
+        });
+      }
+
+      processMarketDays(marketDays, regList, quickAmountsMap);
     } catch (err: any) {
       console.error('Error loading edition fee settings:', err);
       addToast(err.message || 'Failed to load edition standard fees', 'error');
@@ -119,7 +158,11 @@ export const StandardFeeSettings: React.FC = () => {
     }
   }, [addToast]);
 
-  const processMarketDays = (marketDays: any[], registrations: any[]) => {
+  const processMarketDays = (
+    marketDays: any[],
+    registrations: any[],
+    quickAmountsMap: Record<string, number[]>
+  ) => {
     // Map stats & infer standard fee from existing records if standard_fee column is not populated
     const regMap: Record<string, { total: number; standard: number; override: number; amounts: number[] }> = {};
 
@@ -170,7 +213,10 @@ export const StandardFeeSettings: React.FC = () => {
         totalVendors: stats.total,
         standardVendorsCount: stats.standard,
         overrideVendorsCount: stats.override,
-        status: m.status || 'active'
+        status: m.status || 'active',
+        quickAmounts: quickAmountsMap[m.id]?.length
+          ? quickAmountsMap[m.id]
+          : [...PAID_VENDOR_AMOUNT_PRESETS]
       };
     });
 
@@ -296,6 +342,92 @@ export const StandardFeeSettings: React.FC = () => {
     }
   };
 
+  const openQuickAmountsModal = (item: EditionFeeItem) => {
+    setQuickAmountsEdition(item);
+    setQuickAmountDrafts(
+      item.quickAmounts.map((amount) => amount.toLocaleString('en-US'))
+    );
+  };
+
+  const closeQuickAmountsModal = () => {
+    if (savingQuickAmounts) return;
+    setQuickAmountsEdition(null);
+    setQuickAmountDrafts([]);
+  };
+
+  const handleQuickAmountChange = (index: number, val: string) => {
+    const digits = val.replace(/[^0-9]/g, '');
+    const formatted = digits ? parseInt(digits, 10).toLocaleString('en-US') : '';
+    setQuickAmountDrafts((prev) => prev.map((entry, i) => (i === index ? formatted : entry)));
+  };
+
+  const addQuickAmount = () => {
+    setQuickAmountDrafts((prev) => [...prev, '']);
+  };
+
+  const removeQuickAmount = (index: number) => {
+    setQuickAmountDrafts((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const resetQuickAmountsToDefault = () => {
+    setQuickAmountDrafts(
+      PAID_VENDOR_AMOUNT_PRESETS.map((amount) => amount.toLocaleString('en-US'))
+    );
+  };
+
+  const handleSaveQuickAmounts = async () => {
+    if (!quickAmountsEdition) return;
+
+    const amounts = Array.from(
+      new Set(
+        quickAmountDrafts
+          .map((entry) => parseInt(entry.replace(/[^0-9]/g, ''), 10))
+          .filter((amount) => Number.isFinite(amount) && amount > 0)
+      )
+    );
+
+    if (amounts.length === 0) {
+      addToast('Add at least one amount greater than zero.', 'error');
+      return;
+    }
+
+    setSavingQuickAmounts(true);
+    try {
+      const supabase = createClient();
+      if (!supabase) return;
+
+      const { error } = await supabase
+        .from('market_days')
+        .update({
+          paid_vendor_quick_amounts: amounts,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', quickAmountsEdition.id);
+
+      if (error) throw error;
+
+      addToast(
+        `Quick amounts for ${quickAmountsEdition.editionName} saved: ${amounts
+          .map((amount) => `UGX ${amount.toLocaleString()}`)
+          .join(' • ')}.`,
+        'success'
+      );
+
+      setQuickAmountsEdition(null);
+      setQuickAmountDrafts([]);
+      await fetchEditionsData();
+    } catch (err: any) {
+      console.error('Error saving paid vendor quick amounts:', err);
+      addToast(
+        err.message ||
+          'Failed to save quick amounts. Make sure the latest database migration has been applied.',
+        'error'
+      );
+    } finally {
+      setSavingQuickAmounts(false);
+    }
+  };
+
   const filteredEditions = editions.filter(
     (e) =>
       e.editionName.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -376,6 +508,7 @@ export const StandardFeeSettings: React.FC = () => {
                   <th className="p-4 text-[10px] font-semibold uppercase tracking-wider">Region & Date</th>
                   <th className="p-4 text-[10px] font-semibold uppercase tracking-wider text-center">Registered Vendors</th>
                   <th className="p-4 text-[10px] font-semibold uppercase tracking-wider w-[240px]">Standard Fee (UGX)</th>
+                  <th className="p-4 text-[10px] font-semibold uppercase tracking-wider w-[230px]">Paid Vendor Quick Amounts</th>
                   <th className="p-4 text-[10px] font-semibold uppercase tracking-wider text-right w-[140px]">Action</th>
                 </tr>
               </thead>
@@ -428,6 +561,31 @@ export const StandardFeeSettings: React.FC = () => {
                           />
                         </div>
                       </td>
+                      <td className="p-4">
+                        <div className="flex flex-wrap items-center gap-1.5">
+                          {item.quickAmounts.map((amount) => (
+                            <span
+                              key={amount}
+                              className="inline-flex items-center px-2 py-1 rounded-full bg-accent-soft/60 border border-accent/20 text-[10px] font-semibold text-accent"
+                            >
+                              {amount.toLocaleString('en-US')}
+                            </span>
+                          ))}
+                          <button
+                            type="button"
+                            onClick={() => openQuickAmountsModal(item)}
+                            className="inline-flex items-center gap-1 px-2 py-1 rounded-md border border-border bg-white text-[10px] font-semibold text-text-secondary hover:text-accent hover:border-accent transition-colors cursor-pointer"
+                            aria-label={`Edit paid vendor quick amounts for ${item.editionName}`}
+                          >
+                            <Pencil className="w-3 h-3" />
+                            Edit
+                          </button>
+                        </div>
+                        <p className="text-[10px] text-text-muted mt-1.5 flex items-center gap-1">
+                          <Zap className="w-3 h-3 text-amber-500" />
+                          Tap options for collectors
+                        </p>
+                      </td>
                       <td className="p-4 text-right">
                         <Button
                           size="sm"
@@ -456,6 +614,115 @@ export const StandardFeeSettings: React.FC = () => {
           </div>
         </div>
       )}
+
+      <Modal
+        isOpen={!!quickAmountsEdition}
+        onClose={closeQuickAmountsModal}
+        title={
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-accent-soft border border-accent/20 flex items-center justify-center">
+              <Zap className="w-4.5 h-4.5 text-accent" />
+            </div>
+            <div>
+              <h3 className="text-base font-bold text-text-primary">Paid Vendor Quick Amounts</h3>
+              <p className="text-[11px] text-text-muted mt-0.5">
+                {quickAmountsEdition?.editionName}
+              </p>
+            </div>
+          </div>
+        }
+      >
+        <div className="space-y-5">
+          <div className="bg-accent-soft/40 border border-accent/20 rounded-lg p-3.5 flex items-start gap-2.5">
+            <Info className="w-4 h-4 text-accent shrink-0 mt-0.5" />
+            <p className="text-[11px] text-text-secondary leading-relaxed">
+              These are the tappable amounts shown under <strong className="text-text-primary">Amount Paid</strong> on
+              the paid vendor form for this edition. Vendors can still type a custom amount.
+            </p>
+          </div>
+
+          <div className="space-y-2.5">
+            {quickAmountDrafts.map((amount, index) => (
+              <div key={index} className="flex items-center gap-2">
+                <div className="relative flex-1">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-[11px] font-bold text-accent select-none">
+                    UGX
+                  </span>
+                  <input
+                    type="text"
+                    inputMode="numeric"
+                    value={amount}
+                    onChange={(e) => handleQuickAmountChange(index, e.target.value)}
+                    placeholder="e.g. 150,000"
+                    className="w-full pl-12 pr-3 py-2.5 bg-slate-50 border border-border rounded-lg text-sm font-mono text-text-primary font-bold focus:bg-white focus:outline-none focus:border-accent focus:ring-1 focus:ring-accent transition-all"
+                  />
+                </div>
+                <button
+                  type="button"
+                  onClick={() => removeQuickAmount(index)}
+                  disabled={quickAmountDrafts.length <= 1}
+                  className="w-9 h-9 rounded-lg border border-border bg-white text-text-muted hover:text-red hover:border-red flex items-center justify-center transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
+                  aria-label={`Remove amount ${index + 1}`}
+                >
+                  <Trash2 className="w-4 h-4" />
+                </button>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={addQuickAmount}
+              className="gap-1.5 border-border"
+            >
+              <Plus className="w-3.5 h-3.5" />
+              Add amount
+            </Button>
+            <button
+              type="button"
+              onClick={resetQuickAmountsToDefault}
+              className="text-[11px] font-semibold text-text-muted hover:text-accent transition-colors cursor-pointer"
+            >
+              Reset to defaults
+            </button>
+          </div>
+
+          <div className="flex items-center justify-end gap-2 pt-3 border-t border-border">
+            <Button
+              type="button"
+              variant="secondary"
+              size="sm"
+              onClick={closeQuickAmountsModal}
+              disabled={savingQuickAmounts}
+              className="border-border"
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              size="sm"
+              onClick={handleSaveQuickAmounts}
+              disabled={savingQuickAmounts}
+              className="gap-1.5 bg-accent hover:bg-accent-hover text-white border-0"
+            >
+              {savingQuickAmounts ? (
+                <>
+                  <Loader2 className="w-3.5 h-3.5 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <CheckCircle2 className="w-3.5 h-3.5" />
+                  Save quick amounts
+                </>
+              )}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </div>
   );
 };

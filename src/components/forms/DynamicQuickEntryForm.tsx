@@ -29,7 +29,7 @@ import {
   ticketPngFilename,
 } from '@/lib/tickets/download';
 import { DesignedTicketCard, DefaultTicketCard } from './TicketPassCard';
-import { AmountQuickChips, isAmountQuestion } from './AmountQuickChips';
+import { AmountQuickChips, isAmountQuestion, PAID_VENDOR_AMOUNT_PRESETS } from './AmountQuickChips';
 
 // Applied on the field collection form when a phone lookup finds no existing
 // vendor (a brand-new / first-time vendor). Questions the collector has already
@@ -165,6 +165,8 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
   const [questionRules, setQuestionRules] = useState<QuestionLogic[]>(cachedData?.questionRules || []);
   const [sectionRules, setSectionRules] = useState<SectionLogic[]>(cachedData?.sectionRules || []);
   const [answers, setAnswers] = useState<Record<string, string>>(initialAnswers || {});
+  /** Quick-pick amounts for the paid vendor "Amount Paid" field, keyed by edition. */
+  const [editionAmountPresets, setEditionAmountPresets] = useState<Record<string, number[]>>({});
   const [loading, setLoading] = useState(!cachedData);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -181,6 +183,53 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
   const [loadedTicketBgUrls, setLoadedTicketBgUrls] = useState<Set<string>>(() => new Set());
   /** Per-day templates for multi-day purchases (one designed pass per day). */
   const [dayTemplates, setDayTemplates] = useState<Record<string, TicketTemplate | null>>({});
+
+  // Load the edition-specific quick-pick amounts configured in Settings. Falls
+  // back to the built-in defaults when the column or edition is unavailable.
+  useEffect(() => {
+    const editionId = activeEdition?.id;
+    if (formSlug !== 'paid_vendor_registration' || !editionId) return;
+
+    let cancelled = false;
+    const supabase = createClient();
+    if (!supabase) return;
+
+    supabase
+      .from('market_days')
+      .select('paid_vendor_quick_amounts')
+      .eq('id', editionId)
+      .maybeSingle()
+      .then(({ data, error }) => {
+        if (cancelled || error || !data) return;
+
+        let raw: unknown = (data as { paid_vendor_quick_amounts?: unknown })
+          .paid_vendor_quick_amounts;
+        if (typeof raw === 'string') {
+          try {
+            raw = JSON.parse(raw);
+          } catch {
+            return;
+          }
+        }
+        if (!Array.isArray(raw)) return;
+
+        const parsed = raw
+          .map((entry) => Number(entry))
+          .filter((entry) => Number.isFinite(entry) && entry > 0);
+
+        if (parsed.length > 0) {
+          setEditionAmountPresets((prev) => ({ ...prev, [editionId]: parsed }));
+        }
+      }, () => {});
+
+    return () => {
+      cancelled = true;
+    };
+  }, [formSlug, activeEdition?.id]);
+
+  const amountPresets =
+    (activeEdition?.id && editionAmountPresets[activeEdition.id]) ||
+    PAID_VENDOR_AMOUNT_PRESETS;
 
   // Fetch ticket template for current edition
   useEffect(() => {
@@ -1256,6 +1305,9 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
               <AmountQuickChips
                 value={value}
                 onSelect={(raw) => handleAnswerChange(q.csv_column, raw)}
+                amounts={
+                  formSlug === 'paid_vendor_registration' ? amountPresets : undefined
+                }
               />
             )}
           </div>

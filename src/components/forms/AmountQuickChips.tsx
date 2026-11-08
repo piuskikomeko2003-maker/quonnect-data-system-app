@@ -4,6 +4,9 @@ import React from 'react';
 
 export const DEFAULT_AMOUNT_PRESETS = [120000, 240000];
 
+/** Quick-pick amounts shown on paid vendor registration (December 2026 edition). */
+export const PAID_VENDOR_AMOUNT_PRESETS = [150000, 250000];
+
 /**
  * Returns true when a form question represents a monetary amount, so quick-select
  * chips are shown. Matches on the csv column or the question text.
@@ -13,7 +16,7 @@ export function isAmountQuestion(csvColumn: string, questionText: string): boole
 }
 
 export interface AmountQuickChipsProps {
-  /** Raw value currently held by the field (e.g. "120000"). */
+  /** Raw value currently held by the field (e.g. "150000"). */
   value: string;
   /** Called with the raw numeric string (no separators) when a chip is picked. */
   onSelect: (rawValue: string) => void;
