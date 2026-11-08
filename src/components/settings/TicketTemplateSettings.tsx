@@ -32,6 +32,12 @@ import {
   SAMPLE_TICKET_DATA,
   validateTicketFieldPositions,
 } from '@/types/ticketTemplate';
+import {
+  TICKET_FONT_FAMILY_CSS,
+  TICKET_LINE_HEIGHT,
+  resolveTicketFontSize,
+  resolveTicketFontWeight,
+} from '@/lib/tickets/typography';
 
 interface EditionOption {
   id: string;
@@ -60,6 +66,9 @@ export const TicketTemplateSettings: React.FC = () => {
   const [canvasHeight, setCanvasHeight] = useState<number>(1080);
   const [fieldPositions, setFieldPositions] = useState<FieldPositionsMap>({ ...DEFAULT_FIELD_POSITIONS });
   const [activeField, setActiveField] = useState<RequiredTicketField>('vendor_name');
+  // Preview content length. "Long" shows how the longest real-world names wrap
+  // without changing the font size (sizes are fixed per field for consistency).
+  const [previewSample, setPreviewSample] = useState<'typical' | 'long'>('typical');
 
   // Preview container ref & dimensions
   const previewContainerRef = useRef<HTMLDivElement>(null);
@@ -378,18 +387,31 @@ export const TicketTemplateSettings: React.FC = () => {
     }
   };
 
-  // Sample values for real-time overlay
-  const sampleValues: Record<RequiredTicketField, string> = {
-    vendor_name: SAMPLE_TICKET_DATA.vendorName,
-    business_name: SAMPLE_TICKET_DATA.businessName || '',
-    category: SAMPLE_TICKET_DATA.category || '',
-    phone_number: SAMPLE_TICKET_DATA.phone || '',
-    ticket_number: SAMPLE_TICKET_DATA.ticketCode,
-    issued_at: new Date(SAMPLE_TICKET_DATA.registeredAt).toLocaleString('en-US', {
-      dateStyle: 'medium',
-      timeStyle: 'short',
-    }),
-  };
+  // Sample values for real-time overlay. These mirror the renderer exactly,
+  // including the date formatting, so what you see is what gets printed.
+  const issuedAtLabel = new Date(SAMPLE_TICKET_DATA.registeredAt).toLocaleString('en-US', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  });
+
+  const sampleValues: Record<RequiredTicketField, string> =
+    previewSample === 'long'
+      ? {
+          vendor_name: 'Nakato Aisha Winnifred Namusoke',
+          business_name: 'Sunrise Handcrafted Goods & General Merchandise',
+          category: 'Crafts, Apparel & Home Décor',
+          phone_number: '+256 701 234 567',
+          ticket_number: SAMPLE_TICKET_DATA.ticketCode,
+          issued_at: issuedAtLabel,
+        }
+      : {
+          vendor_name: SAMPLE_TICKET_DATA.vendorName,
+          business_name: SAMPLE_TICKET_DATA.businessName || '',
+          category: SAMPLE_TICKET_DATA.category || '',
+          phone_number: SAMPLE_TICKET_DATA.phone || '',
+          ticket_number: SAMPLE_TICKET_DATA.ticketCode,
+          issued_at: issuedAtLabel,
+        };
 
   const selectedEdition = editions.find((e) => e.id === selectedEditionId);
 
@@ -757,12 +779,30 @@ export const TicketTemplateSettings: React.FC = () => {
         {/* Right Column: Interactive Live Preview (7 cols) */}
         <div className="lg:col-span-7 space-y-4">
           <div className="bg-bg-surface border border-border rounded-xl p-5 shadow-sm space-y-3">
-            <div className="flex items-center justify-between pb-2 border-b border-border/60">
+            <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-border/60">
               <div className="flex items-center gap-2">
                 <Eye className="w-4 h-4 text-accent" />
                 <h3 className="text-xs font-bold text-text-primary uppercase tracking-wider">
                   Live Visual Alignment Preview
                 </h3>
+              </div>
+
+              <div className="flex items-center gap-2">
+                <label
+                  htmlFor="ticket-preview-sample"
+                  className="text-[10px] uppercase font-bold tracking-wider text-text-tertiary"
+                >
+                  Preview text
+                </label>
+                <select
+                  id="ticket-preview-sample"
+                  value={previewSample}
+                  onChange={(e) => setPreviewSample(e.target.value as 'typical' | 'long')}
+                  className="bg-bg-input border border-border rounded-lg px-2 py-1 text-[11px] font-semibold text-text-primary focus:outline-none focus:ring-2 focus:ring-accent"
+                >
+                  <option value="typical">Typical</option>
+                  <option value="long">Longest names</option>
+                </select>
               </div>
 
               {/* Test Render Button */}
@@ -780,8 +820,10 @@ export const TicketTemplateSettings: React.FC = () => {
             </div>
 
             <p className="text-[11px] text-text-secondary">
-              Changes to coordinates and fonts update below in real time. Click anywhere on the image to place{' '}
-              <strong className="text-accent">{TICKET_FIELD_LABELS[activeField]}</strong> at that spot.
+              This preview uses the exact font, size and weight of the printed pass. Use{' '}
+              <strong>Longest names</strong> above to see how long vendor details wrap. Click anywhere on
+              the image to place <strong className="text-accent">{TICKET_FIELD_LABELS[activeField]}</strong>{' '}
+              at that spot.
             </p>
 
             {/* Interactive Preview Canvas Viewport */}
@@ -817,10 +859,12 @@ export const TicketTemplateSettings: React.FC = () => {
                     if (!pos) return null;
                     const isCurrent = activeField === field;
 
-                    // Scaled values for CSS in preview
+                    // Scaled values for CSS in preview. Sizing, weight, family
+                    // and line-height come from the shared typography module so
+                    // this matches the downloaded PNG pixel for pixel.
                     const scaledX = pos.x * previewScale;
                     const scaledY = pos.y * previewScale;
-                    const scaledFontSize = Math.max(8, pos.fontSize * previewScale);
+                    const scaledFontSize = Math.max(8, resolveTicketFontSize(pos) * previewScale);
                     const scaledMaxWidth = pos.maxWidth ? pos.maxWidth * previewScale : undefined;
 
                     return (
@@ -832,19 +876,18 @@ export const TicketTemplateSettings: React.FC = () => {
                           top: `${scaledY}px`,
                           fontSize: `${scaledFontSize}px`,
                           color: pos.color || '#000000',
-                          fontWeight: (pos.fontWeight === 'bold' || pos.fontWeight === '700'
-                            ? 700
-                            : pos.fontWeight === 'semibold' || pos.fontWeight === '600'
-                            ? 600
-                            : 400) as any,
+                          fontFamily: TICKET_FONT_FAMILY_CSS,
+                          fontWeight: resolveTicketFontWeight(pos.fontWeight),
                           maxWidth: scaledMaxWidth ? `${scaledMaxWidth}px` : undefined,
-                          lineHeight: 1.2,
+                          lineHeight: TICKET_LINE_HEIGHT,
                           wordBreak: 'break-word',
+                          // Outline is drawn outside the box so it never eats
+                          // into the wrap width (the PNG has no outline).
                           outline: isCurrent
                             ? '2px dashed #1d4ed8'
                             : '1px solid rgba(0,0,0,0.1)',
+                          outlineOffset: '2px',
                           backgroundColor: isCurrent ? 'rgba(29, 78, 216, 0.15)' : 'transparent',
-                          padding: '1px 3px',
                           borderRadius: '3px',
                           zIndex: isCurrent ? 20 : 10,
                           transition: 'outline 0.15s, background-color 0.15s',
@@ -895,7 +938,9 @@ export const TicketTemplateSettings: React.FC = () => {
               <Info className="w-4 h-4 text-accent shrink-0 mt-0.5" />
               <div className="space-y-1 text-[11px]">
                 <p>
-                  <strong>Accuracy Guarantee:</strong> All 6 dynamic fields are mandatory and verified before save. Long business names automatically scale down or wrap to avoid overflowing into background art.
+                  <strong>Accuracy Guarantee:</strong> All 6 dynamic fields are mandatory and verified
+                  before save. Every ticket uses the size and weight set here — long names wrap inside
+                  max width instead of shrinking, so all vendor passes stay consistent.
                 </p>
                 <p className="text-text-tertiary">
                   Ticket numbers will always follow the sequentially allocated format (e.g.{' '}

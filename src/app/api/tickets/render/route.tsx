@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { ImageResponse } from 'next/og';
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { createServiceClient } from '@/lib/supabase/service';
 import {
   REQUIRED_TICKET_FIELDS,
@@ -8,9 +10,46 @@ import {
   FieldPositionsMap,
   RequiredTicketField,
 } from '@/types/ticketTemplate';
+import {
+  TICKET_FONT_FAMILY,
+  TICKET_LINE_HEIGHT,
+  resolveTicketFontSize,
+  resolveTicketFontWeight,
+} from '@/lib/tickets/typography';
 import { normalizeTicketCode } from '@/utils/ticket';
 
 export const runtime = 'nodejs';
+
+/**
+ * Satori only renders the weights it is given. The bundled default font is
+ * regular-only, so without these files every "bold" field silently rendered
+ * regular while the designer preview showed bold. Keep these weights in sync
+ * with `TICKET_FONT_WEIGHTS`.
+ */
+const TICKET_FONT_WEIGHTS = [400, 500, 600, 700] as const;
+let cachedTicketFonts: Array<{
+  name: string;
+  data: Buffer;
+  weight: (typeof TICKET_FONT_WEIGHTS)[number];
+  style: 'normal';
+}> | null = null;
+
+function loadTicketFonts() {
+  if (cachedTicketFonts) return cachedTicketFonts;
+  try {
+    const fontDir = join(process.cwd(), 'public', 'fonts', 'tickets');
+    cachedTicketFonts = TICKET_FONT_WEIGHTS.map((weight) => ({
+      name: TICKET_FONT_FAMILY,
+      data: readFileSync(join(fontDir, `Geist-${weight}.ttf`)),
+      weight,
+      style: 'normal' as const,
+    }));
+  } catch (err) {
+    console.error('Ticket fonts unavailable; falling back to default font', err);
+    cachedTicketFonts = [];
+  }
+  return cachedTicketFonts;
+}
 
 /**
  * A pass is immutable once issued, so browser caching makes repeat views and
@@ -20,25 +59,6 @@ export const runtime = 'nodejs';
 const TICKET_CACHE_HEADERS = {
   'Cache-Control': 'private, max-age=300, stale-while-revalidate=600',
 };
-
-/**
- * Auto-shrinks font size if text exceeds specified maxWidth to avoid overflow,
- * clamping to at least 11px.
- */
-function computeAdaptiveFontSize(
-  text: string,
-  baseSize: number,
-  maxWidth?: number
-): number {
-  if (!maxWidth || !text || text.length === 0) return baseSize;
-  const approxWidth = text.length * (baseSize * 0.58);
-  if (approxWidth > maxWidth) {
-    const ratio = maxWidth / approxWidth;
-    const scaled = Math.floor(baseSize * ratio);
-    return Math.max(11, Math.min(baseSize, scaled));
-  }
-  return baseSize;
-}
 
 export async function GET(request: NextRequest) {
   try {
@@ -339,11 +359,7 @@ export async function GET(request: NextRequest) {
               const text = fieldValues[field];
               if (!text) return null;
 
-              const effectiveFontSize = computeAdaptiveFontSize(
-                text,
-                pos.fontSize || 18,
-                pos.maxWidth
-              );
+              const effectiveFontSize = resolveTicketFontSize(pos);
 
               return (
                 <div
@@ -354,9 +370,10 @@ export async function GET(request: NextRequest) {
                     top: `${pos.y}px`,
                     fontSize: `${effectiveFontSize}px`,
                     color: pos.color || '#000000',
-                    fontWeight: (pos.fontWeight === 'bold' || pos.fontWeight === '700' ? 700 : pos.fontWeight === 'semibold' || pos.fontWeight === '600' ? 600 : 400) as any,
+                    fontFamily: TICKET_FONT_FAMILY,
+                    fontWeight: resolveTicketFontWeight(pos.fontWeight),
                     maxWidth: pos.maxWidth ? `${pos.maxWidth}px` : undefined,
-                    lineHeight: 1.25,
+                    lineHeight: TICKET_LINE_HEIGHT,
                     display: 'flex',
                     flexWrap: 'wrap',
                     wordBreak: 'break-word',
@@ -372,6 +389,7 @@ export async function GET(request: NextRequest) {
           width: canvasWidth,
           height: canvasHeight,
           headers: TICKET_CACHE_HEADERS,
+          fonts: loadTicketFonts(),
         }
       );
     }
@@ -395,7 +413,7 @@ export async function GET(request: NextRequest) {
             backgroundColor: '#0d1117',
             color: '#ffffff',
             padding: '48px 60px',
-            fontFamily: 'sans-serif',
+            fontFamily: TICKET_FONT_FAMILY,
             border: '2px solid rgba(34, 197, 94, 0.3)',
           }}
         >
@@ -528,6 +546,7 @@ export async function GET(request: NextRequest) {
         width: 1200,
         height: 630,
         headers: TICKET_CACHE_HEADERS,
+        fonts: loadTicketFonts(),
       }
     );
   } catch (err: any) {

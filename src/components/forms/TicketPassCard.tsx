@@ -9,6 +9,12 @@ import {
   TicketTemplate,
 } from '@/types/ticketTemplate';
 import { normalizeTicketCode } from '@/utils/ticket';
+import {
+  TICKET_FONT_FAMILY_CSS,
+  TICKET_LINE_HEIGHT,
+  resolveTicketFontSize,
+  resolveTicketFontWeight,
+} from '@/lib/tickets/typography';
 
 /**
  * The vendor ticket data needed to paint a pass. Intentionally structural so
@@ -30,21 +36,6 @@ export interface TicketPassData {
   amountPaid?: number;
   paymentStatus?: string;
   registeredAt: string;
-}
-
-function computeAdaptiveFontSize(
-  text: string,
-  baseSize: number,
-  maxWidth?: number
-): number {
-  if (!maxWidth || !text || text.length === 0) return baseSize;
-  const approxWidth = text.length * (baseSize * 0.58);
-  if (approxWidth > maxWidth) {
-    const ratio = maxWidth / approxWidth;
-    const scaled = Math.floor(baseSize * ratio);
-    return Math.max(11, Math.min(baseSize, scaled));
-  }
-  return baseSize;
 }
 
 function formatIssuedAt(value: string): string {
@@ -107,7 +98,7 @@ export function DesignedTicketCard({
           const text = fieldValues[field];
           if (!text) return null;
 
-          const adaptiveSize = computeAdaptiveFontSize(text, pos.fontSize || 18, pos.maxWidth);
+          const fontSize = resolveTicketFontSize(pos);
 
           return (
             <div
@@ -116,18 +107,13 @@ export function DesignedTicketCard({
                 position: 'absolute',
                 left: `${(pos.x / canvasWidth) * 100}%`,
                 top: `${(pos.y / canvasHeight) * 100}%`,
-                fontSize: `max(8px, ${(adaptiveSize / canvasWidth) * 100}cqw)`,
+                fontSize: `max(8px, ${(fontSize / canvasWidth) * 100}cqw)`,
                 color: pos.color || '#000000',
-                fontWeight: (pos.fontWeight === 'bold' || pos.fontWeight === '700'
-                  ? 700
-                  : pos.fontWeight === 'semibold' || pos.fontWeight === '600'
-                  ? 600
-                  : 400) as React.CSSProperties['fontWeight'],
+                fontFamily: TICKET_FONT_FAMILY_CSS,
+                fontWeight: resolveTicketFontWeight(pos.fontWeight),
                 maxWidth: pos.maxWidth ? `${(pos.maxWidth / canvasWidth) * 100}%` : undefined,
-                lineHeight: 1.25,
+                lineHeight: TICKET_LINE_HEIGHT,
                 wordBreak: 'break-word',
-                display: 'flex',
-                flexWrap: 'wrap',
               }}
             >
               {text}
