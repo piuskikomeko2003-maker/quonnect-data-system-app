@@ -1,10 +1,11 @@
 import React, { useState, useMemo } from 'react';
-import { Search, Info, Plus, Trash2, ArrowUpDown, Star, Download, Sparkles } from 'lucide-react';
+import { Search, Info, Plus, Trash2, ArrowUpDown, Star, Download, Sparkles, CheckCircle2, Minus } from 'lucide-react';
 import { VendorStatusBadge, VendorStatus } from './VendorStatusBadge';
 import { Badge } from '../ui/Badge';
 import { Input } from '../ui/Input';
 import { Button } from '../ui/Button';
 import { MarketingPowerStars } from './MarketingPowerStars';
+import { CopyPhoneButton } from './CopyPhoneButton';
 
 export interface Vendor {
   id: string;
@@ -17,6 +18,10 @@ export interface Vendor {
   attendanceCount: number;
   lastSeen: string;
   registrationType?: 'survey' | 'paid' | 'both' | 'unknown';
+  /** True when the vendor has at least one survey response anywhere in the system. */
+  hasSurveyData?: boolean;
+  /** Total survey responses linked to this vendor across all editions. */
+  surveyResponseCount?: number;
   rating?: number | null;
   ratingNote?: string | null;
   avgRating?: number | null;
@@ -38,6 +43,10 @@ export interface VendorTableProps {
   onBulkRate?: () => void;
   onOpenExport?: () => void;
   isAdmin?: boolean;
+  /** Super-admin preview: show the survey-data column. */
+  showSurveyData?: boolean;
+  /** Super-admin preview: allow copying phone numbers. */
+  canCopyPhone?: boolean;
 }
 
 export const VendorTable: React.FC<VendorTableProps> = ({
@@ -53,6 +62,8 @@ export const VendorTable: React.FC<VendorTableProps> = ({
   onBulkRate,
   onOpenExport,
   isAdmin = true,
+  showSurveyData = true,
+  canCopyPhone = true,
 }) => {
   // Local sort state for rating column
   const [ratingSortOrder, setRatingSortOrder] = useState<'none' | 'desc' | 'asc'>('none');
@@ -96,7 +107,7 @@ export const VendorTable: React.FC<VendorTableProps> = ({
             <thead>
               <tr className="bg-slate-50 border-b border-border">
                 <th className="p-3.5 w-[50px]"><div className="w-4 h-4 bg-slate-200 rounded animate-pulse m-auto" /></th>
-                {Array.from({ length: 8 }).map((_, i) => (
+                {Array.from({ length: 9 }).map((_, i) => (
                   <th key={i} className="p-3.5"><div className="h-4 bg-slate-200 rounded animate-pulse w-20" /></th>
                 ))}
               </tr>
@@ -188,7 +199,7 @@ export const VendorTable: React.FC<VendorTableProps> = ({
             </p>
           </div>
         ) : (
-          <table className="w-full border-collapse min-w-[780px]">
+          <table className="w-full border-collapse min-w-[840px]">
             <thead>
               <tr className="bg-slate-50/80 border-b border-border">
                 {/* Checkbox selector th */}
@@ -202,6 +213,11 @@ export const VendorTable: React.FC<VendorTableProps> = ({
                 </th>
                 <th className="p-3.5 text-[10px] font-semibold text-text-secondary uppercase tracking-widest">Name & Phone</th>
                 <th className="hidden sm:table-cell p-3.5 text-[10px] font-semibold text-text-secondary uppercase tracking-widest">Business</th>
+                {showSurveyData && (
+                  <th className="p-3.5 text-[10px] font-semibold text-text-secondary uppercase tracking-widest text-center" title="Vendors with survey data already in the system">
+                    Survey
+                  </th>
+                )}
                 
                 {/* Marketing Power Rating Header - Sortable */}
                 <th
@@ -259,13 +275,37 @@ export const VendorTable: React.FC<VendorTableProps> = ({
                     {/* Name & Phone */}
                     <td className="p-3.5">
                       <span className="block font-semibold text-text-primary">{vendor.name}</span>
-                      <span className="block text-[10px] text-text-tertiary font-mono mt-0.5">{vendor.phone}</span>
+                      <span className="flex items-center gap-1 mt-0.5">
+                        <span className="text-[10px] text-text-tertiary font-mono">{vendor.phone}</span>
+                        {canCopyPhone && <CopyPhoneButton phone={vendor.phone} />}
+                      </span>
                     </td>
                     
                     {/* Business Name */}
                     <td className="hidden sm:table-cell p-3.5 font-medium text-text-secondary truncate max-w-[150px]">
                       {vendor.businessName}
                     </td>
+
+                    {/* Survey data on file */}
+                    {showSurveyData && (
+                    <td className="p-3.5 text-center">
+                      {vendor.hasSurveyData ? (
+                        <span
+                          className="inline-flex items-center gap-1 text-emerald-700 bg-emerald-50 border border-emerald-200 px-2 py-0.5 rounded-full"
+                          title={`Survey data on file${vendor.surveyResponseCount ? ` — ${vendor.surveyResponseCount} response${vendor.surveyResponseCount === 1 ? '' : 's'}` : ''}`}
+                        >
+                          <CheckCircle2 className="w-3.5 h-3.5 fill-emerald-600 text-white" />
+                          <span className="text-[10px] font-bold">
+                            {vendor.surveyResponseCount || 1}
+                          </span>
+                        </span>
+                      ) : (
+                        <span title="No survey data">
+                          <Minus className="w-4 h-4 text-text-tertiary/50 mx-auto" />
+                        </span>
+                      )}
+                    </td>
+                    )}
 
                     {/* Marketing Power Rating Cell */}
                     <td

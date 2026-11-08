@@ -1,11 +1,12 @@
 import React from 'react';
-import { X, Check, Edit2, Merge, Download, AlertTriangle, Phone, Star, MessageSquare } from 'lucide-react';
+import { X, Check, CheckCircle2, Edit2, Merge, Download, AlertTriangle, Phone, Star, MessageSquare, ClipboardList } from 'lucide-react';
 import { VendorStatusBadge, VendorStatus } from './VendorStatusBadge';
 import { Badge } from '../ui/Badge';
 import { Button } from '../ui/Button';
 import { useScrollLock } from '@/hooks/useScrollLock';
 import { useFocusTrap } from '@/hooks/useFocusTrap';
 import { MarketingPowerStars } from './MarketingPowerStars';
+import { CopyPhoneButton } from './CopyPhoneButton';
 
 export interface AttendanceHistory {
   editionId: string;
@@ -44,14 +45,24 @@ export interface VendorDetailPanelProps {
     editionAvgRating?: number | null;
     editionWeeksRated?: number;
     ratedEditionsCount?: number;
+    hasSurveyData?: boolean;
+    surveyResponseCount?: number;
     attendanceHistory: AttendanceHistory[];
     editionAttributes: EditionAttributes[];
     dataGaps?: string[];
   };
+  /** True while the real edition history is being fetched for the drawer. */
+  historyLoading?: boolean;
   onEdit?: (vendorId: string) => void;
   onFlagMerge?: (vendorId: string) => void;
   onExport?: (vendorId: string) => void;
   onRateVendor?: (vendorId: string) => void;
+  /** Opens the field-data survey form for this vendor, pre-filled from history. */
+  onCollectSurvey?: (vendorId: string) => void;
+  /** Super-admin preview: show the survey-data badge. */
+  showSurveyData?: boolean;
+  /** Super-admin preview: allow copying the phone number. */
+  canCopyPhone?: boolean;
   isAdmin?: boolean;
 }
 
@@ -63,6 +74,10 @@ export const VendorDetailPanel: React.FC<VendorDetailPanelProps> = ({
   onFlagMerge,
   onExport,
   onRateVendor,
+  onCollectSurvey,
+  showSurveyData = true,
+  canCopyPhone = true,
+  historyLoading = false,
   isAdmin = true,
 }) => {
   useScrollLock(isOpen);
@@ -120,8 +135,18 @@ export const VendorDetailPanel: React.FC<VendorDetailPanelProps> = ({
                   <Phone className="w-3 h-3 text-text-tertiary" />
                   <span>{vendor.phone}</span>
                 </a>
+                {canCopyPhone && <CopyPhoneButton phone={vendor.phone} />}
                 <span className="text-text-tertiary text-xs">•</span>
                 <VendorStatusBadge status={vendor.status} />
+                {showSurveyData && vendor.hasSurveyData && (
+                  <span
+                    className="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-700 bg-emerald-50 border border-emerald-200 px-1.5 py-0.5 rounded-full"
+                    title={`Survey data on file${vendor.surveyResponseCount ? ` — ${vendor.surveyResponseCount} response${vendor.surveyResponseCount === 1 ? '' : 's'}` : ''}`}
+                  >
+                    <CheckCircle2 className="w-3 h-3 fill-emerald-600 text-white" />
+                    Survey data
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -211,6 +236,11 @@ export const VendorDetailPanel: React.FC<VendorDetailPanelProps> = ({
           {/* Attendance History Section */}
           <div>
             <h4 className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider mb-2.5">Attendance History</h4>
+            {vendor.attendanceHistory.length === 0 ? (
+              <div className="border border-border rounded-lg bg-slate-50/60 px-3.5 py-4 text-[11px] text-text-secondary">
+                {historyLoading ? 'Loading real edition history…' : 'No attendance or survey history recorded yet.'}
+              </div>
+            ) : (
             <div className="border border-border rounded-lg overflow-x-auto">
               <table className="w-full border-collapse text-left min-w-[320px]">
                 <thead>
@@ -245,11 +275,17 @@ export const VendorDetailPanel: React.FC<VendorDetailPanelProps> = ({
                 </tbody>
               </table>
             </div>
+            )}
           </div>
 
           {/* Profile Attributes grouped by Edition */}
           <div className="space-y-4">
             <h4 className="text-[10px] font-bold text-text-tertiary uppercase tracking-wider">Historical Attributes</h4>
+            {vendor.editionAttributes.length === 0 && (
+              <div className="border border-border rounded-lg bg-slate-50/60 px-3.5 py-4 text-[11px] text-text-secondary">
+                {historyLoading ? 'Loading recorded survey attributes…' : 'No survey attributes recorded for this vendor yet.'}
+              </div>
+            )}
             {vendor.editionAttributes.map((edAttr) => (
               <div key={edAttr.editionId} className="bg-slate-50/70 border border-border rounded-lg p-3.5 sm:p-4 text-left">
                 <h5 className="text-[10px] font-bold text-accent uppercase tracking-wide mb-3 border-b border-border pb-1.5 flex items-center justify-between">
@@ -276,39 +312,52 @@ export const VendorDetailPanel: React.FC<VendorDetailPanelProps> = ({
 
         {/* Panel Footer Actions with safe-area bottom */}
         <div 
-          className="p-4 border-t border-border shrink-0 bg-slate-50 flex items-center gap-2"
+          className="p-4 border-t border-border shrink-0 bg-slate-50 space-y-2"
           style={{ paddingBottom: 'max(1rem, env(safe-area-inset-bottom))' }}
         >
-          {onEdit && (
-            <Button 
-              variant="primary" 
-              onClick={() => onEdit(vendor.id)}
-              className="flex-1"
+          {onCollectSurvey && (
+            <Button
+              variant="primary"
+              onClick={() => onCollectSurvey(vendor.id)}
+              className="w-full"
+              title="Open the survey form, pre-filled with this vendor's existing data"
             >
-              <Edit2 className="w-4 h-4 text-white shrink-0" />
-              <span>Edit Profile</span>
+              <ClipboardList className="w-4 h-4 text-white shrink-0" />
+              <span>{vendor.hasSurveyData ? 'Update Survey Data' : 'Add Survey Data'}</span>
             </Button>
           )}
-          {onFlagMerge && (
-            <Button 
-              variant="secondary" 
-              onClick={() => onFlagMerge(vendor.id)}
-              className="px-3"
-              title="Flag for Merge"
-            >
-              <Merge className="w-4 h-4 shrink-0" />
-            </Button>
-          )}
-          {onExport && (
-            <Button 
-              variant="secondary" 
-              onClick={() => onExport(vendor.id)}
-              className="px-3"
-              title="Export Vendor Details"
-            >
-              <Download className="w-4 h-4 shrink-0" />
-            </Button>
-          )}
+          <div className="flex items-center gap-2">
+            {onEdit && (
+              <Button 
+                variant={onCollectSurvey ? 'secondary' : 'primary'}
+                onClick={() => onEdit(vendor.id)}
+                className="flex-1"
+              >
+                <Edit2 className="w-4 h-4 shrink-0" />
+                <span>Edit Profile</span>
+              </Button>
+            )}
+            {onFlagMerge && (
+              <Button 
+                variant="secondary" 
+                onClick={() => onFlagMerge(vendor.id)}
+                className="px-3"
+                title="Flag for Merge"
+              >
+                <Merge className="w-4 h-4 shrink-0" />
+              </Button>
+            )}
+            {onExport && (
+              <Button 
+                variant="secondary" 
+                onClick={() => onExport(vendor.id)}
+                className="px-3"
+                title="Export Vendor Details"
+              >
+                <Download className="w-4 h-4 shrink-0" />
+              </Button>
+            )}
+          </div>
         </div>
       </div>
     </div>

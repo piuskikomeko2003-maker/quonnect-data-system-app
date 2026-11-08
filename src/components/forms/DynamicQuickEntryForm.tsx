@@ -622,10 +622,15 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
             // not a first-timer. Auto-answer "No" on the field collection form
             // unless the collector already answered it manually.
             const firstTimeColumn = 'first_time_at_quonnect';
+            // The lookup already decides this: vendors with no survey history
+            // are new (Yes), vendors with past surveys are returning (No), and
+            // a current-edition answer is kept as submitted.
+            const suppliedFirstTime = result.data[firstTimeColumn];
             const autoAnswerFirstTime =
               formSlug === 'vendor_data_collection' &&
               questions.some(q => q.csv_column === firstTimeColumn) &&
-              !touchedFieldsRef.current.has(firstTimeColumn);
+              !touchedFieldsRef.current.has(firstTimeColumn) &&
+              !suppliedFirstTime;
             // Only apply looked-up values to fields the user has not already
             // edited, so a returning vendor's stored details (e.g. an old
             // category) never overwrite a value entered on this form.
@@ -641,15 +646,16 @@ export const DynamicQuickEntryForm: React.FC<DynamicQuickEntryFormProps> = ({
               }
               if (autoAnswerFirstTime) {
                 next[firstTimeColumn] = 'No';
-                // A vendor who attended before cannot report "First time" growth.
-                // If last edition's autofilled value still says so, refresh it
-                // to the non-first-timer default.
-                if (
-                  next.business_growth === 'First time' &&
-                  !touchedFieldsRef.current.has('business_growth')
-                ) {
-                  next.business_growth = 'Improved';
-                }
+              }
+              // A vendor who attended before cannot report "First time" growth.
+              // If last edition's autofilled value still says so, refresh it to
+              // the non-first-timer default.
+              if (
+                next[firstTimeColumn] === 'No' &&
+                next.business_growth === 'First time' &&
+                !touchedFieldsRef.current.has('business_growth')
+              ) {
+                next.business_growth = 'Improved';
               }
               return next;
             });

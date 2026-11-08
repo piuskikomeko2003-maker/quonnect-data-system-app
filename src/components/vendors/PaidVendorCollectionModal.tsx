@@ -17,42 +17,6 @@ import {
 
 
 
-const PREFILL_FIELDS = new Set([
-  'full_name',
-  'business_name',
-  'phone_number',
-  'email',
-  'gender',
-  'age',
-  'business_category',
-  'how_long_in_business',
-  'primary_source_of_income',
-  'products_primarily_from',
-  'business_operates_as',
-  'paid_employees',
-  'number_of_employees',
-  'female_employees',
-  'youth_employees',
-  'active_social_media',
-  'online_sales',
-  'how_did_you_know',
-  'business_growth',
-  'quonnect_benefits',
-]);
-
-const EVENT_SPECIFIC_FIELDS = new Set([
-  'first_time_at_quonnect',
-  'times_attended',
-  'attended_last_quonnect',
-  'regions_attended',
-  'hired_new_employees',
-  'new_employees_count',
-  'hires_casual_helpers',
-  'casual_helpers_count',
-  'would_recommend',
-  'main_challenges',
-]);
-
 interface PaidVendor {
   id: string;
   vendor_id: string;
@@ -182,7 +146,7 @@ export const PaidVendorCollectionModal: React.FC<PaidVendorCollectionModalProps>
             for (const a of prior.survey_answers) {
               const q = (a as any).survey_questions;
               const csvCol = q?.csv_column;
-              if (csvCol && a.answer && PREFILL_FIELDS.has(csvCol)) {
+              if (csvCol && a.answer) {
                 priorFields[csvCol] = a.answer;
                 priorSources[csvCol] = 'last_visit';
               }

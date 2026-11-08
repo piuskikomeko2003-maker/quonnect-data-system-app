@@ -16,11 +16,8 @@ import type { Submission, CachedSchema } from '@/lib/db';
 import { DynamicQuickEntryForm, type FormDataCache } from '@/components/forms/DynamicQuickEntryForm';
 import { Users, Database, Footprints, Loader2, AlertCircle, WifiOff, CloudOff, RefreshCw, Clock, Lock, Ticket } from 'lucide-react';
 import { registerPaidVendorAtomic } from '@/lib/paidRegistration';
+import { buildVendorPrefill, findVendorByPhone } from '@/lib/vendorLookup';
 import { fetchEditionDays, passSummary, dayDateLabel, dayLabel, type EditionDay } from '@/lib/editionDays';
-
-// Change to 'latest_closed_edition' to look back only at completed editions
-type AutofillLookback = 'latest_any_edition' | 'latest_closed_edition';
-const AUTOFILL_LOOKBACK: AutofillLookback = 'latest_any_edition';
 
 interface LinkData {
   token: string;
@@ -436,93 +433,21 @@ export default function CollectPage() {
       const supabase = createClient();
       if (!supabase) return null;
 
-      const { data, error } = await supabase
-        .from('vendors')
-        .select('*')
-        .eq('phone', phone)
-        .limit(1);
+      // Shared with admin quick entry. Finds the vendor regardless of whether
+      // the paid registration stored 0746..., 746... or +256746..., prefers the
+      // profile registered for this edition, and reuses the vendor's most
+      // recent survey answers (current edition first, then past editions).
+      const prefill = await buildVendorPrefill(supabase, phone, edition?.id ?? null);
 
-      if (error || !data || data.length === 0) return null;
-
-      const v = data[0];
-
-      // Map vendor table columns to every csv_column name the collection forms
-      // use, so base contact details autofill regardless of which form is active.
-      const vendorData: Record<string, string> = {
-        contact_name: v.contact_name || '',
-        full_name: v.contact_name || '',
-        business_name: v.business_name || '',
-        phone: v.phone || phone,
-        phone_number: v.phone || phone,
-        email: v.email || '',
-        category: v.category || '',
-        business_category: v.category || '',
+      if (!prefill.vendorId) return null;
+      return {
+        data: prefill.data,
+        autofilledFields: prefill.autofilledFields,
       };
-
-      const autofilledFields: string[] = Object.entries(vendorData)
-        .filter(([, value]) => value)
-        .map(([key]) => key);
-
-      // Fetch the vendor's previous survey answers and autofill every question
-      // they previously answered.
-      const prevAnswers = await fetchPreviousAnswers(supabase, v.id);
-      if (prevAnswers) {
-        for (const [csvColumn, value] of Object.entries(prevAnswers)) {
-          if (value) {
-            vendorData[csvColumn] = value;
-            if (!autofilledFields.includes(csvColumn)) {
-              autofilledFields.push(csvColumn);
-            }
-          }
-        }
-      }
-
-      return { data: vendorData, autofilledFields };
     } catch {
       return null;
     }
-  }, []);
-
-  async function fetchPreviousAnswers(
-    supabase: ReturnType<typeof createClient>,
-    vendorId: string
-  ): Promise<Record<string, string> | null> {
-    try {
-      let query = supabase
-        .from('survey_responses')
-        .select('id, submitted_at, context_id, market_days!inner(status)')
-        .eq('vendor_id', vendorId)
-        .order('submitted_at', { ascending: false });
-
-      if (AUTOFILL_LOOKBACK === 'latest_closed_edition') {
-        query = query.eq('market_days.status', 'completed');
-      }
-
-      const { data: responses, error: rErr } = await query.limit(1);
-
-      if (rErr || !responses || responses.length === 0) return null;
-
-      const latestResponse = responses[0];
-
-      const { data: answers, error: aErr } = await supabase
-        .from('survey_answers')
-        .select('answer, question_id, survey_questions!inner(csv_column)')
-        .eq('response_id', latestResponse.id);
-
-      if (aErr || !answers) return null;
-
-      const result: Record<string, string> = {};
-      for (const row of answers as unknown as { answer: string; survey_questions: { csv_column: string } }[]) {
-        const csvColumn = row.survey_questions?.csv_column;
-        if (csvColumn && row.answer) {
-          result[csvColumn] = row.answer;
-        }
-      }
-      return result;
-    } catch {
-      return null;
-    }
-  }
+  }, [edition?.id]);
 
   const handlePaidSubmit = useCallback(
     async (answers: Record<string, string>, submissionId?: string): Promise<{ synced: boolean; message?: string; name?: string; ticketData?: any }> => {
@@ -607,15 +532,13 @@ export default function CollectPage() {
       const phone = answers.phone || answers.phone_number || '';
       const contactName = answers.contact_name || answers.full_name || answers.name || '';
 
-      const { data: vendorData } = await supabase
-        .from('vendors')
-        .select('id')
-        .eq('phone', phone)
-        .limit(1);
+      // Resolve the vendor with the same tolerant phone matching used by the
+      // form lookup, so a paid vendor is never duplicated as a new vendor.
+      const matchedVendor = await findVendorByPhone(supabase, phone, edition.id);
 
       let vendorId: string;
-      if (vendorData && vendorData.length > 0) {
-        vendorId = vendorData[0].id;
+      if (matchedVendor) {
+        vendorId = matchedVendor.id;
       } else {
         const businessName = answers.business_name || '';
         const { data: newVendor, error: vErr } = await supabase
@@ -1112,15 +1035,11 @@ async function replaySubmission(
       const phone = answers.phone || answers.phone_number || '';
       const contactName = answers.contact_name || answers.full_name || answers.name || '';
 
-      const { data: vendorData } = await supabase
-        .from('vendors')
-        .select('id')
-        .eq('phone', phone)
-        .limit(1);
+      const matchedVendor = await findVendorByPhone(supabase, phone, edition.id);
 
       let vendorId: string;
-      if (vendorData && vendorData.length > 0) {
-        vendorId = vendorData[0].id;
+      if (matchedVendor) {
+        vendorId = matchedVendor.id;
       } else {
         const businessName = answers.business_name || '';
         const { data: newVendor } = await supabase

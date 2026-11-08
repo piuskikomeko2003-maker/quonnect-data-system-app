@@ -37,10 +37,12 @@ import {
 import { RatingFilterKey, matchesRatingFilter } from '@/lib/ratingTiers';
 import { isAdmin } from '@/lib/auth/permissions';
 import { buildMultiTicketData, extractPaidFields } from '@/lib/paidRegistration';
+import { buildVendorPrefill, findVendorByPhone } from '@/lib/vendorLookup';
 import { GreetingCard } from '@/components/dashboard/GreetingCard';
 import { AlertBanner } from '@/components/dashboard/AlertBanner';
 import { FilterBar, FilterState } from '@/components/dashboard/FilterBar';
 import { VendorTable, Vendor } from '@/components/vendors/VendorTable';
+import { CopyPhoneButton } from '@/components/vendors/CopyPhoneButton';
 import { VendorDetailPanel } from '@/components/vendors/VendorDetailPanel';
 import { EditVendorModal } from '@/components/vendors/EditVendorModal';
 import { PaidVendorCollectionModal } from '@/components/vendors/PaidVendorCollectionModal';
@@ -137,6 +139,57 @@ const CustomGrowthTooltip = ({ active, payload, label }: any) => {
 const BUSINESS_TYPES = ['Food', 'Fashion', 'Crafts', 'Beauty', 'Electronics', 'Agriculture'];
 
 
+/**
+ * Loads every vendor that has at least one survey response anywhere in the
+ * system, plus a per-vendor response count. Used by the Vendors Directory to
+ * tick vendors with survey data and to back-fill their profile fields from
+ * historical survey answers.
+ */
+const fetchAllSurveyVendorIds = async (
+  supabase: ReturnType<typeof createClient>
+): Promise<{
+  ids: Set<string>;
+  counts: Map<string, number>;
+  lastSeen: Map<string, { at: string; editionName: string }>;
+}> => {
+  const ids = new Set<string>();
+  const counts = new globalThis.Map<string, number>();
+  const lastSeen = new globalThis.Map<string, { at: string; editionName: string }>();
+  const pageSize = 1000;
+  let from = 0;
+
+  while (true) {
+    const { data, error } = await supabase
+      .from('survey_responses')
+      .select('vendor_id, submitted_at, market_days ( name, event_date )')
+      .order('id', { ascending: true })
+      .range(from, from + pageSize - 1);
+
+    if (error) throw error;
+
+    (data || []).forEach((row: any) => {
+      if (!row.vendor_id) return;
+      const marketDay = Array.isArray(row.market_days) ? row.market_days[0] : row.market_days;
+      // Staging/load-test responses are not real survey history.
+      if (marketDay && isTestEdition(marketDay)) return;
+
+      ids.add(row.vendor_id);
+      counts.set(row.vendor_id, (counts.get(row.vendor_id) || 0) + 1);
+
+      const at = row.submitted_at || '';
+      const current = lastSeen.get(row.vendor_id);
+      if (marketDay?.name && at && (!current || at > current.at)) {
+        lastSeen.set(row.vendor_id, { at, editionName: marketDay.name });
+      }
+    });
+
+    if (!data || data.length < pageSize) break;
+    from += pageSize;
+  }
+
+  return { ids, counts, lastSeen };
+};
+
 const getVendorDetailData = (vendor: any) => {
   if (!vendor) return undefined;
   return {
@@ -151,40 +204,13 @@ const getVendorDetailData = (vendor: any) => {
     ratedEditionsCount: vendor.ratedEditionsCount,
     editionAvgRating: vendor.editionAvgRating,
     editionWeeksRated: vendor.editionWeeksRated,
+    hasSurveyData: vendor.hasSurveyData,
+    surveyResponseCount: vendor.surveyResponseCount,
     avatarInitials: vendor.name.split(' ').map((n: string) => n[0]).join('').substring(0, 2).toUpperCase(),
-    attendanceHistory: [
-      {
-        editionId: 'may-2026',
-        editionName: 'Kampala May 2026',
-        paid: true,
-        dataCollected: vendor.attendanceCount > 0,
-        sequenceNumber: vendor.attendanceCount
-      },
-      ...(vendor.attendanceCount > 1 ? [
-        {
-          editionId: 'april-2026',
-          editionName: 'Kampala April 2026',
-          paid: true,
-          dataCollected: vendor.attendanceCount > 1,
-          sequenceNumber: vendor.attendanceCount - 1
-        }
-      ] : [])
-    ],
-    editionAttributes: [
-      {
-        editionId: 'may-2026',
-        editionName: 'Kampala May 2026',
-        attributes: [
-          { key: 'employee_count', label: 'Employee Count', value: vendor.employeeCount || '0', source: 'verified' as const },
-          { key: 'new_hires_this_year', label: 'New Hires This Year', value: vendor.newHiresThisYear || '0', source: 'verified' as const },
-          { key: 'business_type', label: 'Business Classification', value: vendor.businessType || 'N/A', source: 'verified' as const },
-          { key: 'sells_own_products', label: 'Sells Own Products?', value: vendor.sellsOwnProducts || 'No', source: 'self-reported' as const },
-          { key: 'export_ready', label: 'Export Ready?', value: vendor.exportReady || 'No', source: 'self-reported' as const },
-          { key: 'impact_rating', label: 'Program Impact Rating', value: vendor.impactRating ? `${vendor.impactRating}/5` : 'N/A', source: 'self-reported' as const },
-          { key: 'business_growth_narrative', label: 'Business Growth Narrative', value: vendor.businessGrowthNarrative || 'No story provided.', source: 'self-reported' as const }
-        ]
-      }
-    ],
+    // Real attendance history and edition attributes are loaded per vendor
+    // when the drawer opens (see the effect below). Never invent editions.
+    attendanceHistory: [],
+    editionAttributes: [],
     dataGaps: !vendor.employeeCount || !vendor.businessType ? ['Employee Count', 'Business Classification'] : []
   };
 };
@@ -787,6 +813,14 @@ export default function Home() {
         }
       });
 
+      // System-wide survey presence (not just the active edition) so every
+      // vendor with survey data on file is ticked in the directory.
+      const {
+        ids: allSurveyVendorIds,
+        counts: surveyResponseCounts,
+        lastSeen: lastSeenByVendor,
+      } = await fetchAllSurveyVendorIds(supabase);
+
       let paidVendorIds = new Set<string>();
       const paidAmountMap = new globalThis.Map<string, string>();
       if (activeEdition?.id) {
@@ -862,6 +896,59 @@ export default function Home() {
 
       const allVendorIds = [...new globalThis.Set([...surveyVendorIds, ...paidVendorIds])];
 
+      // Paid registrations also count as activity for "Last Seen". Compare by
+      // registration time and keep the newest edition name per vendor.
+      if (allVendorIds.length > 0) {
+        const { data: registrationActivity } = await supabase
+          .from('vendor_registrations')
+          .select('vendor_id, created_at, market_days ( name )')
+          .in('vendor_id', allVendorIds);
+
+        (registrationActivity || []).forEach((row: any) => {
+          if (!row.vendor_id) return;
+          const marketDay = Array.isArray(row.market_days) ? row.market_days[0] : row.market_days;
+          const at = row.created_at || '';
+          const current = lastSeenByVendor.get(row.vendor_id);
+          if (marketDay?.name && at && (!current || at > current.at)) {
+            lastSeenByVendor.set(row.vendor_id, { at, editionName: marketDay.name });
+          }
+        });
+      }
+
+      // Displayed vendors whose only survey data is from another edition: pull
+      // their most recent answers so the directory auto-fills instead of
+      // showing blanks. Current-edition answers always win.
+      const vendorsNeedingHistoricalAnswers = allVendorIds.filter(
+        (id) => allSurveyVendorIds.has(id) && !vendorAnswersMap.has(id)
+      );
+      if (vendorsNeedingHistoricalAnswers.length > 0) {
+        const { data: historicalRows } = await supabase
+          .from('survey_responses')
+          .select(`
+            vendor_id,
+            submitted_at,
+            survey_answers (
+              answer,
+              survey_questions (
+                csv_column
+              )
+            )
+          `)
+          .in('vendor_id', vendorsNeedingHistoricalAnswers)
+          .order('submitted_at', { ascending: false });
+
+        (historicalRows || []).forEach((row: any) => {
+          if (!row.vendor_id || vendorAnswersMap.has(row.vendor_id)) return;
+          const answerMap: Record<string, string> = {};
+          (row.survey_answers || []).forEach((a: any) => {
+            const csvColumn = a.survey_questions?.csv_column;
+            if (csvColumn && a.answer !== undefined && a.answer !== null) {
+              answerMap[csvColumn] = a.answer;
+            }
+          });
+          vendorAnswersMap.set(row.vendor_id, answerMap);
+        });
+      }
 
       if (allVendorIds.length === 0) {
         setVendors([]);
@@ -902,7 +989,7 @@ export default function Home() {
                 : v.is_active ? ('active' as const) : ('new' as const),
           region: activeRegion.name,
           attendanceCount: getAttendanceCount(answerMap),
-          lastSeen: activeEdition ? activeEdition.name : 'May 2026',
+          lastSeen: lastSeenByVendor.get(v.id)?.editionName || '—',
           age: answerMap['age'] ? parseInt(answerMap['age'], 10) : 0,
           employeeCount: answerMap['employee_count'] || answerMap['employees'] || '',
           newHiresThisYear: answerMap['new_hires_this_year'] || answerMap['new_hires'] || '',
@@ -915,6 +1002,8 @@ export default function Home() {
           amountPaid: paidAmountMap.get(v.id) || '0',
           email: v.email || answerMap['email'] || answerMap['email_address'] || '',
           registrationType,
+          hasSurveyData: allSurveyVendorIds.has(v.id),
+          surveyResponseCount: surveyResponseCounts.get(v.id) || 0,
           rating: rInfo.rating,
           ratingNote: rInfo.note,
           avgRating: rInfo.avgRating,
@@ -1217,6 +1306,39 @@ export default function Home() {
     } catch (err: any) {
       window.alert(`Failed to delete vendor: ${err?.message || err}`);
     }
+  };
+
+  const openSurveyForVendor = (vendorId: string) => {
+    // Phase 1 rollout: survey-writing tools are limited to super admins.
+    if (role !== 'super_admin') {
+      addToast('Survey data entry is currently limited to super admins.', 'error');
+      return;
+    }
+
+    const vendor = vendors.find((v) => v.id === vendorId);
+    if (!vendor) return;
+    if (!activeEdition) {
+      addToast('Select an event edition before adding survey data.', 'error');
+      return;
+    }
+
+    // Reuse the field-data collection modal from the paid vendors flow. It
+    // looks up the vendor's current/prior survey answers by vendor_id and
+    // pre-fills the form, so a vendor with existing data only reviews it.
+    setSelectedSurveyVendor({
+      id: vendor.id,
+      vendor_id: vendor.id,
+      payment_status: 'unpaid',
+      amount_paid: Number(vendor.amountPaid || 0),
+      created_at: new Date().toISOString(),
+      business_name: vendor.businessName || '',
+      contact_name: vendor.name || '',
+      phone: vendor.phone || '',
+      email: vendor.email || '',
+      category: vendor.businessType || '',
+    });
+    setIsDetailOpen(false);
+    setIsSurveyCollectionModalOpen(true);
   };
 
   const handleDeleteWalkin = async (id: string) => {
@@ -1968,7 +2090,176 @@ export default function Home() {
   // Drawer Panel & Modal States
   const [selectedVendorId, setSelectedVendorId] = useState<string | null>(null);
   const [isDetailOpen, setIsDetailOpen] = useState(false);
+  const [vendorHistoryExtras, setVendorHistoryExtras] = useState<{
+    attendanceHistory: any[];
+    editionAttributes: any[];
+  } | null>(null);
+  const [vendorHistoryLoading, setVendorHistoryLoading] = useState(false);
   const [isLinkModalOpen, setIsLinkModalOpen] = useState(false);
+
+  // Load the selected vendor's real edition-by-edition history for the drawer.
+  // The old drawer hard-coded "Kampala May 2026", which made every vendor look
+  // like they had May/April history.
+  useEffect(() => {
+    if (!isDetailOpen || !selectedVendorId) {
+      setVendorHistoryExtras(null);
+      setVendorHistoryLoading(false);
+      return;
+    }
+
+    let cancelled = false;
+    const vendorId = selectedVendorId;
+
+    const loadVendorHistory = async () => {
+      const supabase = createClient();
+      if (!supabase) return;
+
+      setVendorHistoryExtras(null);
+      setVendorHistoryLoading(true);
+      try {
+        const [responsesRes, registrationsRes] = await Promise.all([
+          supabase
+            .from('survey_responses')
+            .select(`
+              id,
+              context_id,
+              submitted_at,
+              market_days ( id, name, event_date ),
+              survey_answers ( answer, survey_questions ( csv_column ) )
+            `)
+            .eq('vendor_id', vendorId)
+            .order('submitted_at', { ascending: true }),
+          supabase
+            .from('vendor_registrations')
+            .select(`
+              market_day_id,
+              payment_status,
+              market_days ( id, name, event_date )
+            `)
+            .eq('vendor_id', vendorId),
+        ]);
+
+        if (cancelled) return;
+
+        type EditionBucket = {
+          id: string;
+          name: string;
+          date: string;
+          paid: boolean;
+          dataCollected: boolean;
+          answers: Record<string, string>;
+        };
+
+        const editions = new globalThis.Map<string, EditionBucket>();
+
+        const bucketFor = (marketDay: any, fallbackId: string): EditionBucket => {
+          const day = Array.isArray(marketDay) ? marketDay[0] : marketDay;
+          const id = day?.id || fallbackId;
+          const existing = editions.get(id);
+          if (existing) return existing;
+          const created: EditionBucket = {
+            id,
+            name: day?.name || 'Unknown edition',
+            date: day?.event_date || '',
+            paid: false,
+            dataCollected: false,
+            answers: {},
+          };
+          editions.set(id, created);
+          return created;
+        };
+
+        (registrationsRes.data || []).forEach((row: any) => {
+          const day = Array.isArray(row.market_days) ? row.market_days[0] : row.market_days;
+          if (isTestEdition(day)) return;
+          const bucket = bucketFor(row.market_days, row.market_day_id);
+          if (row.payment_status === 'paid') bucket.paid = true;
+        });
+
+        (responsesRes.data || []).forEach((row: any) => {
+          const day = Array.isArray(row.market_days) ? row.market_days[0] : row.market_days;
+          if (isTestEdition(day)) return;
+          const bucket = bucketFor(row.market_days, row.context_id || row.id);
+          bucket.dataCollected = true;
+          (row.survey_answers || []).forEach((answer: any) => {
+            const csvColumn = answer.survey_questions?.csv_column;
+            if (csvColumn && answer.answer !== undefined && answer.answer !== null && answer.answer !== '') {
+              bucket.answers[csvColumn] = String(answer.answer);
+            }
+          });
+        });
+
+        const ATTRS: Array<{ key: string; label: string; fallbackKeys?: string[] }> = [
+          { key: 'employee_count', label: 'Employee Count', fallbackKeys: ['number_of_employees'] },
+          { key: 'new_hires_this_year', label: 'New Hires This Year', fallbackKeys: ['new_employees_count'] },
+          { key: 'business_type', label: 'Business Classification', fallbackKeys: ['business_category', 'category'] },
+          { key: 'sells_own_products', label: 'Sells Own Products?' },
+          { key: 'export_ready', label: 'Export Ready?' },
+          { key: 'impact_rating', label: 'Program Impact Rating' },
+          { key: 'business_growth_narrative', label: 'Business Growth Narrative', fallbackKeys: ['business_growth'] },
+        ];
+
+        const ordered = [...editions.values()].sort((a, b) =>
+          (a.date || '').localeCompare(b.date || '')
+        );
+
+        const attendanceHistory = ordered.map((edition, index) => ({
+          editionId: edition.id,
+          editionName: edition.name,
+          paid: edition.paid,
+          dataCollected: edition.dataCollected,
+          sequenceNumber: index + 1,
+        }));
+
+        const editionAttributes = [...ordered]
+          .reverse()
+          .filter((edition) => Object.keys(edition.answers).length > 0)
+          .map((edition) => {
+            const attributes = ATTRS.flatMap(({ key, label, fallbackKeys = [] }) => {
+              const answerKey = [key, ...fallbackKeys].find(
+                (candidate) => edition.answers[candidate] !== undefined
+              );
+              if (!answerKey) return [];
+              const raw = edition.answers[answerKey];
+              let value = raw;
+              if (key === 'impact_rating') value = `${raw}/5`;
+              if (key === 'sells_own_products' || key === 'export_ready') {
+                value = raw.charAt(0).toUpperCase() + raw.slice(1);
+              }
+              return [{
+                key,
+                label,
+                value,
+                source: 'self-reported' as const,
+              }];
+            });
+
+            return {
+              editionId: edition.id,
+              editionName: edition.name,
+              attributes,
+            };
+          });
+
+        if (!cancelled) {
+          setVendorHistoryExtras({ attendanceHistory, editionAttributes });
+        }
+      } catch (err) {
+        console.error('Failed to load vendor history:', err);
+        if (!cancelled) {
+          setVendorHistoryExtras({ attendanceHistory: [], editionAttributes: [] });
+        }
+      } finally {
+        if (!cancelled) setVendorHistoryLoading(false);
+      }
+    };
+
+    loadVendorHistory();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isDetailOpen, selectedVendorId]);
   useScrollLock(isLinkModalOpen);
   const [generatedLinkUrl, setGeneratedLinkUrl] = useState('');
   const [generatedLinkUrls, setGeneratedLinkUrls] = useState<string[]>([]);
@@ -1989,6 +2280,10 @@ export default function Home() {
   // Paid Vendor Collection State
   const [isPaidVendorModalOpen, setIsPaidVendorModalOpen] = useState(false);
   const [selectedPaidVendor, setSelectedPaidVendor] = useState<any>(null);
+
+  // Vendors Directory survey collection (any vendor, not just paid)
+  const [isSurveyCollectionModalOpen, setIsSurveyCollectionModalOpen] = useState(false);
+  const [selectedSurveyVendor, setSelectedSurveyVendor] = useState<any>(null);
 
   // Vendor Form Choice Modal State
   const [isChoiceModalOpen, setIsChoiceModalOpen] = useState(false);
@@ -2184,51 +2479,17 @@ export default function Home() {
     setWalkinSuccessState(prev => ({ ...prev, show: false }));
   };
 
-  const handleDynamicPhoneLookup = async (phone: string, formSlug: string): Promise<Record<string, string> | null> => {
+  const handleDynamicPhoneLookup = async (phone: string, _formSlug: string): Promise<Record<string, string> | null> => {
     try {
       const supabase = createClient();
       if (!supabase) return null;
 
-      const { data, error } = await supabase
-        .from('vendors')
-        .select('*')
-        .eq('phone', phone)
-        .limit(1);
+      // Shared with the collection link: matches 0746..., 746..., +256746...
+      // and prefers the profile registered for the active edition.
+      const prefill = await buildVendorPrefill(supabase, phone, activeEdition?.id ?? null);
 
-      if (error || !data || data.length === 0) return null;
-
-      const v = data[0];
-      const result: Record<string, string> = {
-        contact_name: v.contact_name || '',
-        business_name: v.business_name || '',
-        phone: v.phone || phone,
-        email: v.email || '',
-        category: v.category || '',
-      };
-
-      if (formSlug === 'vendor_data_collection' && activeEdition) {
-        const { data: responseData } = await supabase
-          .from('survey_responses')
-          .select(`
-            id,
-            survey_answers (
-              answer,
-              survey_questions ( csv_column )
-            )
-          `)
-          .eq('vendor_id', v.id)
-          .eq('context_id', activeEdition.id)
-          .order('submitted_at', { ascending: false })
-          .limit(1);
-
-        const surveyAnswers = responseData?.[0]?.survey_answers || [];
-        surveyAnswers.forEach((a: any) => {
-          const col = a.survey_questions?.csv_column;
-          if (col) result[col] = a.answer;
-        });
-      }
-
-      return result;
+      if (!prefill.vendorId) return null;
+      return Object.keys(prefill.data).length > 0 ? prefill.data : null;
     } catch (err) {
       return null;
     }
@@ -2321,16 +2582,13 @@ export default function Home() {
       const phone = answers.phone || answers.phone_number || '';
       const contactName = answers.contact_name || answers.full_name || answers.name || '';
 
-      const { data: vendorData, error: vError } = await supabase
-        .from('vendors')
-        .select('id')
-        .eq('phone', phone)
-        .limit(1);
-
-      if (vError) throw vError;
+      // Match the same vendor the phone lookup found, even when the collector
+      // types 0746..., 746... or +256746.... Without this, a paid vendor would
+      // be duplicated as a "new vendor" on submit.
+      const matchedVendor = await findVendorByPhone(supabase, phone, activeEdition.id);
 
       let vendorId: string;
-      if (!vendorData || vendorData.length === 0) {
+      if (!matchedVendor) {
         const businessName = answers.business_name || '';
         const { data: newVendor, error: vErr } = await supabase
           .from('vendors')
@@ -2349,7 +2607,7 @@ export default function Home() {
         }
         vendorId = newVendor[0].id;
       } else {
-        vendorId = vendorData[0].id;
+        vendorId = matchedVendor.id;
       }
 
       const { data: formData, error: fError } = await supabase
@@ -2884,8 +3142,14 @@ export default function Home() {
     }, 800);
   };
 
-  // Convert currently selected vendor to rich format
-  const activeVendorDetail = getVendorDetailData(vendors.find(v => v.id === selectedVendorId));
+  // Convert currently selected vendor to rich format, then attach the real
+  // edition history loaded from the database (never invented editions).
+  // NOTE: keep this as a plain computation — this code runs after the
+  // `!mounted || loadingVendors` early return, so it must not call hooks.
+  const activeVendorDetailBase = getVendorDetailData(vendors.find(v => v.id === selectedVendorId));
+  const activeVendorDetail = activeVendorDetailBase && vendorHistoryExtras
+    ? { ...activeVendorDetailBase, ...vendorHistoryExtras }
+    : activeVendorDetailBase;
 
   // ==========================================
   // 3. STATS COMPUTATION FOR DASHBOARD
@@ -3868,6 +4132,8 @@ export default function Home() {
                   setIsExportModalOpen(true);
                 }}
                 isAdmin={isAdmin(role)}
+                showSurveyData={role === 'super_admin'}
+                canCopyPhone={role === 'super_admin'}
               />
             )}
           </div>
@@ -4668,7 +4934,16 @@ export default function Home() {
                                     </td>
                                     <td className="p-4 font-semibold text-text-primary">{pv.business_name || '—'}</td>
                                     <td className="p-4 text-text-secondary font-medium">{pv.contact_name || '—'}</td>
-                                    <td className="p-4 text-text-tertiary font-mono text-[11px]">{pv.phone || <span className="text-text-tertiary italic">No phone</span>}</td>
+                                    <td className="p-4 text-text-tertiary font-mono text-[11px]">
+                                      {pv.phone ? (
+                                        <span className="inline-flex items-center gap-1">
+                                          <span>{pv.phone}</span>
+                                          {role === 'super_admin' && <CopyPhoneButton phone={pv.phone} />}
+                                        </span>
+                                      ) : (
+                                        <span className="text-text-tertiary italic">No phone</span>
+                                      )}
+                                    </td>
                                     <td className="p-4 text-text-secondary font-medium">{pv.category || '—'}</td>
                                     <td className="p-4 text-center" onClick={(e) => { if (canEditTables || editingTablesId === pv.id) e.stopPropagation(); }}>
                                       {editingTablesId === pv.id ? (
@@ -5292,6 +5567,10 @@ export default function Home() {
         onExport={() => {
           setIsExportModalOpen(true);
         }}
+        onCollectSurvey={role === 'super_admin' ? openSurveyForVendor : undefined}
+        showSurveyData={role === 'super_admin'}
+        canCopyPhone={role === 'super_admin'}
+        historyLoading={vendorHistoryLoading}
         isAdmin={isAdmin(role)}
         onEdit={(id) => {
           const vendorObj = vendors.find(v => v.id === id);
@@ -5490,6 +5769,25 @@ export default function Home() {
           fetchSurveyResponses();
           fetchOverviewCounts();
           addToast(`Field data collected for "${vendorName}"!`, 'success');
+        }}
+      />
+
+      {/* Vendors Directory — Add / Update Survey Data */}
+      <PaidVendorCollectionModal
+        isOpen={isSurveyCollectionModalOpen}
+        onClose={() => {
+          setIsSurveyCollectionModalOpen(false);
+          setSelectedSurveyVendor(null);
+        }}
+        vendor={selectedSurveyVendor}
+        activeEdition={activeEdition}
+        onSaved={(vendorName) => {
+          setIsSurveyCollectionModalOpen(false);
+          setSelectedSurveyVendor(null);
+          fetchVendors();
+          fetchSurveyResponses();
+          fetchOverviewCounts();
+          addToast(`Survey data saved for "${vendorName}"!`, 'success');
         }}
       />
 
