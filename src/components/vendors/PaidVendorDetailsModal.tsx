@@ -84,6 +84,10 @@ export const PaidVendorDetailsModal: React.FC<PaidVendorDetailsModalProps> = ({
   const [selectedDayIds, setSelectedDayIds] = useState<string[]>([]);
   const [addingDays, setAddingDays] = useState(false);
   const [daysError, setDaysError] = useState<string | null>(null);
+  /** Tables recorded on each owned day's ticket. */
+  const [tablesByDay, setTablesByDay] = useState<Record<string, number>>({});
+  const [savingTablesDayId, setSavingTablesDayId] = useState<string | null>(null);
+  const [tablesDayError, setTablesDayError] = useState<string | null>(null);
 
   // Pre-fill form when vendor changes
   useEffect(() => {
@@ -114,13 +118,31 @@ export const PaidVendorDetailsModal: React.FC<PaidVendorDetailsModalProps> = ({
       setEditionDays(days);
       setSelectedDayIds([]);
       setDaysError(null);
+      setTablesDayError(null);
 
-      const { data: tickets } = await supabase
+      let ticketRows: any[] = [];
+      const withTables = await supabase
         .from('vendor_tickets')
-        .select('edition_day_id')
+        .select('edition_day_id, tables')
         .eq('registration_id', vendor.id);
+      if (withTables.error) {
+        // Pre-migration databases have no per-day `tables` column yet.
+        const legacy = await supabase
+          .from('vendor_tickets')
+          .select('edition_day_id')
+          .eq('registration_id', vendor.id);
+        ticketRows = legacy.data || [];
+      } else {
+        ticketRows = withTables.data || [];
+      }
       if (!cancelled) {
-        setOwnedDayIds((tickets || []).map((t: any) => t.edition_day_id));
+        setOwnedDayIds(ticketRows.map((t: any) => t.edition_day_id));
+        const nextTables: Record<string, number> = {};
+        for (const t of ticketRows) {
+          nextTables[t.edition_day_id] =
+            t.tables == null ? Number(vendor.tables) || 1 : Number(t.tables) || 1;
+        }
+        setTablesByDay(nextTables);
       }
     };
     void loadDays();
@@ -146,12 +168,48 @@ export const PaidVendorDetailsModal: React.FC<PaidVendorDetailsModalProps> = ({
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || 'Failed to add day tickets');
       setOwnedDayIds((prev) => Array.from(new Set([...prev, ...selectedDayIds])));
+      setTablesByDay((prev) => {
+        const next = { ...prev };
+        for (const id of selectedDayIds) {
+          if (next[id] == null) next[id] = 1;
+        }
+        return next;
+      });
       setSelectedDayIds([]);
       onSaved();
     } catch (err: any) {
       setDaysError(err?.message || 'Failed to add day tickets');
     } finally {
       setAddingDays(false);
+    }
+  };
+
+  /** Persist the table count for one paid day. */
+  const saveDayTables = async (dayId: string) => {
+    if (!vendor?.id) return;
+    const value = Number(tablesByDay[dayId]);
+    if (!Number.isInteger(value) || value < 1 || value > 5) {
+      setTablesDayError('Tables must be a whole number between 1 and 5.');
+      return;
+    }
+
+    setSavingTablesDayId(dayId);
+    setTablesDayError(null);
+    try {
+      const res = await fetch('/api/vendors/tables', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ registrationId: vendor.id, dayId, tables: value }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || 'Failed to update tables');
+      const saved = Number(data?.ticket?.tables) || value;
+      setTablesByDay((prev) => ({ ...prev, [dayId]: saved }));
+      onSaved();
+    } catch (err: any) {
+      setTablesDayError(err?.message || 'Failed to update tables');
+    } finally {
+      setSavingTablesDayId(null);
     }
   };
 
@@ -413,7 +471,11 @@ export const PaidVendorDetailsModal: React.FC<PaidVendorDetailsModalProps> = ({
                 ) : (
                   <span className="text-text-primary text-xs font-mono font-semibold">{Number(vendor.tables) || 1}</span>
                 )}
-                <span className="text-[10px] text-text-tertiary">Edit this from the Paid Vendors list.</span>
+                <span className="text-[10px] text-text-tertiary">
+                  {editionDays.length > 1
+                    ? 'Tables are counted per day — edit each day under Day Tickets below.'
+                    : 'Edit this from the Paid Vendors list.'}
+                </span>
               </div>
             </div>
           </div>
@@ -470,13 +532,13 @@ export const PaidVendorDetailsModal: React.FC<PaidVendorDetailsModalProps> = ({
                   <BadgeCheck className="w-3 h-3" /> Day Tickets
                 </h3>
                 <p className="text-[10px] text-text-secondary leading-relaxed">
-                  This vendor keeps one registration and vendor profile. Add a ticket for another paid day without duplicating them.
+                  This vendor keeps one registration and vendor profile. Tables are counted per paid day: set how many tables they own on each day.
                 </p>
                 <div className="space-y-1.5">
                   {editionDays.map((day) => {
                     const owned = ownedDayIds.includes(day.id);
                     return (
-                      <label
+                      <div
                         key={day.id}
                         className={`flex items-center justify-between gap-3 rounded-lg border px-3 py-2 text-xs ${
                           owned ? 'border-emerald-200 bg-emerald-50' : 'border-border bg-slate-50'
@@ -488,22 +550,64 @@ export const PaidVendorDetailsModal: React.FC<PaidVendorDetailsModalProps> = ({
                           </span>
                           <span className="block text-[10px] text-text-tertiary">{dayDateLabel(day)} · UGX {Number(day.fee || 0).toLocaleString()}</span>
                         </span>
-                        {!owned && (
-                          <input
-                            type="checkbox"
-                            checked={selectedDayIds.includes(day.id)}
-                            onChange={(e) =>
-                              setSelectedDayIds((prev) =>
-                                e.target.checked ? [...prev, day.id] : prev.filter((id) => id !== day.id)
-                              )
-                            }
-                            className="h-4 w-4 rounded border-border text-accent cursor-pointer"
-                          />
+                        {owned ? (
+                          <span className="flex items-center gap-1.5">
+                            <input
+                              type="number"
+                              min={1}
+                              max={5}
+                              value={tablesByDay[day.id] ?? 1}
+                              disabled={savingTablesDayId === day.id}
+                              onChange={(e) => {
+                                setTablesDayError(null);
+                                setTablesByDay((prev) => ({
+                                  ...prev,
+                                  [day.id]: Number(e.target.value),
+                                }));
+                              }}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter') void saveDayTables(day.id);
+                              }}
+                              title={`Tables on ${dayLabel(day)}`}
+                              className="w-14 rounded-md border border-border bg-white px-2 py-1 text-center font-mono text-xs text-text-primary outline-none focus:border-accent focus:ring-1 focus:ring-accent disabled:opacity-50"
+                            />
+                            <button
+                              type="button"
+                              onClick={() => void saveDayTables(day.id)}
+                              disabled={savingTablesDayId === day.id}
+                              title="Save tables for this day"
+                              className="inline-flex h-7 items-center gap-1 rounded-md border border-emerald-300 bg-white px-2 text-[10px] font-bold text-emerald-700 transition-colors hover:bg-emerald-100 disabled:opacity-50 cursor-pointer"
+                            >
+                              {savingTablesDayId === day.id ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <Save className="h-3 w-3" />
+                              )}
+                              Save
+                            </button>
+                          </span>
+                        ) : (
+                          <label className="flex items-center gap-1.5 text-[10px] font-semibold text-text-secondary cursor-pointer">
+                            Add
+                            <input
+                              type="checkbox"
+                              checked={selectedDayIds.includes(day.id)}
+                              onChange={(e) =>
+                                setSelectedDayIds((prev) =>
+                                  e.target.checked ? [...prev, day.id] : prev.filter((id) => id !== day.id)
+                                )
+                              }
+                              className="h-4 w-4 rounded border-border text-accent cursor-pointer"
+                            />
+                          </label>
                         )}
-                      </label>
+                      </div>
                     );
                   })}
                 </div>
+                {tablesDayError && (
+                  <p className="text-[10px] font-semibold text-red-600">{tablesDayError}</p>
+                )}
                 {daysError && (
                   <p className="text-[10px] font-semibold text-red-600">{daysError}</p>
                 )}

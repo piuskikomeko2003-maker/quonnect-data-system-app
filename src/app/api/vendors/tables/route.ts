@@ -1,16 +1,16 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { requireAdmin } from '@/lib/auth/requireAdmin';
-
-// A vendor books a whole number of tables under one ticket. 1 is the default.
-const MIN_TABLES = 1;
-const MAX_TABLES = 5;
+import { MAX_TABLES, MIN_TABLES } from '@/lib/vendorTables';
 
 /**
- * Admin-only update of the `tables` count on a paid vendor registration.
+ * Admin-only update of the table count for a paid vendor.
  *
- * This is the enforcement point: the client only *offers* the inline editor to
- * admins, but requireAdmin() rejects non-admins here regardless of the UI.
+ * Tables are sold per day on multi-day editions. The body is therefore:
+ *   { registrationId, tables, dayId? }
+ *
+ * `dayId` targets one `vendor_tickets` row (one paid day). When omitted, the
+ * request targets the registration's only/first day (legacy single-day call).
  */
 export async function PATCH(request: NextRequest) {
   const auth = await requireAdmin();
@@ -18,7 +18,7 @@ export async function PATCH(request: NextRequest) {
 
   try {
     const body = await request.json().catch(() => ({}));
-    const { registrationId, tables } = body ?? {};
+    const { registrationId, tables, dayId } = body ?? {};
 
     if (!registrationId || typeof registrationId !== 'string') {
       return NextResponse.json({ error: 'registrationId is required' }, { status: 400 });
@@ -34,47 +34,115 @@ export async function PATCH(request: NextRequest) {
         { status: 400 }
       );
     }
+    if (dayId != null && (typeof dayId !== 'string' || dayId.length === 0)) {
+      return NextResponse.json({ error: 'dayId must be a valid day id' }, { status: 400 });
+    }
 
     const supabase = createServiceClient();
 
-    // NOTE: No table/slot capacity concept exists in this system yet. If one is
-    // introduced later, load the registration's market_day_id and reject the
-    // increase here when remaining capacity for that edition is insufficient.
+    // Find the day ticket to update. Without a dayId we fall back to the
+    // registration's first owned day so single-day editions keep working.
+    let ticketQuery = supabase
+      .from('vendor_tickets')
+      .select('id, edition_day_id, tables')
+      .eq('registration_id', registrationId);
+    if (dayId) ticketQuery = ticketQuery.eq('edition_day_id', dayId);
 
-    const { data, error } = await (supabase
-      .from('vendor_registrations') as any)
-      .update({
-        tables: parsed,
-        tables_updated_by: auth.user?.id ?? null,
-        tables_updated_at: new Date().toISOString(),
-      })
-      .eq('id', registrationId)
-      .select('id, tables, tables_updated_at')
-      .single();
+    const { data: tickets, error: ticketError } = await ticketQuery
+      .order('created_at', { ascending: true })
+      .limit(1);
 
-    if (error) {
-      // Migration not applied yet — the column does not exist.
-      if (error.code === 'PGRST204') {
+    if (ticketError) {
+      // Migration not applied yet — the table/column does not exist.
+      if (ticketError.code === 'PGRST204' || ticketError.code === '42P01') {
         return NextResponse.json(
-          { error: "Database column 'tables' is missing. Run 'add_vendor_tables.sql' in your Supabase SQL Editor.", tableMissing: true },
+          {
+            error:
+              "Database column 'vendor_tickets.tables' is missing. Run 'add_vendor_day_tables.sql' in your Supabase SQL Editor.",
+            tableMissing: true,
+          },
           { status: 400 }
         );
       }
-      // CHECK constraint fired.
-      if (error.code === '23514') {
+      throw ticketError;
+    }
+
+    const ticket = (tickets || [])[0];
+    if (!ticket) {
+      if (dayId) {
+        return NextResponse.json(
+          { error: 'This vendor has no ticket for that day. Add the day ticket first.' },
+          { status: 404 }
+        );
+      }
+
+      // Not-yet-registered vendors (for example CSV imports) have no day
+      // tickets yet. Keep the legacy registration-level editor working so an
+      // admin can record the table count before the vendor registers.
+      const { data: registration, error: regError } = await supabase
+        .from('vendor_registrations')
+        .update({
+          tables: parsed,
+          tables_updated_by: auth.user?.id ?? null,
+          tables_updated_at: new Date().toISOString(),
+        })
+        .eq('id', registrationId)
+        .select('id, tables, tables_updated_at')
+        .maybeSingle();
+
+      if (regError) {
+        if (regError.code === '23514') {
+          return NextResponse.json(
+            { error: `Tables must be between ${MIN_TABLES} and ${MAX_TABLES}.` },
+            { status: 400 }
+          );
+        }
+        throw regError;
+      }
+      if (!registration) {
+        return NextResponse.json({ error: 'Registration not found' }, { status: 404 });
+      }
+      return NextResponse.json({ success: true, ticket: null, registration });
+    }
+
+    const { error: updateError } = await supabase
+      .from('vendor_tickets')
+      .update({ tables: parsed })
+      .eq('id', ticket.id);
+
+    if (updateError) {
+      if (updateError.code === '23514') {
         return NextResponse.json(
           { error: `Tables must be between ${MIN_TABLES} and ${MAX_TABLES}.` },
           { status: 400 }
         );
       }
-      throw error;
+      if (updateError.code === 'PGRST204') {
+        return NextResponse.json(
+          {
+            error:
+              "Database column 'vendor_tickets.tables' is missing. Run 'add_vendor_day_tables.sql' in your Supabase SQL Editor.",
+            tableMissing: true,
+          },
+          { status: 400 }
+        );
+      }
+      throw updateError;
     }
 
-    if (!data) {
-      return NextResponse.json({ error: 'Registration not found' }, { status: 404 });
-    }
+    // The DB trigger mirrors the first owned day onto the registration. Read it
+    // back so the client can stay in sync with that authoritative value.
+    const { data: registration } = await supabase
+      .from('vendor_registrations')
+      .select('id, tables, tables_updated_at')
+      .eq('id', registrationId)
+      .maybeSingle();
 
-    return NextResponse.json({ success: true, registration: data });
+    return NextResponse.json({
+      success: true,
+      ticket: { id: ticket.id, dayId: ticket.edition_day_id, tables: parsed },
+      registration,
+    });
   } catch (err: any) {
     return NextResponse.json(
       { error: err?.message || 'Failed to update tables' },

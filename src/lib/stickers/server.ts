@@ -175,13 +175,14 @@ export async function fetchStickerVendors(
   const PAGE_SIZE = 1000;
 
   if (editionDayId) {
-    const daySelect = `
+    const daySelectWithTables = `
       id,
       registration_id,
       edition_day_id,
       ticket_number,
       ticket_code,
       stickers_printed,
+      tables,
       vendor_registrations!inner (
         id,
         vendor_id,
@@ -190,12 +191,16 @@ export async function fetchStickerVendors(
         vendors ( business_name, contact_name )
       )
     `;
+    // Pre-migration databases have no per-day `tables` column yet.
+    const daySelectLegacy = daySelectWithTables.replace(/\n\s*tables,/, '');
 
+    let useDayTables = true;
     const rows: any[] = [];
-    for (let from = 0; ; from += PAGE_SIZE) {
+    let from = 0;
+    while (true) {
       let query = supabase
         .from('vendor_tickets')
-        .select(daySelect)
+        .select(useDayTables ? daySelectWithTables : daySelectLegacy)
         .eq('edition_day_id', editionDayId)
         .eq('vendor_registrations.payment_status', 'paid')
         // INTEGER column, so this is a numeric sort (100 after 99, not before 20).
@@ -208,10 +213,22 @@ export async function fetchStickerVendors(
           .lte('ticket_number', ticketRange.to);
       }
       const { data, error } = await query.range(from, from + PAGE_SIZE - 1);
-      if (error) throw error;
+      if (error) {
+        const missingTables =
+          useDayTables &&
+          (error.code === 'PGRST204' ||
+            error.code === '42703' ||
+            /column .*tables.*does not exist/i.test(error.message || ''));
+        if (missingTables) {
+          useDayTables = false;
+          continue;
+        }
+        throw error;
+      }
       const batch = data || [];
       rows.push(...batch);
       if (batch.length < PAGE_SIZE) break;
+      from += PAGE_SIZE;
     }
 
     return rows.map((row: any) => {
@@ -226,7 +243,9 @@ export async function fetchStickerVendors(
         vendor_id: reg.vendor_id,
         business_name: reg.vendors?.business_name || reg.vendors?.contact_name || 'Unknown vendor',
         ticket_number: ticket,
-        tables: Math.max(1, Number(reg.tables) || 1),
+        // Per-day tables win; fall back to the legacy registration count when
+        // the day-tables migration has not been applied yet.
+        tables: Math.max(1, Number(row.tables) || Number(reg.tables) || 1),
         stickers_printed: Math.max(0, Number(row.stickers_printed) || 0),
       };
     });

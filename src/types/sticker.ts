@@ -1,13 +1,16 @@
 // Shared types and constants for the sticker printing feature.
 //
-// A paid vendor registration carries two numbers that matter here:
-//   - `tables`            how many tables were paid for (1..5). Source of truth
-//                         for how many stickers the vendor needs.
+// Two numbers matter here:
+//   - `tables`            how many tables were paid for on a given day (1..5).
+//                         For multi-day editions this comes from that day's
+//                         `vendor_tickets` row; single-day/legacy rows fall back
+//                         to the registration-level mirror.
 //   - `stickers_printed`  how many stickers have been confirmed printed.
 // Remaining = tables - stickers_printed.
 //
 // One sticker is one table: a vendor with 2 tables gets 2 stickers that share a
-// business name and ticket number but say "Table 1" and "Table 2".
+// business name and ticket number but say "Table 1" and "Table 2". Printing is
+// scoped to a day, so a vendor can need 2 stickers on Day 1 and 3 on Day 2.
 
 import type { ImageFitMode, PageOrientation } from '@/lib/stickers/pageLayout';
 

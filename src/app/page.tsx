@@ -36,6 +36,7 @@ import {
 } from '@/lib/editionDays';
 import { RatingFilterKey, matchesRatingFilter } from '@/lib/ratingTiers';
 import { isAdmin } from '@/lib/auth/permissions';
+import { normalizeTables } from '@/lib/vendorTables';
 import { buildMultiTicketData, extractPaidFields } from '@/lib/paidRegistration';
 import { buildVendorPrefill, findVendorByPhone } from '@/lib/vendorLookup';
 import { GreetingCard } from '@/components/dashboard/GreetingCard';
@@ -326,8 +327,10 @@ export default function Home() {
   const ticketEntryRunningRef = useRef(new globalThis.Set<string>());
   const [savingTicketIds, setSavingTicketIds] = useState<globalThis.Set<string>>(() => new globalThis.Set());
 
-  // Inline "tables" editing on the paid vendors list (admin only).
+  // Inline "tables" editing on the paid vendors list (admin only). Tables are
+  // counted per paid day, so the editor remembers which day it is editing.
   const [editingTablesId, setEditingTablesId] = useState<string | null>(null);
+  const [editingTablesDayId, setEditingTablesDayId] = useState<string | null>(null);
   const [tablesDraft, setTablesDraft] = useState('');
   const [savingTablesId, setSavingTablesId] = useState<string | null>(null);
   const [tablesEditError, setTablesEditError] = useState<string | null>(null);
@@ -337,6 +340,8 @@ export default function Home() {
   const [showPaidVendorDropdown, setShowPaidVendorDropdown] = useState(false);
   const paidVendorSearchWrapRef = useRef<HTMLDivElement | null>(null);
   const paidVendorSearchInputRef = useRef<HTMLInputElement | null>(null);
+  /** Row to scroll to after a search result is tapped. */
+  const [highlightedVendorId, setHighlightedVendorId] = useState<string | null>(null);
 
   // Overview live counts
   const [overviewCounts, setOverviewCounts] = useState({ paidVendors: 0, walkins: 0, surveyResponses: 0 });
@@ -1217,6 +1222,7 @@ export default function Home() {
           const ticketNumber = normalizeTicketCode(r.ticket_number || r.stall_number || r.notes?.match(/Ticket #(\d+)/)?.[1]) || '';
           const overlay = entryOverlayRef.current;
           const ticketOverlay = ticketEntryOverlayRef.current;
+          const registrationTables = normalizeTables(r.tables);
           const tickets = [...(ticketsByRegistration.get(r.id) || [])]
             .sort(
               (a: any, b: any) =>
@@ -1225,13 +1231,19 @@ export default function Home() {
             .map((t: any) => {
               // A mark the operator just tapped wins over server data until the
               // write lands. Once the server agrees, drop the overlay.
-              if (!ticketOverlay.has(t.id)) return t;
+              const withTables = {
+                ...t,
+                // Pre-migration day tickets have no `tables`; inherit the old
+                // registration count so existing editions keep printing.
+                tables: t.tables == null ? registrationTables : normalizeTables(t.tables),
+              };
+              if (!ticketOverlay.has(t.id)) return withTables;
               const desired = ticketOverlay.get(t.id) ?? null;
               if ((t.check_in_time ?? null) === desired) {
                 ticketOverlay.delete(t.id);
-                return t;
+                return withTables;
               }
-              return { ...t, check_in_time: desired };
+              return { ...withTables, check_in_time: desired };
             });
           const ticketCheckIn = tickets.find((t: any) => t.check_in_time)?.check_in_time || null;
           return {
@@ -1246,7 +1258,7 @@ export default function Home() {
             tickets,
             check_in_time: overlay.has(r.id) ? overlay.get(r.id) ?? null : (r.check_in_time || ticketCheckIn),
             created_at: r.created_at,
-            tables: Number.isFinite(Number(r.tables)) ? Math.max(1, Number(r.tables)) : 1,
+            tables: registrationTables,
             business_name: r.vendors?.business_name || '',
             contact_name: r.vendors?.contact_name || '',
             phone: r.vendors?.phone || '',
@@ -1531,22 +1543,31 @@ export default function Home() {
     return !!gateTicketFor(pv, dayId)?.check_in_time;
   };
 
-  /** Begin inline editing of a row's tables count (admin only). */
-  const startEditingTables = (pv: { id: string; tables?: number }) => {
+  /**
+   * Begin inline editing of a row's tables count (admin only).
+   * `dayId` targets one paid day; omit it on single-day editions.
+   */
+  const startEditingTables = (pv: { id: string; tables?: number; tickets?: any[] }, dayId?: string) => {
     if (!canEditTables) return;
     setEditingTablesId(pv.id);
-    setTablesDraft(String(Number(pv.tables) || 1));
+    setEditingTablesDayId(dayId ?? null);
+    const current = dayId
+      ? (pv.tickets || []).find((t: any) => t.edition_day_id === dayId)?.tables
+      : pv.tables;
+    setTablesDraft(String(normalizeTables(current)));
     setTablesEditError(null);
   };
 
   const cancelEditingTables = () => {
     setEditingTablesId(null);
+    setEditingTablesDayId(null);
     setTablesDraft('');
     setTablesEditError(null);
   };
 
-  /** Validate + persist the tables count via the admin-checked API route. */
-  const saveVendorTables = async (pv: { id: string; tables?: number }) => {
+  /** Validate + persist the tables count for one paid day. */
+  const saveVendorTables = async (pv: { id: string; tables?: number; tickets?: any[] }, dayId?: string) => {
+    const targetDayId = dayId ?? editingTablesDayId ?? undefined;
     const raw = tablesDraft.trim();
     const next = Number(raw);
     if (!/^\d+$/.test(raw) || !Number.isInteger(next)) {
@@ -1557,7 +1578,10 @@ export default function Home() {
       setTablesEditError('Tables must be between 1 and 5.');
       return;
     }
-    if (next === (Number(pv.tables) || 1)) {
+    const current = targetDayId
+      ? normalizeTables((pv.tickets || []).find((t: any) => t.edition_day_id === targetDayId)?.tables)
+      : normalizeTables(pv.tables);
+    if (next === current) {
       cancelEditingTables();
       return;
     }
@@ -1568,20 +1592,89 @@ export default function Home() {
       const res = await fetch('/api/vendors/tables', {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ registrationId: pv.id, tables: next }),
+        body: JSON.stringify({
+          registrationId: pv.id,
+          tables: next,
+          ...(targetDayId ? { dayId: targetDayId } : {}),
+        }),
       });
       const data = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(data?.error || 'Failed to update tables');
-      const savedTables = Number(data?.registration?.tables) || next;
-      setPaidVendors(prev => prev.map(p => (p.id === pv.id ? { ...p, tables: savedTables } : p)));
+      const savedTables = normalizeTables(data?.ticket?.tables ?? next);
+
+      setPaidVendors(prev => prev.map(p => {
+        if (p.id !== pv.id) return p;
+        if (!targetDayId) {
+          return { ...p, tables: normalizeTables(data?.registration?.tables ?? savedTables) };
+        }
+        return {
+          ...p,
+          tickets: (p.tickets || []).map((t: any) =>
+            t.edition_day_id === targetDayId ? { ...t, tables: savedTables } : t
+          ),
+        };
+      }));
+      // The registration mirror follows the first owned day; refresh silently
+      // so the legacy count is never left stale after editing a later day.
+      void fetchPaidVendors(true);
       cancelEditingTables();
-      addToast(`Tables updated to ${savedTables}.`, 'success');
+      addToast(
+        targetDayId
+          ? `Day tables updated to ${savedTables}.`
+          : `Tables updated to ${savedTables}.`,
+        'success'
+      );
     } catch (err: any) {
       setTablesEditError(err?.message || 'Failed to update tables');
     } finally {
       setSavingTablesId(null);
     }
   };
+
+  /** Scroll the paid-vendor list to a search result and flash its row. */
+  const handleJumpToVendorRow = (pv: any) => {
+    // The row may live in the other tab or be hidden by an active filter.
+    const targetTab: 'registered' | 'pending' = pv.hasFormData ? 'registered' : 'pending';
+    setPaidVendorTab(targetTab);
+
+    if (
+      paidVendorCategoryFilter !== 'All' &&
+      (pv.category || '').trim().toLowerCase() !== paidVendorCategoryFilter.trim().toLowerCase()
+    ) {
+      setPaidVendorCategoryFilter('All');
+    }
+
+    if (targetTab === 'registered') {
+      if (gateDayId !== 'all' && !hasGateDayTicket(pv, gateDayId)) {
+        setGateDayId('all');
+      }
+      const entered = isEnteredForGateDay(pv, gateDayId);
+      if (
+        (paidVendorEntryFilter === 'confirmed' && !entered) ||
+        (paidVendorEntryFilter === 'awaiting' && entered)
+      ) {
+        setPaidVendorEntryFilter('all');
+      }
+    }
+
+    setShowPaidVendorDropdown(false);
+    setPaidVendorSearch('');
+    setHighlightedVendorId(pv.id);
+  };
+
+  // Scroll after the target tab/filters have rendered, then fade the highlight.
+  useEffect(() => {
+    if (!highlightedVendorId) return;
+    const scrollTimer = window.setTimeout(() => {
+      const row = document.getElementById(`paid-vendor-row-${highlightedVendorId}`);
+      row?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }, 40);
+    const clearTimer = window.setTimeout(() => setHighlightedVendorId(null), 2800);
+    return () => {
+      window.clearTimeout(scrollTimer);
+      window.clearTimeout(clearTimer);
+    };
+  }, [highlightedVendorId, paidVendorTab, paidVendorEntryFilter, paidVendorCategoryFilter]);
 
   /** Debounced search: match paid vendors by business name, vendor name or ticket #. */
   /**
@@ -4518,7 +4611,17 @@ export default function Home() {
                               return (
                                 <div
                                   key={m.id}
-                                  className="flex items-center justify-between gap-3 px-3 py-2 border-b border-border/50 last:border-b-0"
+                                  role="button"
+                                  tabIndex={0}
+                                  onClick={() => handleJumpToVendorRow(m)}
+                                  onKeyDown={(e) => {
+                                    if (e.key === 'Enter' || e.key === ' ') {
+                                      e.preventDefault();
+                                      handleJumpToVendorRow(m);
+                                    }
+                                  }}
+                                  title="Jump to this vendor's row"
+                                  className="flex items-center justify-between gap-3 px-3 py-2 border-b border-border/50 last:border-b-0 cursor-pointer hover:bg-accent-soft/60 transition-colors outline-none focus:bg-accent-soft/60"
                                 >
                                   <span className="min-w-0">
                                     <span className="block text-xs font-semibold text-text-primary truncate">
@@ -4530,7 +4633,10 @@ export default function Home() {
                                   </span>
                                   <button
                                     type="button"
-                                    onClick={() => (isConfirmed ? handleUnmarkVendorFromSearch(m) : handleMarkVendorFromSearch(m))}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      isConfirmed ? handleUnmarkVendorFromSearch(m) : handleMarkVendorFromSearch(m);
+                                    }}
                                     title={isConfirmed ? 'Undo entry for this vendor' : `Confirm this vendor has entered the venue${matchDay ? ` (${dayLabel(matchDay)})` : ''}`}
                                     className={`shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border transition-colors cursor-pointer whitespace-nowrap ${
                                       isConfirmed
@@ -4889,11 +4995,18 @@ export default function Home() {
                                   return (
                                   <tr
                                     key={pv.id}
+                                    id={`paid-vendor-row-${pv.id}`}
                                     onClick={() => {
                                       setSelectedVendorForChoice(pv);
                                       setIsChoiceModalOpen(true);
                                     }}
-                                    className={`hover:bg-slate-50/70 transition-colors cursor-pointer ${rowEntered ? 'bg-emerald-50/50' : ''}`}
+                                    className={`hover:bg-slate-50/70 transition-colors cursor-pointer ${
+                                      rowEntered ? 'bg-emerald-50/50' : ''
+                                    } ${
+                                      highlightedVendorId === pv.id
+                                        ? 'ring-2 ring-accent ring-inset bg-accent-soft/70'
+                                        : ''
+                                    }`}
                                   >
                                     <td className="p-4 text-center">
                                       {visibleTickets.length > 1 ? (
@@ -4948,6 +5061,16 @@ export default function Home() {
                                     <td className="p-4 text-center" onClick={(e) => { if (canEditTables || editingTablesId === pv.id) e.stopPropagation(); }}>
                                       {editingTablesId === pv.id ? (
                                         <div className="inline-flex flex-col items-center gap-1">
+                                          {(() => {
+                                            const editDay = editingTablesDayId
+                                              ? editionDays.find((d) => d.id === editingTablesDayId)
+                                              : null;
+                                            return editDay ? (
+                                              <span className="text-[9px] font-bold text-accent uppercase tracking-wide whitespace-nowrap">
+                                                {dayLabel(editDay)} tables
+                                              </span>
+                                            ) : null;
+                                          })()}
                                           <div className="inline-flex items-center gap-1">
                                             <input
                                               autoFocus
@@ -4957,14 +5080,14 @@ export default function Home() {
                                               value={tablesDraft}
                                               onChange={(e) => { setTablesDraft(e.target.value); setTablesEditError(null); }}
                                               onKeyDown={(e) => {
-                                                if (e.key === 'Enter') saveVendorTables(pv);
+                                                if (e.key === 'Enter') saveVendorTables(pv, editingTablesDayId ?? undefined);
                                                 if (e.key === 'Escape') cancelEditingTables();
                                               }}
                                               disabled={savingTablesId === pv.id}
                                               className="w-14 bg-white border border-accent rounded-md px-2 py-1 text-text-primary text-xs font-mono text-center outline-none focus:ring-1 focus:ring-accent"
                                             />
                                             <button
-                                              onClick={() => saveVendorTables(pv)}
+                                              onClick={() => saveVendorTables(pv, editingTablesDayId ?? undefined)}
                                               disabled={savingTablesId === pv.id}
                                               title="Save tables"
                                               className="inline-flex items-center justify-center w-6 h-6 rounded-md text-white bg-accent hover:bg-accent-hover disabled:opacity-50 transition-colors cursor-pointer"
@@ -4986,13 +5109,60 @@ export default function Home() {
                                         </div>
                                       ) : (
                                         (() => {
+                                          // Multi-day editions own a table count per
+                                          // day. Show one badge per paid day so the
+                                          // operator edits the right day's tables.
+                                          const dayTickets = (pv.tickets || [])
+                                            .filter((t: any) => t.edition_day_id)
+                                            .sort(
+                                              (a: any, b: any) =>
+                                                (a.edition_days?.day_number || 0) - (b.edition_days?.day_number || 0)
+                                            );
+
+                                          if (editionDays.length > 1 && dayTickets.length > 0) {
+                                            return (
+                                              <div className="inline-flex flex-col items-center gap-1">
+                                                {dayTickets.map((ticket: any) => {
+                                                  const day = ticket.edition_days || editionDays.find((d) => d.id === ticket.edition_day_id);
+                                                  const count = normalizeTables(ticket.tables);
+                                                  const content = (
+                                                    <>
+                                                      <span className="text-[8px] uppercase font-sans">{day ? dayLabel(day) : 'Day'}</span>
+                                                      <LayoutGrid className="w-3 h-3" />
+                                                      {count}
+                                                    </>
+                                                  );
+                                                  return canEditTables ? (
+                                                    <button
+                                                      key={ticket.id || ticket.edition_day_id}
+                                                      type="button"
+                                                      onClick={() => startEditingTables(pv, ticket.edition_day_id)}
+                                                      title={`Click to change ${day ? dayLabel(day) : 'this day'}'s tables`}
+                                                      className="group inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-accent-soft text-accent border border-accent/20 whitespace-nowrap hover:bg-accent/15 transition-colors cursor-pointer"
+                                                    >
+                                                      {content}
+                                                      <Edit3 className="w-2.5 h-2.5 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                                    </button>
+                                                  ) : (
+                                                    <span
+                                                      key={ticket.id || ticket.edition_day_id}
+                                                      className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-accent-soft text-accent border border-accent/20 whitespace-nowrap"
+                                                    >
+                                                      {content}
+                                                    </span>
+                                                  );
+                                                })}
+                                              </div>
+                                            );
+                                          }
+
                                           const tablesDisplay = Number(pv.tables) > 1 ? (
                                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-accent-soft text-accent border border-accent/20 whitespace-nowrap">
                                               <LayoutGrid className="w-3 h-3" />
                                               {Number(pv.tables)} tables
                                             </span>
                                           ) : (
-                                            <span className="text-text-secondary font-medium font-mono text-xs">{Number(pv.tables) || 1}</span>
+                                            <span className="text-text-secondary font-medium font-mono text-xs">{normalizeTables(pv.tables)}</span>
                                           );
                                           // Admins get a clickable editor; everyone else gets a plain
                                           // span so the click still bubbles to the row and opens details.

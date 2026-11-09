@@ -46,11 +46,24 @@ export async function POST(request: NextRequest) {
         if (increment === 0) continue;
 
         if (item.ticket_id) {
-          const { data: ticket } = await supabase
+          let { data: ticket, error: ticketError } = await supabase
             .from('vendor_tickets')
-            .select('id, stickers_printed')
+            .select('id, stickers_printed, tables')
             .eq('id', item.ticket_id)
             .maybeSingle();
+          if (
+            ticketError &&
+            (ticketError.code === 'PGRST204' ||
+              /column .*tables.*does not exist/i.test(ticketError.message || ''))
+          ) {
+            // Pre-migration database: no per-day tables column yet.
+            const retry = await supabase
+              .from('vendor_tickets')
+              .select('id, stickers_printed')
+              .eq('id', item.ticket_id)
+              .maybeSingle();
+            ticket = retry.data as any;
+          }
           if (!ticket) continue;
 
           const reg = await supabase
@@ -58,7 +71,11 @@ export async function POST(request: NextRequest) {
             .select('tables')
             .eq('id', item.registration_id)
             .maybeSingle();
-          const tables = Math.max(1, Number(reg.data?.tables) || 1);
+          // Per-day tables win; fall back to the legacy registration count.
+          const tables = Math.max(
+            1,
+            Number((ticket as any).tables) || Number(reg.data?.tables) || 1
+          );
           const printed = Math.max(0, Number(ticket.stickers_printed) || 0);
           const next = Math.min(tables, printed + increment);
           if (next !== printed) {

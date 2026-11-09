@@ -14,6 +14,7 @@
     "test:sticker-pdf-text": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/register-ts-loader.mjs --test tests/sticker-pdf-text.test.mjs",
     "test:gate-entry": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/register-ts-loader.mjs --test tests/gate-entry-queue.test.mjs",
     "test:vendor-lookup": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/register-ts-loader.mjs --test tests/vendor-lookup.test.mjs",
+    "test:vendor-tables": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/register-ts-loader.mjs --test tests/vendor-tables.test.mjs",
     "test:tickets": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/register-ts-loader.mjs --test tests/ticket-download.test.mjs",
     "test:typography": "node --disable-warning=MODULE_TYPELESS_PACKAGE_JSON --import ./scripts/register-ts-loader.mjs --test tests/ticket-typography.test.mjs",
     "test:multi-day": "node scripts/test_multi_day_editions.mjs",

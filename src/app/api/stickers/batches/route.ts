@@ -204,19 +204,36 @@ async function createReprintBatch(
   }
 
   let resolvedDayId: string | null = editionDayId;
+  let ticketTables: number | null = null;
   if (ticketId) {
-    const { data: ticket } = await supabase
+    let { data: ticket, error: ticketError } = await supabase
       .from('vendor_tickets')
-      .select('id, edition_day_id, registration_id')
+      .select('id, edition_day_id, registration_id, tables')
       .eq('id', ticketId)
       .maybeSingle();
+    if (
+      ticketError &&
+      (ticketError.code === 'PGRST204' ||
+        /column .*tables.*does not exist/i.test(ticketError.message || ''))
+    ) {
+      // Pre-migration database: no per-day tables column yet.
+      const retry = await supabase
+        .from('vendor_tickets')
+        .select('id, edition_day_id, registration_id')
+        .eq('id', ticketId)
+        .maybeSingle();
+      ticket = retry.data as any;
+    }
     if (!ticket || ticket.registration_id !== registrationId) {
       return NextResponse.json({ error: 'Ticket not found for this registration.' }, { status: 404 });
     }
     resolvedDayId = ticket.edition_day_id;
+    // Per-day tables win; fall back to the legacy registration count for
+    // databases that have not run add_vendor_day_tables.sql yet.
+    ticketTables = Number((ticket as any).tables) || null;
   }
 
-  const tables = Math.max(1, Number(reg.tables) || 1);
+  const tables = Math.max(1, ticketTables || Number(reg.tables) || 1);
   const cleaned: number[] = tableNumbers
     .map((n: any) => Number(n))
     .filter((n: number) => Number.isInteger(n) && n >= 1 && n <= tables);
