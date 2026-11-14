@@ -38,6 +38,7 @@ import { RatingFilterKey, matchesRatingFilter } from '@/lib/ratingTiers';
 import {
   canManageSection as canManageRegionSection,
   getAllowedSectionIds,
+  getSectionAccess,
   isAdmin,
 } from '@/lib/auth/permissions';
 import { normalizeTables } from '@/lib/vendorTables';
@@ -370,7 +371,10 @@ export default function Home() {
   const canManageFinance = isAdmin(role) || canManageRegionSection(role, sectionPermissions, 'finance');
   const canManageVendors = isAdmin(role) || canManageRegionSection(role, sectionPermissions, 'vendors');
   const canManageRatings = isAdmin(role) || canManageRegionSection(role, sectionPermissions, 'ratings');
-  const canManageQuickEntry = isAdmin(role) || canManageRegionSection(role, sectionPermissions, 'quick-entry');
+  // Quick Entry has no read-only mode — granting the section at all (view or
+  // manage) enables the data-entry forms and edition link generation.
+  const canManageQuickEntry =
+    isAdmin(role) || getSectionAccess(sectionPermissions, 'quick-entry') !== null;
   const canManagePaidVendors = isAdmin(role) || canManageRegionSection(role, sectionPermissions, 'paid-vendors');
   const canManageWalkins = isAdmin(role) || canManageRegionSection(role, sectionPermissions, 'walkins');
 

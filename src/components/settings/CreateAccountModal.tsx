@@ -351,7 +351,9 @@ export const CreateAccountModal: React.FC<CreateAccountModalProps> = ({
                           >
                             {LEVEL_OPTIONS.map((option) => (
                               <option key={option.value} value={option.value}>
-                                {option.label}
+                                {section.id === 'quick-entry' && option.value === 'view'
+                                  ? 'Enabled'
+                                  : option.label}
                               </option>
                             ))}
                           </select>

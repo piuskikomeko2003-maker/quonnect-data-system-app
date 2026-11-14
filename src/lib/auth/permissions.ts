@@ -11,7 +11,7 @@ export const REGION_SECTIONS = [
   { id: 'walkins', name: 'Walk-ins', description: 'Walk-in visitor records and estimates.' },
   { id: 'paid-vendors', name: 'Paid Vendors', description: 'Paid registration, gate entry and table allocation.' },
   { id: 'finance', name: 'Finance', description: 'Income, expenses and edition ledgers.' },
-  { id: 'quick-entry', name: 'Quick Entry', description: 'Admin-side data entry forms.' },
+  { id: 'quick-entry', name: 'Quick Entry', description: 'Enter data and generate edition registration links.' },
   { id: 'ratings', name: 'Ratings & Export', description: 'Vendor ratings and CSV exports.' },
   { id: 'import-export', name: 'Import/Export', description: 'CSV import batches and data exports.' },
   { id: 'jobs', name: 'Jobs Supported', description: 'Employment impact reporting.' },
