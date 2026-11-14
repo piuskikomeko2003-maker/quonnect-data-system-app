@@ -4,8 +4,12 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { useToast } from '@/components/ui/ToastProvider';
+import { RegionalAccessModal } from './RegionalAccessModal';
+import { CreateAccountModal } from './CreateAccountModal';
+import { createClient } from '@/lib/supabase/client';
 import type { UserProfile, UserRole } from '@/hooks/useAuth';
 import { ROLE_LABELS } from '@/hooks/useAuth';
+import { REGION_SECTIONS, type SectionPermissions } from '@/lib/auth/permissions';
 import {
   UserCheck,
   Trash2,
@@ -22,6 +26,10 @@ import {
   Mail,
   RotateCcw,
   Sparkles,
+  MapPin,
+  SlidersHorizontal,
+  Briefcase,
+  UserPlus,
 } from 'lucide-react';
 
 interface UserManagementSettingsProps {
@@ -32,6 +40,7 @@ interface UserManagementSettingsProps {
 const ROLE_ICONS: Record<UserRole, React.ReactNode> = {
   super_admin: <ShieldAlert className="w-3.5 h-3.5" />,
   admin: <ShieldCheck className="w-3.5 h-3.5" />,
+  regional_manager: <Briefcase className="w-3.5 h-3.5" />,
   user: <Shield className="w-3.5 h-3.5" />,
   unassigned: <Clock className="w-3.5 h-3.5" />,
 };
@@ -39,6 +48,7 @@ const ROLE_ICONS: Record<UserRole, React.ReactNode> = {
 const ROLE_BADGE_VARIANTS: Record<UserRole, 'danger' | 'warning' | 'info' | 'neutral'> = {
   super_admin: 'danger',
   admin: 'warning',
+  regional_manager: 'info',
   user: 'info',
   unassigned: 'neutral',
 };
@@ -49,6 +59,9 @@ export const UserManagementSettings: React.FC<UserManagementSettingsProps> = ({
 }) => {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
+  const [accessUser, setAccessUser] = useState<UserProfile | null>(null);
+  const [isCreateAccountOpen, setIsCreateAccountOpen] = useState(false);
+  const [regionNames, setRegionNames] = useState<Record<string, string>>({});
   const { addToast } = useToast();
   const canManage = currentUserRole === 'super_admin' || currentUserRole === 'admin';
 
@@ -72,6 +85,26 @@ export const UserManagementSettings: React.FC<UserManagementSettingsProps> = ({
   useEffect(() => {
     fetchUsers();
   }, [fetchUsers]);
+
+  useEffect(() => {
+    let cancelled = false;
+    const supabase = createClient();
+    supabase
+      .from('regions')
+      .select('id, name')
+      .order('name')
+      .then(({ data }) => {
+        if (cancelled) return;
+        const map: Record<string, string> = {};
+        (data || []).forEach((r: any) => {
+          map[r.id] = r.name;
+        });
+        setRegionNames(map);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // Compute the dynamic signup URL
   const origin = typeof window !== 'undefined' ? window.location.origin : '';
@@ -113,13 +146,43 @@ export const UserManagementSettings: React.FC<UserManagementSettingsProps> = ({
         throw new Error(data.error || 'Failed to change role');
       }
 
+      const updatedUser = data.user;
       setUsers((prev) =>
-        prev.map((u) => (u.id === profileId ? { ...u, role: newRole } : u))
+        prev.map((u) => (u.id === profileId ? { ...u, ...(updatedUser || { role: newRole }) } : u))
       );
-      addToast(`Role updated to ${ROLE_LABELS[newRole] || newRole}`, 'success');
+
+      if (newRole === 'regional_manager') {
+        const target = users.find((u) => u.id === profileId);
+        if (target) {
+          setAccessUser({
+            ...target,
+            ...(updatedUser || {}),
+            role: 'regional_manager',
+          });
+        }
+        addToast('Regional Manager selected. Choose their region and sections.', 'success');
+      } else {
+        addToast(`Role updated to ${ROLE_LABELS[newRole] || newRole}`, 'success');
+      }
     } catch (err: any) {
       addToast(err.message, 'error');
     }
+  };
+
+  const handleAccessSaved = (updated: UserProfile) => {
+    setUsers((prev) => prev.map((u) => (u.id === updated.id ? { ...u, ...updated } : u)));
+  };
+
+  const handleAccountCreated = (created: UserProfile) => {
+    setUsers((prev) => [created, ...prev.filter((u) => u.id !== created.id)]);
+  };
+
+  const grantedSectionCount = (permissions?: SectionPermissions | null) => {
+    if (!permissions) return 0;
+    return REGION_SECTIONS.filter((section) => {
+      const level = permissions[section.id];
+      return level === 'view' || level === 'manage';
+    }).length;
   };
 
   const handleRevoke = async (profileId: string, email: string) => {
@@ -210,6 +273,33 @@ export const UserManagementSettings: React.FC<UserManagementSettingsProps> = ({
           </div>
           <div className="text-2xl font-bold text-amber-700 mt-2">{pendingUsers}</div>
         </div>
+      </div>
+
+      {/* =========================================================================
+          DIRECT ACCOUNT CREATION
+          ========================================================================= */}
+      <div className="p-4 bg-gradient-to-r from-accent-soft/60 to-sky-50 border border-accent/25 rounded-xl shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div className="flex items-start gap-3">
+          <div className="w-9 h-9 rounded-lg bg-white border border-accent/20 flex items-center justify-center text-accent shrink-0">
+            <UserPlus className="w-4.5 h-4.5" />
+          </div>
+          <div>
+            <h4 className="text-sm font-bold text-text-primary">Create an Account Directly</h4>
+            <p className="text-[11px] text-text-secondary mt-0.5 max-w-xl">
+              Set the email, password, role, region and section access in one step. The person can
+              sign in immediately with the credentials you create — no signup link required.
+            </p>
+          </div>
+        </div>
+        <Button
+          variant="primary"
+          size="sm"
+          onClick={() => setIsCreateAccountOpen(true)}
+          className="shrink-0 cursor-pointer"
+        >
+          <UserPlus className="w-3.5 h-3.5 mr-1.5" />
+          Create Account
+        </Button>
       </div>
 
       {/* =========================================================================
@@ -397,6 +487,21 @@ export const UserManagementSettings: React.FC<UserManagementSettingsProps> = ({
                           </span>
                         </span>
                       </div>
+
+                      {u.role === 'regional_manager' && (
+                        <div className="flex items-center gap-2 flex-wrap mt-1.5">
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-accent-soft text-accent border border-accent/20">
+                            <MapPin className="w-3 h-3" />
+                            {u.managed_region_id
+                              ? regionNames[u.managed_region_id] || 'Unknown region'
+                              : 'No region assigned'}
+                          </span>
+                          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-bold bg-slate-100 text-text-secondary border border-border">
+                            <SlidersHorizontal className="w-3 h-3" />
+                            {grantedSectionCount(u.section_permissions)} sections
+                          </span>
+                        </div>
+                      )}
                     </div>
                   </div>
 
@@ -410,6 +515,7 @@ export const UserManagementSettings: React.FC<UserManagementSettingsProps> = ({
                     >
                       <option value="unassigned">Pending Approval</option>
                       <option value="user">User</option>
+                      <option value="regional_manager">Regional Manager</option>
                       <option value="admin">Admin</option>
                       {currentUserRole === 'super_admin' && (
                         <option value="super_admin">Super Admin</option>
@@ -422,6 +528,18 @@ export const UserManagementSettings: React.FC<UserManagementSettingsProps> = ({
                         {ROLE_LABELS[u.role] || u.role}
                       </span>
                     </Badge>
+
+                    {u.role === 'regional_manager' && (
+                      <button
+                        onClick={() => setAccessUser(u)}
+                        disabled={!canEdit}
+                        className="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg border border-accent/30 bg-accent-soft/50 text-[11px] font-bold text-accent hover:bg-accent-soft disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors"
+                        title="Configure region and section access"
+                      >
+                        <SlidersHorizontal className="w-3.5 h-3.5" />
+                        <span className="hidden sm:inline">Access</span>
+                      </button>
+                    )}
 
                     <button
                       onClick={() => handleRevoke(u.id, u.email)}
@@ -466,6 +584,13 @@ export const UserManagementSettings: React.FC<UserManagementSettingsProps> = ({
             </div>
           </div>
           <div className="flex items-start gap-2 p-2 rounded-lg bg-slate-50 border border-border">
+            <Briefcase className="w-3.5 h-3.5 text-sky-600 mt-0.5 shrink-0" />
+            <div>
+              <span className="font-bold text-sky-700">Regional Manager</span>
+              <span className="text-text-secondary"> — Sees one assigned region only, limited to the sections and edit rights an admin grants.</span>
+            </div>
+          </div>
+          <div className="flex items-start gap-2 p-2 rounded-lg bg-slate-50 border border-border">
             <ShieldCheck className="w-3.5 h-3.5 text-amber-600 mt-0.5 shrink-0" />
             <div>
               <span className="font-bold text-amber-700">Admin</span>
@@ -481,6 +606,22 @@ export const UserManagementSettings: React.FC<UserManagementSettingsProps> = ({
           </div>
         </div>
       </div>
+
+      {accessUser && (
+        <RegionalAccessModal
+          user={accessUser}
+          onClose={() => setAccessUser(null)}
+          onSaved={handleAccessSaved}
+        />
+      )}
+
+      {isCreateAccountOpen && (
+        <CreateAccountModal
+          currentUserRole={currentUserRole}
+          onClose={() => setIsCreateAccountOpen(false)}
+          onCreated={handleAccountCreated}
+        />
+      )}
     </div>
   );
 };

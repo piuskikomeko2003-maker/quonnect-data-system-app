@@ -30,6 +30,8 @@ interface FinanceLedgerTableProps {
   onDeleteExpense: (id: string) => Promise<void>;
   onDeleteIncome: (id: string) => Promise<void>;
   onPreviewReceipt: (url: string) => void;
+  /** When true, add/edit/delete actions are hidden (view-only access). */
+  readOnly?: boolean;
 }
 
 export const FinanceLedgerTable: React.FC<FinanceLedgerTableProps> = ({
@@ -43,6 +45,7 @@ export const FinanceLedgerTable: React.FC<FinanceLedgerTableProps> = ({
   onDeleteExpense,
   onDeleteIncome,
   onPreviewReceipt,
+  readOnly = false,
 }) => {
   const [activeTab, setActiveTab] = useState<'all' | 'expenses' | 'incomes'>('all');
   const [searchQuery, setSearchQuery] = useState('');
@@ -156,16 +159,18 @@ export const FinanceLedgerTable: React.FC<FinanceLedgerTableProps> = ({
               Live tracking of all operating expenses and non-vendor revenue streams
             </p>
           </div>
-          <div className="flex items-center gap-2">
-            <Button variant="secondary" size="sm" onClick={onAddIncome}>
-              <ArrowUpRight className="w-3.5 h-3.5 text-green mr-1" />
-              + Add Other Income
-            </Button>
-            <Button variant="primary" size="sm" onClick={onAddExpense}>
-              <ArrowDownRight className="w-3.5 h-3.5 text-red mr-1" />
-              + Add Expense
-            </Button>
-          </div>
+          {!readOnly && (
+            <div className="flex items-center gap-2">
+              <Button variant="secondary" size="sm" onClick={onAddIncome}>
+                <ArrowUpRight className="w-3.5 h-3.5 text-green mr-1" />
+                + Add Other Income
+              </Button>
+              <Button variant="primary" size="sm" onClick={onAddExpense}>
+                <ArrowDownRight className="w-3.5 h-3.5 text-red mr-1" />
+                + Add Expense
+              </Button>
+            </div>
+          )}
         </div>
 
         {/* Filters and Tab Row */}
@@ -373,6 +378,8 @@ export const FinanceLedgerTable: React.FC<FinanceLedgerTableProps> = ({
                     {/* Actions */}
                     <td className="py-3 px-4 text-right whitespace-nowrap">
                       <div className="flex items-center justify-end gap-1.5">
+                        {!readOnly && (
+                        <>
                         <button
                           type="button"
                           onClick={() => handleEdit(item)}
@@ -394,6 +401,8 @@ export const FinanceLedgerTable: React.FC<FinanceLedgerTableProps> = ({
                             <Trash2 className="w-3.5 h-3.5" />
                           )}
                         </button>
+                        </>
+                        )}
                       </div>
                     </td>
                   </tr>

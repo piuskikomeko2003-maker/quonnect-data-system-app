@@ -2,6 +2,11 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
+import {
+  getSectionAccess,
+  type RegionSectionKey,
+  type SectionPermissions,
+} from '@/lib/auth/permissions';
 
 export interface AdminAuthResult {
   user?: any;
@@ -28,7 +33,7 @@ async function loadAuthProfile(): Promise<AdminAuthResult> {
     const serviceClient = createServiceClient();
     const { data: profile } = await (serviceClient
       .from('user_profiles')
-      .select('id, user_id, email, role')
+      .select('id, user_id, email, role, managed_region_id, section_permissions')
       .eq('user_id', user.id)
       .maybeSingle() as any);
 
@@ -83,6 +88,71 @@ export async function requireAdmin(): Promise<AdminAuthResult> {
         { status: 403 }
       ),
     };
+  }
+
+  return result;
+}
+
+/**
+ * Allows admins/super admins, plus a Regional Manager who was granted `manage`
+ * for the given section. When `editionId` is supplied, the edition must belong
+ * to the manager's assigned region.
+ */
+export async function requireSectionManager(
+  section: RegionSectionKey,
+  options: { editionId?: string | null } = {}
+): Promise<AdminAuthResult> {
+  const result = await loadAuthProfile();
+  if (result.response) return result;
+
+  const role = result.profile?.role;
+  if (role === 'admin' || role === 'super_admin') return result;
+
+  if (role !== 'regional_manager') {
+    return {
+      response: NextResponse.json(
+        { error: 'Insufficient permissions for this section.' },
+        { status: 403 }
+      ),
+    };
+  }
+
+  const permissions = (result.profile?.section_permissions || {}) as SectionPermissions;
+  if (getSectionAccess(permissions, section) !== 'manage') {
+    return {
+      response: NextResponse.json(
+        { error: 'Your regional access to this section is view-only.' },
+        { status: 403 }
+      ),
+    };
+  }
+
+  if (options.editionId) {
+    const managedRegionId = result.profile?.managed_region_id;
+    if (!managedRegionId) {
+      return {
+        response: NextResponse.json(
+          { error: 'No region is assigned to this account.' },
+          { status: 403 }
+        ),
+      };
+    }
+
+    const serviceClient = createServiceClient();
+    const { data: edition } = await serviceClient
+      .from('market_days')
+      .select('region_id')
+      .eq('id', options.editionId)
+      .maybeSingle();
+
+    if (!edition || edition.region_id !== managedRegionId) {
+      return {
+        response: NextResponse.json(
+          { error: 'This edition is outside your assigned region.' },
+          { status: 403 }
+        ),
+      };
+    }
   }
 
   return result;

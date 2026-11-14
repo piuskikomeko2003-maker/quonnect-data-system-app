@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/service';
-import { requireAdmin } from '@/lib/auth/requireAdmin';
+import { requireSectionManager } from '@/lib/auth/requireAdmin';
 import { isIsoDate, mondayOf } from '@/lib/ratingWeeks';
 
 export const dynamic = 'force-dynamic';
@@ -179,7 +179,7 @@ export async function GET(request: NextRequest) {
  * A null rating clears that vendor's score for the week.
  */
 export async function POST(request: NextRequest) {
-  const auth = await requireAdmin();
+  const auth = await requireSectionManager('ratings');
   if (auth.response) return auth.response;
 
   try {

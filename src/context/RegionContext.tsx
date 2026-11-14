@@ -1,8 +1,16 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from 'react';
+import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { createClient } from '@/lib/supabase/client';
 import { isTestEdition } from '@/lib/editions';
+import { useAuth } from '@/hooks/useAuth';
+import {
+  canAccessSection as checkSectionAccess,
+  canManageSection as checkSectionManage,
+  type RegionSectionKey,
+  type SectionPermissions,
+  type UserRole,
+} from '@/lib/auth/permissions';
 
 export interface Region {
   id: string;
@@ -26,6 +34,18 @@ interface RegionContextType {
   regions: Region[];
   editions: Edition[];
   loadingRegions: boolean;
+  /** True when the workspace is pinned to a single region. */
+  isRegionLocked: boolean;
+  /** Region a Regional Manager is assigned to, if any. */
+  managedRegionId: string | null;
+  /** Role of the signed-in user (null while loading). */
+  role: UserRole | null;
+  /** Per-section permissions for a Regional Manager. */
+  sectionPermissions: SectionPermissions;
+  /** True when the user may act inside a section (view or manage). */
+  canAccessSection: (section: RegionSectionKey) => boolean;
+  /** True when the user may mutate data inside a section. */
+  canManageSection: (section: RegionSectionKey) => boolean;
   setActiveEdition: (edition: Edition | null) => void;
   switchRegion: (region: Region) => void;
   refreshRegions: () => Promise<void>;
@@ -34,13 +54,19 @@ interface RegionContextType {
 const RegionContext = createContext<RegionContextType | null>(null);
 
 export const RegionProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const { role, profile } = useAuth();
   const [activeRegion, setActiveRegion] = useState<Region | null>(null);
   const [activeEdition, setActiveEdition] = useState<Edition | null>(null);
   const [regions, setRegions] = useState<Region[]>([]);
   const [editions, setEditions] = useState<Edition[]>([]);
   const [loadingRegions, setLoadingRegions] = useState(true);
 
-  const fetchRegionsAndEditions = async () => {
+  const isManager = role === 'regional_manager';
+  const managedRegionId = isManager ? profile?.managed_region_id ?? null : null;
+  const sectionPermissions = (profile?.section_permissions ?? {}) as SectionPermissions;
+  const isRegionLocked = isManager;
+
+  const fetchRegionsAndEditions = useCallback(async () => {
     try {
       const supabase = createClient();
       if (!supabase) return;
@@ -51,14 +77,39 @@ export const RegionProvider: React.FC<{ children: React.ReactNode }> = ({ childr
         .order('name');
 
       if (rErr) throw rErr;
-      setRegions(rData || []);
+
+      // A Regional Manager only ever sees the single region assigned to them.
+      const visibleRegions = managedRegionId
+        ? (rData || []).filter((r: any) => r.id === managedRegionId)
+        : (rData || []);
+      setRegions(visibleRegions);
+
+      // Resolve the region whose editions we should load. For a locked manager
+      // this is always their assigned region, even if localStorage still holds
+      // a different last-used workspace.
+      const regionForEditions = isManager
+        ? (managedRegionId
+            ? visibleRegions.find((r: any) => r.id === managedRegionId) ?? null
+            : null)
+        : activeRegion;
+
+      if (isManager) {
+        if (!regionForEditions) {
+          // Manager has no region assigned — never keep a stale workspace.
+          if (activeRegion) setActiveRegion(null);
+          localStorage.removeItem('activeRegion');
+        } else if (activeRegion?.id !== regionForEditions.id) {
+          setActiveRegion(regionForEditions as Region);
+          localStorage.setItem('activeRegion', JSON.stringify(regionForEditions));
+        }
+      }
 
       // If active region is selected, fetch its editions
-      if (activeRegion) {
+      if (regionForEditions) {
         const { data: eData, error: eErr } = await supabase
           .from('market_days')
           .select('id, name, event_date, edition, status, notes')
-          .eq('region_id', activeRegion.id)
+          .eq('region_id', regionForEditions.id)
           .order('event_date', { ascending: false });
 
         if (eErr) throw eErr;
@@ -111,7 +162,7 @@ export const RegionProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     } finally {
       setLoadingRegions(false);
     }
-  };
+  }, [activeRegion?.id, managedRegionId, isManager]);
 
   // Load from localStorage on mount
   useEffect(() => {
@@ -127,17 +178,24 @@ export const RegionProvider: React.FC<{ children: React.ReactNode }> = ({ childr
     setLoadingRegions(false);
   }, []);
 
-  // Fetch data when active region changes
+  // Fetch data when active region changes (or when a manager's lock resolves)
   useEffect(() => {
     fetchRegionsAndEditions();
-  }, [activeRegion?.id]);
+  }, [fetchRegionsAndEditions]);
 
   const switchRegion = (region: Region) => {
+    // Regional Managers cannot leave their assigned region.
+    if (isManager && region.id !== managedRegionId) return;
     setActiveRegion(region);
     setActiveEdition(null);
     localStorage.setItem('activeRegion', JSON.stringify(region));
     localStorage.removeItem('activeEdition');
   };
+
+  const canAccessSection = (section: RegionSectionKey) =>
+    checkSectionAccess(role, sectionPermissions, section);
+  const canManageSection = (section: RegionSectionKey) =>
+    checkSectionManage(role, sectionPermissions, section);
 
   const handleSetActiveEdition = (edition: Edition | null) => {
     setActiveEdition(edition);
@@ -155,6 +213,12 @@ export const RegionProvider: React.FC<{ children: React.ReactNode }> = ({ childr
       regions,
       editions,
       loadingRegions,
+      isRegionLocked,
+      managedRegionId,
+      role,
+      sectionPermissions,
+      canAccessSection,
+      canManageSection,
       setActiveEdition: handleSetActiveEdition,
       switchRegion,
       refreshRegions: fetchRegionsAndEditions

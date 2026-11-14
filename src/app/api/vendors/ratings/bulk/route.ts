@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/service';
-import { requireAdmin } from '@/lib/auth/requireAdmin';
+import { requireSectionManager } from '@/lib/auth/requireAdmin';
 
 export const dynamic = 'force-dynamic';
 
@@ -12,7 +12,7 @@ const MAX_RATING = 10;
  * Admin-only: Set marketing-power rating for multiple selected vendors at once.
  */
 export async function POST(request: NextRequest) {
-  const auth = await requireAdmin();
+  const auth = await requireSectionManager('ratings');
   if (auth.response) return auth.response;
 
   try {

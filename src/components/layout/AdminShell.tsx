@@ -46,6 +46,10 @@ export interface AdminShellProps {
   children: React.ReactNode;
   vendorAlertCount?: number;
   isSuperAdmin?: boolean;
+  /** Nav ids the current user may open. `null`/undefined means no restriction. */
+  allowedNavIds?: string[] | null;
+  /** When true the workspace region cannot be switched. */
+  isRegionLocked?: boolean;
 }
 
 export const AdminShell: React.FC<AdminShellProps> = ({
@@ -55,7 +59,9 @@ export const AdminShell: React.FC<AdminShellProps> = ({
   onLogout,
   children,
   vendorAlertCount = 0,
-  isSuperAdmin = false
+  isSuperAdmin = false,
+  allowedNavIds = null,
+  isRegionLocked = false,
 }) => {
   const { 
     activeRegion, 
@@ -259,11 +265,15 @@ export const AdminShell: React.FC<AdminShellProps> = ({
               aria-haspopup="listbox"
               aria-expanded={isRegionDropdownOpen}
               onClick={() => {
+                if (isRegionLocked) return;
                 setIsRegionDropdownOpen(!isRegionDropdownOpen);
                 setIsEditionDropdownOpen(false);
                 setIsHeaderEditionDropdownOpen(false);
               }}
-              className="flex items-center gap-2.5 w-full p-2.5 bg-slate-50 border border-border hover:border-accent/40 hover:bg-accent-soft/30 text-text-primary cursor-pointer transition-all text-left rounded-xl"
+              disabled={isRegionLocked}
+              className={`flex items-center gap-2.5 w-full p-2.5 bg-slate-50 border border-border text-text-primary transition-all text-left rounded-xl ${
+                isRegionLocked ? 'cursor-not-allowed opacity-90' : 'hover:border-accent/40 hover:bg-accent-soft/30 cursor-pointer'
+              }`}
             >
               <div className="w-7 h-7 rounded-lg bg-accent-soft flex items-center justify-center text-accent shrink-0">
                 <MapPin className="w-4 h-4" />
@@ -273,14 +283,24 @@ export const AdminShell: React.FC<AdminShellProps> = ({
                   {activeRegion ? activeRegion.name : 'Select Region'}
                 </span>
                 <small className="block text-[9px] text-text-tertiary truncate">
-                  {activeRegion && activeEdition ? activeEdition.name : (activeRegion ? 'Switch region workspace' : 'Click to select region')}
+                  {isRegionLocked
+                    ? 'Assigned region'
+                    : activeRegion && activeEdition
+                      ? activeEdition.name
+                      : activeRegion
+                        ? 'Switch region workspace'
+                        : 'Click to select region'}
                 </small>
               </div>
-              <ChevronDown className="w-3.5 h-3.5 text-text-tertiary shrink-0" />
+              {isRegionLocked ? (
+                <span className="text-[9px] font-bold uppercase tracking-wide text-text-tertiary shrink-0">Locked</span>
+              ) : (
+                <ChevronDown className="w-3.5 h-3.5 text-text-tertiary shrink-0" />
+              )}
             </button>
 
             {/* Region dropdown overlay */}
-            {isRegionDropdownOpen && (
+            {isRegionDropdownOpen && !isRegionLocked && (
               <div className="absolute left-0 right-0 mt-1 bg-white border border-border rounded-xl shadow-modal z-[999] py-1">
                 <div className="max-h-[200px] overflow-y-auto divide-y divide-border text-left">
                   {regions.map((r) => {
@@ -384,14 +404,20 @@ export const AdminShell: React.FC<AdminShellProps> = ({
 
         {/* Sidebar Nav list */}
         <nav className="flex-1 overflow-y-auto py-4 space-y-4">
-          {navigationSections.map((section, idx) => (
+          {navigationSections.map((section, idx) => {
+            const sectionItems = section.items.filter(
+              (item: any) =>
+                (!item.superAdminOnly || isSuperAdmin) &&
+                (!allowedNavIds || allowedNavIds.includes(item.id))
+            );
+            if (sectionItems.length === 0) return null;
+            return (
             <div key={idx}>
               <div className={`px-5 py-1 text-[9px] font-semibold text-text-tertiary uppercase tracking-widest select-none ${isMobileMenuOpen ? 'block' : 'hidden'} ${isDesktopCollapsed ? 'md:hidden' : 'md:block'}`}>
                 {section.label}
               </div>
               <div className="mt-1 flex flex-col gap-0.5">
-                {section.items
-                  .filter((item: any) => !item.superAdminOnly || isSuperAdmin)
+                {sectionItems
                   .map((item: any) => {
                   const isActive = activeNav === item.id;
                   return (
@@ -422,7 +448,8 @@ export const AdminShell: React.FC<AdminShellProps> = ({
                 })}
               </div>
             </div>
-          ))}
+            );
+          })}
         </nav>
 
         {/* Logged in User widget */}

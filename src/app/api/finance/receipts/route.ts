@@ -1,9 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/service';
-import { requireAdmin } from '@/lib/auth/requireAdmin';
+import { requireSectionManager } from '@/lib/auth/requireAdmin';
 
 export async function POST(request: NextRequest) {
-  const auth = await requireAdmin();
+  const auth = await requireSectionManager('finance');
   if (auth.response) return auth.response;
 
   try {

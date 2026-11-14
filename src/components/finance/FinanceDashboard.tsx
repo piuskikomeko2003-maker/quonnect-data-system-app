@@ -32,7 +32,12 @@ import {
   EditionFinanceSummary,
 } from '@/types/finance';
 
-export const FinanceDashboard: React.FC = () => {
+interface FinanceDashboardProps {
+  /** View-only when false (e.g. a Regional Manager granted `view` access). */
+  canManage?: boolean;
+}
+
+export const FinanceDashboard: React.FC<FinanceDashboardProps> = ({ canManage = true }) => {
   const { activeRegion, activeEdition, editions, setActiveEdition } = useRegion();
   const { addToast } = useToast();
 
@@ -376,36 +381,38 @@ export const FinanceDashboard: React.FC = () => {
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setIsCategoryModalOpen(true)}
-              >
-                <Tag className="w-3.5 h-3.5 mr-1 text-text-secondary" />
-                Categories
-              </Button>
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => {
-                  setIncomeToEdit(null);
-                  setIsIncomeModalOpen(true);
-                }}
-              >
-                + Other Income
-              </Button>
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => {
-                  setExpenseToEdit(null);
-                  setIsExpenseModalOpen(true);
-                }}
-              >
-                + Add Expense
-              </Button>
-            </div>
+            {canManage && (
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => setIsCategoryModalOpen(true)}
+                >
+                  <Tag className="w-3.5 h-3.5 mr-1 text-text-secondary" />
+                  Categories
+                </Button>
+                <Button
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => {
+                    setIncomeToEdit(null);
+                    setIsIncomeModalOpen(true);
+                  }}
+                >
+                  + Other Income
+                </Button>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => {
+                    setExpenseToEdit(null);
+                    setIsExpenseModalOpen(true);
+                  }}
+                >
+                  + Add Expense
+                </Button>
+              </div>
+            )}
           </div>
 
           {!activeEdition ? (
@@ -461,6 +468,7 @@ export const FinanceDashboard: React.FC = () => {
                 onDeleteExpense={handleDeleteExpense}
                 onDeleteIncome={handleDeleteIncome}
                 onPreviewReceipt={(url) => setPreviewReceiptUrl(url)}
+                readOnly={!canManage}
               />
             </>
           )}

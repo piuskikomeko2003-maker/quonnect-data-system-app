@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/service';
-import { requireAdmin } from '@/lib/auth/requireAdmin';
+import { requireSectionManager } from '@/lib/auth/requireAdmin';
 import { MAX_TABLES, MIN_TABLES } from '@/lib/vendorTables';
 
 /**
@@ -13,7 +13,7 @@ import { MAX_TABLES, MIN_TABLES } from '@/lib/vendorTables';
  * request targets the registration's only/first day (legacy single-day call).
  */
 export async function PATCH(request: NextRequest) {
-  const auth = await requireAdmin();
+  const auth = await requireSectionManager('paid-vendors');
   if (auth.response) return auth.response;
 
   try {
@@ -39,6 +39,28 @@ export async function PATCH(request: NextRequest) {
     }
 
     const supabase = createServiceClient();
+
+    // A Regional Manager may only edit registrations inside their region.
+    if (auth.profile?.role === 'regional_manager') {
+      const { data: registration } = await supabase
+        .from('vendor_registrations')
+        .select('market_day_id')
+        .eq('id', registrationId)
+        .maybeSingle();
+      const { data: edition } = registration?.market_day_id
+        ? await supabase
+            .from('market_days')
+            .select('region_id')
+            .eq('id', (registration as any).market_day_id)
+            .maybeSingle()
+        : { data: null };
+      if (!edition || (edition as any).region_id !== auth.profile.managed_region_id) {
+        return NextResponse.json(
+          { error: 'This registration is outside your assigned region.' },
+          { status: 403 }
+        );
+      }
+    }
 
     // Find the day ticket to update. Without a dayId we fall back to the
     // registration's first owned day so single-day editions keep working.

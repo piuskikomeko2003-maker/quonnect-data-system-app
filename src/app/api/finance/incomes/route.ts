@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/service';
-import { requireAdmin } from '@/lib/auth/requireAdmin';
+import { requireSectionManager } from '@/lib/auth/requireAdmin';
 
 // GET /api/finance/incomes?edition_id=...
 export async function GET(request: NextRequest) {
@@ -37,11 +37,11 @@ export async function GET(request: NextRequest) {
 
 // POST /api/finance/incomes
 export async function POST(request: NextRequest) {
-  const auth = await requireAdmin();
-  if (auth.response) return auth.response;
-
   try {
     const body = await request.json();
+    const auth = await requireSectionManager('finance', { editionId: body.market_day_id });
+    if (auth.response) return auth.response;
+
     const {
       market_day_id,
       source_category_id,
@@ -109,9 +109,6 @@ export async function POST(request: NextRequest) {
 
 // PATCH /api/finance/incomes
 export async function PATCH(request: NextRequest) {
-  const auth = await requireAdmin();
-  if (auth.response) return auth.response;
-
   try {
     const body = await request.json();
     const { id, source_category_id, source_category_name, description, amount, date_received } = body;
@@ -119,6 +116,18 @@ export async function PATCH(request: NextRequest) {
     if (!id) {
       return NextResponse.json({ error: 'Income ID is required' }, { status: 400 });
     }
+
+    const serviceForAuth = createServiceClient();
+    const { data: existing } = await serviceForAuth
+      .from('finance_incomes')
+      .select('market_day_id')
+      .eq('id', id)
+      .maybeSingle();
+
+    const auth = await requireSectionManager('finance', {
+      editionId: (existing as any)?.market_day_id,
+    });
+    if (auth.response) return auth.response;
 
     const updates: Record<string, any> = {
       updated_at: new Date().toISOString(),
@@ -157,9 +166,6 @@ export async function PATCH(request: NextRequest) {
 
 // DELETE /api/finance/incomes?id=...
 export async function DELETE(request: NextRequest) {
-  const auth = await requireAdmin();
-  if (auth.response) return auth.response;
-
   try {
     const { searchParams } = new URL(request.url);
     const id = searchParams.get('id');
@@ -169,6 +175,17 @@ export async function DELETE(request: NextRequest) {
     }
 
     const supabase = createServiceClient();
+    const { data: existing } = await supabase
+      .from('finance_incomes')
+      .select('market_day_id')
+      .eq('id', id)
+      .maybeSingle();
+
+    const auth = await requireSectionManager('finance', {
+      editionId: (existing as any)?.market_day_id,
+    });
+    if (auth.response) return auth.response;
+
     const { error } = await (supabase
       .from('finance_incomes') as any)
       .delete()

@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createServiceClient } from '@/lib/supabase/service';
-import { requireAdmin } from '@/lib/auth/requireAdmin';
+import { requireSectionManager } from '@/lib/auth/requireAdmin';
 import { FinanceCategory } from '@/types/finance';
 
 const DEFAULT_EXPENSE_CATEGORIES = [
@@ -76,7 +76,7 @@ export async function GET(request: NextRequest) {
 }
 
 export async function POST(request: NextRequest) {
-  const auth = await requireAdmin();
+  const auth = await requireSectionManager('finance');
   if (auth.response) return auth.response;
 
   try {
@@ -139,7 +139,7 @@ export async function POST(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
-  const auth = await requireAdmin();
+  const auth = await requireSectionManager('finance');
   if (auth.response) return auth.response;
 
   try {

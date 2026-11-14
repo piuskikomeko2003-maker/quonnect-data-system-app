@@ -35,7 +35,11 @@ import {
   type EditionDay,
 } from '@/lib/editionDays';
 import { RatingFilterKey, matchesRatingFilter } from '@/lib/ratingTiers';
-import { isAdmin } from '@/lib/auth/permissions';
+import {
+  canManageSection as canManageRegionSection,
+  getAllowedSectionIds,
+  isAdmin,
+} from '@/lib/auth/permissions';
 import { normalizeTables } from '@/lib/vendorTables';
 import { buildMultiTicketData, extractPaidFields } from '@/lib/paidRegistration';
 import { buildVendorPrefill, findVendorByPhone } from '@/lib/vendorLookup';
@@ -219,8 +223,18 @@ const getVendorDetailData = (vendor: any) => {
 export default function Home() {
   const [mounted, setMounted] = useState(false);
   const [isImporting, setIsImporting] = useState(false);
-  const { activeRegion, activeEdition, regions: ctxRegions, switchRegion, loadingRegions, editions: ctxEditions, setActiveEdition } = useRegion();
+  const {
+    activeRegion,
+    activeEdition,
+    regions: ctxRegions,
+    switchRegion,
+    loadingRegions,
+    editions: ctxEditions,
+    setActiveEdition,
+    isRegionLocked,
+  } = useRegion();
   const { email, role, profile, firstName, name, loading: authLoading, isPending, signOut, refreshProfile } = useAuth();
+  const sectionPermissions = profile?.section_permissions ?? {};
 
   const { addToast } = useToast();
 
@@ -254,6 +268,24 @@ export default function Home() {
 
   // Navigation States
   const [activeNav, setActiveNav] = useState('overview');
+
+  // Regional Managers only see the sections an admin granted them. Every other
+  // role keeps the existing unrestricted navigation.
+  const allowedNavIds = useMemo(
+    () => getAllowedSectionIds(role, sectionPermissions),
+    [role, sectionPermissions]
+  );
+
+  useEffect(() => {
+    if (allowedNavIds && !allowedNavIds.includes(activeNav)) {
+      setActiveNav(allowedNavIds[0] ?? '__no_access__');
+    }
+  }, [allowedNavIds, activeNav]);
+
+  const visibleNav =
+    allowedNavIds && !allowedNavIds.includes(activeNav)
+      ? allowedNavIds[0] ?? '__no_access__'
+      : activeNav;
 
   // Market, Edition and Region State Arrays
   const [markets, setMarkets] = useState<Market[]>([]);
@@ -334,7 +366,13 @@ export default function Home() {
   const [tablesDraft, setTablesDraft] = useState('');
   const [savingTablesId, setSavingTablesId] = useState<string | null>(null);
   const [tablesEditError, setTablesEditError] = useState<string | null>(null);
-  const canEditTables = isAdmin(role);
+  const canEditTables = isAdmin(role) || canManageRegionSection(role, sectionPermissions, 'paid-vendors');
+  const canManageFinance = isAdmin(role) || canManageRegionSection(role, sectionPermissions, 'finance');
+  const canManageVendors = isAdmin(role) || canManageRegionSection(role, sectionPermissions, 'vendors');
+  const canManageRatings = isAdmin(role) || canManageRegionSection(role, sectionPermissions, 'ratings');
+  const canManageQuickEntry = isAdmin(role) || canManageRegionSection(role, sectionPermissions, 'quick-entry');
+  const canManagePaidVendors = isAdmin(role) || canManageRegionSection(role, sectionPermissions, 'paid-vendors');
+  const canManageWalkins = isAdmin(role) || canManageRegionSection(role, sectionPermissions, 'walkins');
 
   // Quick mark-entry from search: matches show in a dropdown with a Mark Entry button.
   const [showPaidVendorDropdown, setShowPaidVendorDropdown] = useState(false);
@@ -3322,8 +3360,14 @@ export default function Home() {
             <div className="w-12 h-12 rounded-full bg-sky-50 text-accent flex items-center justify-center mx-auto">
               <Map className="w-6 h-6" />
             </div>
-            <h2 className="text-lg font-bold text-text-primary uppercase tracking-wider">Select Workspace Region</h2>
-            <p className="text-xs text-text-secondary">Choose a region to scope your data session and operational activities.</p>
+            <h2 className="text-lg font-bold text-text-primary uppercase tracking-wider">
+              {isRegionLocked ? 'Region Not Assigned' : 'Select Workspace Region'}
+            </h2>
+            <p className="text-xs text-text-secondary">
+              {isRegionLocked
+                ? 'An administrator must assign your region before you can access operational data.'
+                : 'Choose a region to scope your data session and operational activities.'}
+            </p>
           </div>
 
           <div className="space-y-2.5">
@@ -3335,7 +3379,11 @@ export default function Home() {
                     <span>Loading operational regions...</span>
                   </div>
                 ) : (
-                  <p className="text-xs text-text-tertiary">No active operational regions found. Please create one below.</p>
+                  <p className="text-xs text-text-tertiary">
+                    {isRegionLocked
+                      ? 'No region is currently assigned to your account.'
+                      : 'No active operational regions found. Please create one below.'}
+                  </p>
                 )}
               </div>
             ) : (
@@ -3354,20 +3402,22 @@ export default function Home() {
             )}
           </div>
 
-          <div className="border-t border-border/40 pt-4 text-center">
-            <button
-              onClick={() => {
-                const name = window.prompt("Enter new region name:");
-                if (name && name.trim()) {
-                  handleCreateRegionFromName(name.trim());
-                }
-              }}
-              className="text-xs font-bold text-green hover:underline flex items-center justify-center gap-1.5 mx-auto cursor-pointer"
-            >
-              <Plus className="w-4 h-4" />
-              <span>Create New Region</span>
-            </button>
-          </div>
+          {!isRegionLocked && (
+            <div className="border-t border-border/40 pt-4 text-center">
+              <button
+                onClick={() => {
+                  const name = window.prompt("Enter new region name:");
+                  if (name && name.trim()) {
+                    handleCreateRegionFromName(name.trim());
+                  }
+                }}
+                className="text-xs font-bold text-green hover:underline flex items-center justify-center gap-1.5 mx-auto cursor-pointer"
+              >
+                <Plus className="w-4 h-4" />
+                <span>Create New Region</span>
+              </button>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -3798,13 +3848,15 @@ export default function Home() {
       onLogout={signOut}
       vendorAlertCount={mergeProposals.length}
       isSuperAdmin={role === 'super_admin'}
+      allowedNavIds={allowedNavIds}
+      isRegionLocked={isRegionLocked}
     >
       {/* ==========================================
           ROUTE RENDERING
           ========================================== */}
       <>
         {/* 1. OVERVIEW SCREEN */}
-        {activeNav === 'overview' && (
+        {visibleNav === 'overview' && (
           <div className="space-y-6 animate-fade-in text-left">
             {/* Top Greeting Card */}
             <GreetingCard name={name ?? firstName} marketName={currentMarket.name} />
@@ -4153,7 +4205,7 @@ export default function Home() {
         )}
 
         {/* 2. VENDORS REGISTRY SCREEN */}
-        {activeNav === 'vendors' && (
+        {visibleNav === 'vendors' && (
           <div className="space-y-5 animate-fade-in text-left">
             <div>
               <h1 className="text-xl font-bold tracking-tight text-text-primary">Vendors Directory</h1>
@@ -4224,7 +4276,7 @@ export default function Home() {
                 onOpenExport={() => {
                   setIsExportModalOpen(true);
                 }}
-                isAdmin={isAdmin(role)}
+                isAdmin={canManageVendors}
                 showSurveyData={role === 'super_admin'}
                 canCopyPhone={role === 'super_admin'}
               />
@@ -4233,14 +4285,14 @@ export default function Home() {
         )}
 
         {/* 2b. RATINGS & EXPORT SCREEN */}
-        {activeNav === 'ratings' && (
+        {visibleNav === 'ratings' && (
           <VendorRatingsView
             vendors={vendors}
             activeEdition={activeEdition}
             activeRegion={activeRegion}
             editions={ctxEditions}
             regions={ctxRegions}
-            isAdmin={isAdmin(role)}
+            isAdmin={canManageRatings}
             onRateVendor={(v) => {
               setVendorToRate(v);
               setIsRatingModalOpen(true);
@@ -4269,7 +4321,7 @@ export default function Home() {
         )}
 
         {/* 3. WALK-INS LIST SCREEN */}
-        {activeNav === 'walkins' && (() => {
+        {visibleNav === 'walkins' && (() => {
           const filteredWalkins = walkins.filter(w => {
             const walkinRegionVal = (w as any).region || 'Kampala';
             if (walkinRegionFilter !== 'All' && walkinRegionVal !== walkinRegionFilter) return false;
@@ -4403,8 +4455,9 @@ export default function Home() {
                           <td className="p-3.5 text-center">
                             <button
                               onClick={() => handleDeleteWalkin(w.id)}
+                              disabled={!canManageWalkins}
                               title="Delete walk-in"
-                              className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 transition-colors"
+                              className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-gray-500 hover:text-red-400 hover:bg-red-500/10 border border-transparent hover:border-red-500/20 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
                             >
                               <Trash2 className="w-4 h-4" />
                             </button>
@@ -4420,7 +4473,7 @@ export default function Home() {
         })()}
 
         {/* 3.5 PAID VENDORS */}
-        {activeNav === 'paid-vendors' && (
+        {visibleNav === 'paid-vendors' && (
           <div className="space-y-5 animate-fade-in text-left">
             <div className="flex items-center justify-between flex-wrap gap-3">
               <div className="flex items-center gap-2">
@@ -4592,7 +4645,7 @@ export default function Home() {
                           onKeyDown={e => {
                             if (e.key === 'Enter' && paidVendorMatches.length > 0) {
                               e.preventDefault();
-                              handleMarkVendorFromSearch(paidVendorMatches[0]);
+                              if (canManagePaidVendors) handleMarkVendorFromSearch(paidVendorMatches[0]);
                             } else if (e.key === 'Escape') {
                               setShowPaidVendorDropdown(false);
                               setPaidVendorSearch('');
@@ -4635,10 +4688,12 @@ export default function Home() {
                                     type="button"
                                     onClick={(e) => {
                                       e.stopPropagation();
+                                      if (!canManagePaidVendors) return;
                                       isConfirmed ? handleUnmarkVendorFromSearch(m) : handleMarkVendorFromSearch(m);
                                     }}
+                                    disabled={!canManagePaidVendors}
                                     title={isConfirmed ? 'Undo entry for this vendor' : `Confirm this vendor has entered the venue${matchDay ? ` (${dayLabel(matchDay)})` : ''}`}
-                                    className={`shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border transition-colors cursor-pointer whitespace-nowrap ${
+                                    className={`shrink-0 inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold border transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed ${
                                       isConfirmed
                                         ? 'bg-white text-text-secondary border-border hover:border-red-300 hover:text-red-600 hover:bg-red-50'
                                         : 'text-text-secondary bg-white border-border hover:border-emerald-300 hover:text-emerald-700 hover:bg-emerald-50'
@@ -5195,6 +5250,7 @@ export default function Home() {
                                         {gateTicket ? (
                                           <button
                                             onClick={() => handleToggleTicketEntry(pv.id, gateTicket)}
+                                            disabled={!canManagePaidVendors}
                                             aria-busy={savingTicketIds.has(gateTicket.id)}
                                             title={
                                               rowEntered
@@ -5225,6 +5281,7 @@ export default function Home() {
                                                 <button
                                                   key={ticket.id}
                                                   onClick={() => handleToggleTicketEntry(pv.id, ticket)}
+                                                  disabled={!canManagePaidVendors}
                                                   aria-busy={savingTicketIds.has(ticket.id)}
                                                   title={
                                                     checkedIn
@@ -5252,8 +5309,9 @@ export default function Home() {
                                         ) : rowEntered ? (
                                           <button
                                             onClick={() => handleToggleVendorEntry(pv)}
+                                            disabled={!canManagePaidVendors}
                                             title={`Checked in ${new Date(pv.check_in_time!).toLocaleString()} — click to undo`}
-                                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 hover:bg-emerald-200 transition-colors cursor-pointer whitespace-nowrap"
+                                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-300 hover:bg-emerald-200 transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                                           >
                                             <ShieldCheck className="w-3 h-3" />
                                             Confirmed
@@ -5261,8 +5319,9 @@ export default function Home() {
                                         ) : (
                                           <button
                                             onClick={() => handleToggleVendorEntry(pv)}
+                                            disabled={!canManagePaidVendors}
                                             title="Confirm this vendor has entered the venue"
-                                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold text-text-secondary bg-white border border-border hover:border-emerald-300 hover:text-emerald-700 hover:bg-emerald-50 transition-colors cursor-pointer whitespace-nowrap"
+                                            className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full text-[10px] font-bold text-text-secondary bg-white border border-border hover:border-emerald-300 hover:text-emerald-700 hover:bg-emerald-50 transition-colors cursor-pointer whitespace-nowrap disabled:opacity-50 disabled:cursor-not-allowed"
                                           >
                                             <DoorOpen className="w-3 h-3" />
                                             Mark Entry
@@ -5333,14 +5392,14 @@ export default function Home() {
         )}
 
         {/* FINANCE MODULE */}
-        {activeNav === 'finance' && (
-          <FinanceDashboard />
+        {visibleNav === 'finance' && (
+          <FinanceDashboard canManage={canManageFinance} />
         )}
 
         {/* 4. QUICK ENTRY PANEL
             Layout (width/centering) is owned by the shared <PageContainer>.
             Do NOT add per-edition/route width or spacing overrides here. */}
-        {activeNav === 'quick-entry' && (
+        {visibleNav === 'quick-entry' && (
           <PageContainer
             data-testid="quick-entry-page"
             className="space-y-5 animate-fade-in text-left"
@@ -5374,7 +5433,7 @@ export default function Home() {
             </div>
 
             <QuickEntryPanel
-              disabled={!activeEdition}
+              disabled={!activeEdition || !canManageQuickEntry}
               activeTab={quickEntryTab}
               onTabChange={setQuickEntryTab}
               isOpen={isQuickEntryOpen}
@@ -5505,7 +5564,7 @@ export default function Home() {
         )}
 
         {/* IMPORT/EXPORT PANEL */}
-        {activeNav === 'import-export' && (
+        {visibleNav === 'import-export' && (
           <div className="space-y-6 animate-fade-in text-left">
             <div className="flex justify-between items-center flex-wrap gap-4">
               <div className="flex items-center gap-2">
@@ -5667,17 +5726,17 @@ export default function Home() {
         )}
 
         {/* CREATE MARKET PANEL */}
-        {activeNav === 'markets' && (
+        {visibleNav === 'markets' && (
           <MarketConfigurationPanel />
         )}
 
         {/* 6. FORM TEMPLATE LIST / FORM BUILDER MANAGEMENT SCREEN */}
-        {activeNav === 'formbuilder' && (
+        {visibleNav === 'formbuilder' && (
           <FormBuilderPanel />
         )}
 
         {/* JOBS SUPPORTED */}
-        {activeNav === 'jobs' && (
+        {visibleNav === 'jobs' && (
           <JobsSupportedPanel
             activeRegion={activeRegion}
             activeEdition={activeEdition}
@@ -5686,7 +5745,7 @@ export default function Home() {
         )}
 
         {/* SETTINGS */}
-        {activeNav === 'settings' && (
+        {visibleNav === 'settings' && (
           <SettingsView
             currentUserRole={role}
             currentUserId={profile?.user_id || ''}
@@ -5694,12 +5753,23 @@ export default function Home() {
         )}
 
         {/* STICKER PRINTING (super admin only) */}
-        {activeNav === 'stickers' && (
+        {visibleNav === 'stickers' && (
           <StickersView canPrint={role === 'admin' || role === 'super_admin'} />
         )}
 
+        {visibleNav === '__no_access__' && (
+          <div className="py-24 text-center border border-dashed border-border rounded-lg select-none text-left animate-fade-in">
+            <ShieldCheck className="w-12 h-12 text-amber-500 mx-auto mb-3 opacity-80" />
+            <h3 className="text-sm font-bold text-text-primary">No sections assigned yet</h3>
+            <p className="text-xs text-text-secondary max-w-sm mx-auto mt-2">
+              Your account is set up as a Regional Manager, but an administrator has not
+              granted access to any sections for your region yet.
+            </p>
+          </div>
+        )}
+
         {/* 7. OTHER SYSTEM PLACES (PLACEHOLDERS) */}
-        {!['overview', 'vendors', 'ratings', 'walkins', 'quick-entry', 'formbuilder', 'import-export', 'markets', 'jobs', 'paid-vendors', 'finance', 'settings', 'stickers'].includes(activeNav) && (
+        {!['overview', 'vendors', 'ratings', 'walkins', 'quick-entry', 'formbuilder', 'import-export', 'markets', 'jobs', 'paid-vendors', 'finance', 'settings', 'stickers', '__no_access__'].includes(visibleNav) && (
           <div className="py-24 text-center border border-dashed border-border rounded-lg select-none text-left animate-fade-in">
             <ClipboardList className="w-12 h-12 text-green mx-auto mb-3 opacity-80" />
             <h3 className="text-sm font-bold text-text-primary">Module Under Implementation</h3>
@@ -5741,7 +5811,7 @@ export default function Home() {
         showSurveyData={role === 'super_admin'}
         canCopyPhone={role === 'super_admin'}
         historyLoading={vendorHistoryLoading}
-        isAdmin={isAdmin(role)}
+        isAdmin={canManageVendors}
         onEdit={(id) => {
           const vendorObj = vendors.find(v => v.id === id);
           if (vendorObj) {
