@@ -5,6 +5,7 @@ import { Card } from '@/components/ui/Card';
 import { Button } from '@/components/ui/Button';
 import { Badge } from '@/components/ui/Badge';
 import { useToast } from '@/components/ui/ToastProvider';
+import { useRegion } from '@/context/RegionContext';
 import { createClient } from '@/lib/supabase/client';
 import {
   AlertTriangle,
@@ -16,6 +17,7 @@ import {
   RefreshCw,
   Loader2,
   Check,
+  Ban,
 } from 'lucide-react';
 
 interface DuplicateGroup {
@@ -43,16 +45,31 @@ interface OrphanedVendor {
   created_at: string;
 }
 
+interface VoidAuditEntry {
+  id: string;
+  registration_id: string;
+  vendor_name: string | null;
+  action: 'voided' | 'restored';
+  reason: string | null;
+  ticket_numbers: Array<{
+    ticket_number: number | null;
+    ticket_code: string | null;
+  }> | null;
+  created_at: string;
+}
+
 interface DataAuditPanelProps {
   onRefresh?: () => void;
 }
 
 export const DataAuditPanel: React.FC<DataAuditPanelProps> = ({ onRefresh }) => {
   const supabase = createClient();
+  const { activeEdition } = useRegion();
 
   const [loading, setLoading] = useState(false);
   const [duplicates, setDuplicates] = useState<DuplicateGroup[]>([]);
   const [orphaned, setOrphaned] = useState<OrphanedVendor[]>([]);
+  const [voidAudit, setVoidAudit] = useState<VoidAuditEntry[]>([]);
   const [expandedGroup, setExpandedGroup] = useState<number | null>(null);
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
@@ -175,13 +192,27 @@ export const DataAuditPanel: React.FC<DataAuditPanelProps> = ({ onRefresh }) => 
       } else {
         setOrphaned(orphanedData as unknown as OrphanedVendor[]);
       }
+
+      // 3. Voided-registration audit (ticket numbers kept, never reused).
+      try {
+        const query = activeEdition?.id
+          ? `?market_day_id=${encodeURIComponent(activeEdition.id)}&limit=25`
+          : '?limit=25';
+        const res = await fetch(`/api/vendors/registrations/void${query}`, {
+          cache: 'no-store',
+        });
+        const data = await res.json().catch(() => ({}));
+        if (res.ok) setVoidAudit((data.audit || []) as VoidAuditEntry[]);
+      } catch {
+        // Audit is supplementary; never block the rest of the panel.
+      }
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : String(err);
       console.error('Audit fetch error:', message);
     } finally {
       setLoading(false);
     }
-  }, [supabase]);
+  }, [supabase, activeEdition?.id]);
 
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
@@ -219,6 +250,20 @@ export const DataAuditPanel: React.FC<DataAuditPanelProps> = ({ onRefresh }) => 
 
     setActionLoading(vendorId);
     try {
+      // Never hard-delete a vendor that has registrations: cascading deletes
+      // remove ticket rows and leave unexplained gaps in ticket numbering.
+      const { count } = await supabase
+        .from('vendor_registrations')
+        .select('id', { count: 'exact', head: true })
+        .eq('vendor_id', vendorId);
+      if ((count || 0) > 0) {
+        addToast(
+          'This vendor has registration records. Void the paid registration instead of deleting the vendor.',
+          'error'
+        );
+        return;
+      }
+
       await supabase.from('vendors').delete().eq('id', vendorId);
       setOrphaned(prev => prev.filter(v => v.id !== vendorId));
       addToast('Vendor deleted', 'success');
@@ -485,6 +530,64 @@ export const DataAuditPanel: React.FC<DataAuditPanelProps> = ({ onRefresh }) => 
                 ))}
               </tbody>
             </table>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* === VOIDED REGISTRATIONS (AUDIT) === */}
+      {voidAudit.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center gap-2">
+            <Ban className="w-3.5 h-3.5 text-amber" />
+            <h4 className="text-xs font-bold text-text-primary uppercase tracking-wider">
+              Voided Registrations ({voidAudit.length})
+            </h4>
+            <span className="text-[10px] text-text-tertiary">
+              Ticket numbers stay reserved and are never reused
+            </span>
+          </div>
+
+          <div className="bg-white border border-border rounded-xl shadow-xs overflow-hidden select-none">
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-xs min-w-[620px]">
+                <thead>
+                  <tr className="border-b border-border bg-slate-50">
+                    <th className="p-3 text-[10px] font-bold text-text-tertiary uppercase">Vendor</th>
+                    <th className="p-3 text-[10px] font-bold text-text-tertiary uppercase">Action</th>
+                    <th className="p-3 text-[10px] font-bold text-text-tertiary uppercase">Tickets kept</th>
+                    <th className="p-3 text-[10px] font-bold text-text-tertiary uppercase">Reason</th>
+                    <th className="p-3 text-[10px] font-bold text-text-tertiary uppercase">When</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-border/40">
+                  {voidAudit.map((entry) => (
+                    <tr key={entry.id} className="hover:bg-slate-50/80">
+                      <td className="p-3 font-medium text-text-primary">
+                        {entry.vendor_name || '—'}
+                        <span className="block text-[10px] font-mono text-text-tertiary">
+                          {entry.registration_id.slice(0, 8)}
+                        </span>
+                      </td>
+                      <td className="p-3">
+                        <Badge variant={entry.action === 'voided' ? 'warning' : 'success'} size="sm">
+                          {entry.action}
+                        </Badge>
+                      </td>
+                      <td className="p-3 text-text-secondary font-mono text-[10px]">
+                        {(entry.ticket_numbers || [])
+                          .map((t) => t.ticket_code || t.ticket_number)
+                          .filter(Boolean)
+                          .join(', ') || '—'}
+                      </td>
+                      <td className="p-3 text-text-secondary">{entry.reason || '—'}</td>
+                      <td className="p-3 text-text-tertiary text-[10px]">
+                        {new Date(entry.created_at).toLocaleString()}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
             </div>
           </div>
         </div>

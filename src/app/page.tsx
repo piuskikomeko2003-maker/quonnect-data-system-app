@@ -107,6 +107,7 @@ import {
   Search,
   History,
   Trash2,
+  Ban,
   Edit3,
   DoorOpen,
   ShieldCheck,
@@ -874,7 +875,8 @@ export default function Home() {
         const { data: paidData } = await supabase
           .from('vendor_registrations')
           .select('vendor_id, amount_paid')
-          .eq('market_day_id', activeEdition.id);
+          .eq('market_day_id', activeEdition.id)
+          .neq('payment_status', 'voided');
         (paidData || []).forEach((r: any) => {
           paidVendorIds.add(r.vendor_id);
           paidAmountMap.set(r.vendor_id, String(r.amount_paid || '0'));
@@ -948,8 +950,9 @@ export default function Home() {
       if (allVendorIds.length > 0) {
         const { data: registrationActivity } = await supabase
           .from('vendor_registrations')
-          .select('vendor_id, created_at, market_days ( name )')
-          .in('vendor_id', allVendorIds);
+          .select('vendor_id, created_at, payment_status, market_days ( name )')
+          .in('vendor_id', allVendorIds)
+          .neq('payment_status', 'voided');
 
         (registrationActivity || []).forEach((row: any) => {
           if (!row.vendor_id) return;
@@ -1246,6 +1249,10 @@ export default function Home() {
           regRows = regResult.data || [];
         }
 
+        // Voided registrations keep their ticket numbers for accountability but
+        // must not appear in the working paid-vendor list or its counters.
+        regRows = regRows.filter((r: any) => r.payment_status !== 'voided');
+
         // Build a set of vendor IDs that have submitted a survey response ("Registered")
         const surveyVendorSet = new Set(
           (srResult?.data || []).map((r: any) => r.vendor_id).filter(Boolean)
@@ -1338,10 +1345,25 @@ export default function Home() {
 
   const handleDeleteVendor = async (vendor: { id: string; name: string }) => {
     const label = vendor.name || vendor.id;
-    if (!window.confirm(`Delete vendor "${label}" and all their associated records (registrations and survey responses)? This cannot be undone.`)) return;
     const supabase = createClient();
     if (!supabase) return;
     try {
+      // Paid registrations must be voided, never deleted: deleting them removes
+      // their ticket rows and leaves permanent gaps in the ticket sequence.
+      const { data: paidRegs } = await supabase
+        .from('vendor_registrations')
+        .select('id, payment_status')
+        .eq('vendor_id', vendor.id)
+        .in('payment_status', ['paid', 'voided'])
+        .limit(1);
+      if ((paidRegs || []).length > 0) {
+        window.alert(
+          `"${label}" has paid registration records. Deleting the vendor is blocked so their ticket numbers stay accountable. Void the paid registration from Paid Vendors instead.`
+        );
+        return;
+      }
+
+      if (!window.confirm(`Delete vendor "${label}" and all their associated records (registrations and survey responses)? This cannot be undone.`)) return;
       const { data: responses } = await supabase
         .from('survey_responses')
         .select('id')
@@ -1408,18 +1430,28 @@ export default function Home() {
     }
   };
 
-  const handleDeletePaidVendor = async (pv: { id: string; business_name?: string; contact_name?: string }) => {
+  const handleVoidPaidVendor = async (pv: { id: string; business_name?: string; contact_name?: string }) => {
     const label = pv.business_name || pv.contact_name || pv.id;
-    if (!window.confirm(`Delete paid vendor "${label}" from this edition? This removes the payment record (the vendor profile stays in the directory).`)) return;
-    const supabase = createClient();
-    if (!supabase) return;
+    const reason = window.prompt(
+      `Void paid vendor "${label}" for this edition?\n\nTheir ticket numbers stay reserved and an audit record is kept. Enter a reason (optional):`,
+      ''
+    );
+    // null = cancel. An empty string is a deliberate "no reason".
+    if (reason === null) return;
     try {
-      await supabase.from('vendor_registrations').delete().eq('id', pv.id);
+      const res = await fetch('/api/vendors/registrations/void', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ registration_id: pv.id, reason }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data?.error || 'Failed to void paid vendor');
+      addToast(`"${label}" voided. Ticket numbers were kept and logged.`, 'success');
       fetchPaidVendors();
       fetchOverviewCounts();
       fetchOverviewMetrics();
     } catch (err: any) {
-      window.alert(`Failed to delete paid vendor: ${err?.message || err}`);
+      window.alert(`Failed to void paid vendor: ${err?.message || err}`);
     }
   };
 
@@ -5372,11 +5404,11 @@ export default function Home() {
                                     )}
                                     <td className="p-4 text-center" onClick={e => e.stopPropagation()}>
                                       <button
-                                        onClick={() => handleDeletePaidVendor(pv)}
-                                        title="Delete paid vendor"
-                                        className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-text-tertiary hover:text-red-600 hover:bg-red-50 border border-transparent hover:border-red-200 transition-colors cursor-pointer"
+                                        onClick={() => handleVoidPaidVendor(pv)}
+                                        title="Void paid vendor (keeps ticket numbers and audit history)"
+                                        className="inline-flex items-center justify-center w-7 h-7 rounded-lg text-text-tertiary hover:text-amber-600 hover:bg-amber-50 border border-transparent hover:border-amber-200 transition-colors cursor-pointer"
                                       >
-                                        <Trash2 className="w-4 h-4" />
+                                        <Ban className="w-4 h-4" />
                                       </button>
                                     </td>
                                   </tr>

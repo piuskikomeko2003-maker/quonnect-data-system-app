@@ -91,6 +91,13 @@ export async function GET(request: NextRequest) {
             .eq('market_day_id', link.edition_id)
             .maybeSingle();
 
+          if (reg?.payment_status === 'voided') {
+            return NextResponse.json(
+              { error: 'This vendor registration has been voided.' },
+              { status: 410 }
+            );
+          }
+
           if (reg && reg.vendors) {
             const v = reg.vendors as any;
             ticketData = {
@@ -121,6 +128,13 @@ export async function GET(request: NextRequest) {
         .select('*, edition_days(id, day_number, label, event_date, ticket_template_id), vendor_registrations(*, vendors(*)), market_days(id, name)')
         .eq('id', ticketId)
         .maybeSingle();
+
+      if (ticket?.vendor_registrations?.payment_status === 'voided') {
+        return NextResponse.json(
+          { error: 'This vendor registration has been voided.' },
+          { status: 410 }
+        );
+      }
 
       if (ticket) {
         const day = ticket.edition_days as any;

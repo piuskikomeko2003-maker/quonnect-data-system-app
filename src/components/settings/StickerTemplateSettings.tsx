@@ -32,6 +32,7 @@ import type { StickerTemplate, StickerTemplatePatch } from '@/types/sticker';
 import { normalizeDesign } from '@/types/sticker';
 import { computeStickerLayout, autoFitStickerSize } from '@/lib/stickers/pageLayout';
 import { layoutSettingsFromTemplate } from '@/lib/stickers/templateLayout';
+import { applyReusableSettings } from '@/lib/stickers/reuse';
 import { StickerDesigner } from './StickerDesigner';
 import { StickerPagePreview } from './StickerPagePreview';
 
@@ -92,6 +93,8 @@ export const StickerTemplateSettings: React.FC = () => {
   const [status, setStatus] = useState<{ message: string; type: 'success' | 'error' | 'warning' } | null>(null);
   const [warnings, setWarnings] = useState<string[]>([]);
   const [nameDraft, setNameDraft] = useState('');
+  /** Template whose layout/typography will be copied into the current draft. */
+  const [reuseSourceId, setReuseSourceId] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const isEditionScope = scope !== 'global';
@@ -397,6 +400,11 @@ export const StickerTemplateSettings: React.FC = () => {
 
   const customizeEdition = async () => {
     if (!isEditionScope) return;
+    // A new day design starts from this edition's fallback design (so day 2 can
+    // be a small variation of day 1's edition design), then the global default.
+    const editionFallbackTemplate = templates.find(
+      (t) => t.edition_id === scope && !t.edition_day_id
+    );
     setCreatingEdition(true);
     try {
       const res = await fetch('/api/stickers/templates', {
@@ -405,7 +413,7 @@ export const StickerTemplateSettings: React.FC = () => {
         body: JSON.stringify({
           edition_id: scope,
           edition_day_id: selectedDayId || null,
-          duplicate_of: editionTemplate?.id || defaultTemplate?.id,
+          duplicate_of: (selectedDayId ? editionFallbackTemplate : defaultTemplate)?.id,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -545,6 +553,25 @@ export const StickerTemplateSettings: React.FC = () => {
   const dayIdsWithTemplate = new Set(
     templates.filter((t) => t.edition_day_id).map((t) => t.edition_day_id as string)
   );
+
+  // Every other saved template can donate its layout/typography. The current
+  // template is excluded because copying from itself does nothing.
+  const reuseOptions = templates.filter((t) => t.id !== selected?.id);
+  const reuseSource = reuseOptions.find((t) => t.id === reuseSourceId) || null;
+
+  const reusePreviousSettings = () => {
+    if (!reuseSource) return;
+    setDraft((prev) => (prev ? applyReusableSettings(prev, reuseSource) : prev));
+    setWarnings([]);
+    setStatus(null);
+    flash(
+      `Layout, fields and typography copied from "${reuseSource.preset_name}". This design's artwork image was kept.`,
+      'success'
+    );
+  };
+
+  const templateScopeHint = (t: StickerTemplate) =>
+    t.edition_day_id ? 'Day design' : t.edition_id ? 'Edition design' : 'Global default';
 
   const numField = (
     label: string,
@@ -831,6 +858,50 @@ export const StickerTemplateSettings: React.FC = () => {
                       <span className="block mt-0.5">No image yet — the sticker will print plain white.</span>
                     )}
                   </div>
+                </div>
+              </section>
+
+              {/* Reuse a previous layout */}
+              <section className="space-y-3">
+                <h2 className="text-[11px] font-bold text-text-tertiary uppercase tracking-wider flex items-center gap-2">
+                  <Copy className="w-3.5 h-3.5" /> Reuse a previous layout
+                </h2>
+                <div className="bg-bg-surface border border-border rounded-xl p-4 space-y-3">
+                  <p className="text-[11px] text-text-tertiary">
+                    Copy field positions, typography, font sizes and page/grid settings from another
+                    saved sticker design. This design&apos;s artwork image stays as it is, so you can
+                    upload a new sticker that uses the same layout without reorganising anything.
+                  </p>
+                  <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                    <select
+                      value={reuseSourceId}
+                      onChange={(e) => setReuseSourceId(e.target.value)}
+                      className="w-full sm:flex-1 bg-bg-input border border-border rounded-md px-3 py-2 text-xs text-text-primary outline-none focus:border-accent"
+                      aria-label="Previous sticker template to copy layout from"
+                    >
+                      <option value="">Choose a previous sticker design…</option>
+                      {reuseOptions.map((t) => (
+                        <option key={t.id} value={t.id}>
+                          {t.preset_name} · {templateScopeHint(t)}
+                        </option>
+                      ))}
+                    </select>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={reusePreviousSettings}
+                      disabled={!reuseSource}
+                      className="shrink-0"
+                    >
+                      <Copy className="w-3.5 h-3.5" />
+                      Apply layout &amp; typography
+                    </Button>
+                  </div>
+                  {reuseOptions.length === 0 && (
+                    <p className="text-[11px] text-text-tertiary">
+                      No other saved designs yet. Create and save a template first, then reuse it.
+                    </p>
+                  )}
                 </div>
               </section>
 

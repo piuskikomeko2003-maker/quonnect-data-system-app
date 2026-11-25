@@ -195,12 +195,18 @@ async function createReprintBatch(
 
   const { data: reg, error: regError } = await supabase
     .from('vendor_registrations')
-    .select('id, market_day_id, tables')
+    .select('id, market_day_id, tables, payment_status')
     .eq('id', registrationId)
     .maybeSingle();
   if (regError) throw regError;
   if (!reg) {
     return NextResponse.json({ error: 'Vendor registration not found.' }, { status: 404 });
+  }
+  if (reg.payment_status === 'voided') {
+    return NextResponse.json(
+      { error: 'This vendor registration has been voided and cannot be reprinted.' },
+      { status: 400 }
+    );
   }
 
   let resolvedDayId: string | null = editionDayId;

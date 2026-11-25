@@ -132,7 +132,8 @@ export async function POST(request: NextRequest) {
               is_active
             )
           `)
-          .in('market_day_id', targetEditionIds);
+          .in('market_day_id', targetEditionIds)
+          .neq('payment_status', 'voided');
 
         if (res.error) {
           console.warn('Rich vendor_registrations export query failed, retrying basic:', res.error.message);
@@ -157,7 +158,8 @@ export async function POST(request: NextRequest) {
                 is_active
               )
             `)
-            .in('market_day_id', targetEditionIds);
+            .in('market_day_id', targetEditionIds)
+            .neq('payment_status', 'voided');
           return basic.data || [];
         }
         return res.data || [];

@@ -318,12 +318,17 @@ async function legacyRegisterPaidVendor(
 
   const MAX_ATTEMPTS = 6;
   for (let attempt = 0; attempt < MAX_ATTEMPTS; attempt++) {
-    const { count: earlierCount } = await supabase
+    // max(ticket_number)+1, not count+1: deleting a row must never make the
+    // next vendor reuse an old public ticket number.
+    const { data: highestRows } = await supabase
       .from('vendor_registrations')
-      .select('id', { count: 'exact', head: true })
-      .eq('market_day_id', editionId);
+      .select('ticket_number')
+      .eq('market_day_id', editionId)
+      .not('ticket_number', 'is', null)
+      .order('ticket_number', { ascending: false })
+      .limit(1);
 
-    const ticketNumber = (earlierCount || 0) + 1;
+    const ticketNumber = Number(highestRows?.[0]?.ticket_number || 0) + 1;
     const ticketCode = formatTicketCode(ticketNumber);
 
     const { error: insertErr } = await supabase.from('vendor_registrations').insert({

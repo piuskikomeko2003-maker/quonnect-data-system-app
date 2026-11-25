@@ -97,6 +97,7 @@ export async function findVendorByPhone(
     .from('vendor_registrations')
     .select('vendor_id, payment_status')
     .eq('market_day_id', editionId)
+    .neq('payment_status', 'voided')
     .in('vendor_id', matches.map((v) => v.id));
 
   const registered = new Set(

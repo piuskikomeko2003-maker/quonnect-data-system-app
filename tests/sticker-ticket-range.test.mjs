@@ -233,3 +233,22 @@ test('server filters the range on ticket_number with gte/lte, not offset', () =>
   assert.match(serverSrc, /\.gte\('ticket_number',\s*ticketRange\.from\)/);
   assert.match(serverSrc, /\.lte\('ticket_number',\s*ticketRange\.to\)/);
 });
+
+test('print screen asks the API for the selected day and drops stale responses', () => {
+  const viewSrc = fs.readFileSync(
+    path.join(ROOT, 'src/components/stickers/StickersView.tsx'),
+    'utf8'
+  );
+
+  // Counts and designs must be requested for the day currently selected, so
+  // "Stickers needed" is that day's exact total, not the edition-wide total.
+  assert.match(
+    viewSrc,
+    /const dayQuery = selectedDayId \? `&edition_day_id=\$\{selectedDayId\}` : '';/
+  );
+  assert.match(viewSrc, /market_day_id=\$\{marketDayId\}\$\{dayQuery\}/);
+
+  // A slow Day 1 response must never overwrite Day 2 after the operator switches.
+  assert.match(viewSrc, /const seq = \+\+loadSeqRef\.current;/);
+  assert.match(viewSrc, /if \(!isCurrent\(\)\) return;/);
+});

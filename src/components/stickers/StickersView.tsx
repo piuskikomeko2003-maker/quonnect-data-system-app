@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useRegion } from '@/context/RegionContext';
 import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
@@ -64,6 +64,10 @@ const StickersView: React.FC<{ canPrint: boolean }> = ({ canPrint }) => {
   const [pendingBatch, setPendingBatch] = useState<BatchRow | null>(null);
   const [confirmingId, setConfirmingId] = useState<string | null>(null);
 
+  // Every load carries a sequence number so a slow response for a previously
+  // selected day can never overwrite the currently selected day's counts.
+  const loadSeqRef = useRef(0);
+
   // Reprint
   const [search, setSearch] = useState('');
   const [selectedVendorId, setSelectedVendorId] = useState('');
@@ -88,6 +92,31 @@ const StickersView: React.FC<{ canPrint: boolean }> = ({ canPrint }) => {
     );
   }, [templates, marketDayId, selectedDayId]);
   const slotsPerPage = activeTemplate ? Math.max(1, activeTemplate.columns * activeTemplate.rows) : 30;
+
+  const selectedDay = useMemo(
+    () => editionDays.find((day) => day.id === selectedDayId) || null,
+    [editionDays, selectedDayId]
+  );
+  /** Name shown next to counts so a per-day total is never mistaken for the edition total. */
+  const dayScopeLabel = selectedDay ? dayLabel(selectedDay) : null;
+
+  /**
+   * Day switching must be a clean slate: a ticket range, pending batch or
+   * reprint selection from the previous day must not carry over.
+   */
+  const selectDay = (dayId: string) => {
+    setSelectedDayId(dayId);
+    setVendors([]);
+    setProgress(null);
+    setBatches([]);
+    setPendingBatch(null);
+    setTicketFrom('');
+    setTicketTo('');
+    setSelectedVendorId('');
+    setSelectedTables([]);
+    setSearch('');
+    setError(null);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -114,6 +143,9 @@ const StickersView: React.FC<{ canPrint: boolean }> = ({ canPrint }) => {
   }, [marketDayId]);
 
   const load = useCallback(async () => {
+    const seq = ++loadSeqRef.current;
+    const isCurrent = () => seq === loadSeqRef.current;
+
     if (!marketDayId) {
       setVendors([]);
       setProgress(null);
@@ -133,20 +165,26 @@ const StickersView: React.FC<{ canPrint: boolean }> = ({ canPrint }) => {
         fetch(`/api/stickers/batches?market_day_id=${marketDayId}${dayQuery}`, { cache: 'no-store' }),
       ]);
 
-      const vendorsData = await vendorsRes.json().catch(() => ({}));
+      const [vendorsData, templatesData, batchesData] = await Promise.all([
+        vendorsRes.json().catch(() => ({})),
+        templatesRes.json().catch(() => ({})),
+        batchesRes.json().catch(() => ({})),
+      ]);
+
+      // The operator switched day while this request was in flight. Drop the
+      // whole response so Day 1 numbers/designs cannot leak into Day 2.
+      if (!isCurrent()) return;
+
       if (!vendorsRes.ok) throw new Error(vendorsData?.error || 'Failed to load vendors');
       setVendors(vendorsData.vendors || []);
       setProgress(vendorsData.progress || computeProgress(vendorsData.vendors || []));
 
-      const templatesData = await templatesRes.json().catch(() => ({}));
       if (templatesRes.ok) setTemplates(templatesData.templates || []);
-
-      const batchesData = await batchesRes.json().catch(() => ({}));
       if (batchesRes.ok) setBatches(batchesData.batches || []);
     } catch (err: any) {
-      setError(err?.message || 'Failed to load sticker data');
+      if (isCurrent()) setError(err?.message || 'Failed to load sticker data');
     } finally {
-      setLoading(false);
+      if (isCurrent()) setLoading(false);
     }
   }, [marketDayId, selectedDayId]);
 
@@ -367,6 +405,16 @@ const StickersView: React.FC<{ canPrint: boolean }> = ({ canPrint }) => {
       {/* Progress */}
       {progress && (
         <div className="space-y-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <p className="text-[11px] font-bold text-text-primary uppercase tracking-wider">
+              {dayScopeLabel ? `${dayScopeLabel} sticker totals` : 'Edition sticker totals'}
+            </p>
+            {dayScopeLabel && (
+              <Badge variant="info" size="sm">
+                {dayScopeLabel} only
+              </Badge>
+            )}
+          </div>
           <div className="grid grid-cols-3 gap-3">
             {[
               { label: 'Stickers needed', value: progress.totalNeeded },
@@ -380,6 +428,7 @@ const StickersView: React.FC<{ canPrint: boolean }> = ({ canPrint }) => {
             ))}
           </div>
           <p className="text-[11px] text-text-tertiary">
+            {dayScopeLabel ? `${dayScopeLabel}: ` : ''}
             {ticketStats.count} paid ticket{ticketStats.count === 1 ? '' : 's'}
             {ticketStats.first != null && ticketStats.last != null
               ? ` (numbers ${formatTicket(ticketStats.first)}–${formatTicket(ticketStats.last)})`
@@ -402,11 +451,7 @@ const StickersView: React.FC<{ canPrint: boolean }> = ({ canPrint }) => {
               Market day
               <select
                 value={selectedDayId}
-                onChange={(e) => {
-                  setSelectedDayId(e.target.value);
-                  setSelectedVendorId('');
-                  setSelectedTables([]);
-                }}
+                onChange={(e) => selectDay(e.target.value)}
                 className="bg-bg-input border border-border rounded-md px-3 py-2 text-xs font-semibold text-text-primary outline-none focus:border-accent"
               >
                 {editionDays.map((day) => (
@@ -497,6 +542,11 @@ const StickersView: React.FC<{ canPrint: boolean }> = ({ canPrint }) => {
           )}
 
           <div className="rounded-lg bg-bg-elevated border border-border p-3 text-xs text-text-secondary space-y-1">
+            {selectedDay && (
+              <p className="font-semibold text-text-primary">
+                {dayLabel(selectedDay)} · {dayDateLabel(selectedDay)}
+              </p>
+            )}
             {rangeSummary && (
               <p className="font-semibold text-text-primary">
                 Printing tickets {rangeSummary.from} to {rangeSummary.to}: {rangeSummary.ticketCount}{' '}
@@ -552,6 +602,15 @@ const StickersView: React.FC<{ canPrint: boolean }> = ({ canPrint }) => {
                   : activeTemplate.edition_id === marketDayId
                   ? '(this edition)'
                   : '(global default)'}
+              </p>
+            )}
+            {selectedDay && activeTemplate?.edition_day_id !== selectedDayId && (
+              <p className="text-amber flex items-start gap-1.5">
+                <AlertCircle className="w-3.5 h-3.5 mt-0.5 shrink-0" />
+                <span>
+                  {dayLabel(selectedDay)} is using the edition-wide design. To print Day 1 and Day 2
+                  differently, create a day design in Settings → Sticker Templates → Day.
+                </span>
               </p>
             )}
           </div>

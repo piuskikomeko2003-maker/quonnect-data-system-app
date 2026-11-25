@@ -37,7 +37,11 @@ export async function GET(request: NextRequest) {
         // Compute dynamically if view is missing or not populated
         const [mRes, vrRes, feRes, fiRes] = await Promise.all([
           supabase.from('market_days').select('id, name, edition, event_date, region_id').eq('id', editionId).maybeSingle(),
-          supabase.from('vendor_registrations').select('amount_paid').eq('market_day_id', editionId),
+          supabase
+            .from('vendor_registrations')
+            .select('amount_paid')
+            .eq('market_day_id', editionId)
+            .neq('payment_status', 'voided'),
           supabase.from('finance_expenses').select('amount, category_name').eq('market_day_id', editionId),
           supabase.from('finance_incomes').select('amount, source_category_name').eq('market_day_id', editionId),
         ]);
@@ -153,7 +157,11 @@ export async function GET(request: NextRequest) {
 
     if (editionIds.length > 0 && viewRows?.length === 0) {
       const [allVr, allFe, allFi] = await Promise.all([
-        supabase.from('vendor_registrations').select('market_day_id, amount_paid').in('market_day_id', editionIds),
+        supabase
+          .from('vendor_registrations')
+          .select('market_day_id, amount_paid, payment_status')
+          .in('market_day_id', editionIds)
+          .neq('payment_status', 'voided'),
         supabase.from('finance_expenses').select('market_day_id, amount').in('market_day_id', editionIds),
         supabase.from('finance_incomes').select('market_day_id, amount').in('market_day_id', editionIds),
       ]);

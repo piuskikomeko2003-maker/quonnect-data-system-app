@@ -240,12 +240,18 @@ export async function POST(request: NextRequest) {
         );
       }
 
-      const { count: earlierCount } = await serviceClient
+      // Use the highest issued number, never a row count. A row count moves
+      // backwards when a record is removed and re-issues an old ticket number;
+      // max()+1 keeps the public sequence stable.
+      const { data: highestRows } = await serviceClient
         .from('vendor_registrations')
-        .select('id', { count: 'exact', head: true })
-        .eq('market_day_id', edition_id);
+        .select('ticket_number')
+        .eq('market_day_id', edition_id)
+        .not('ticket_number', 'is', null)
+        .order('ticket_number', { ascending: false })
+        .limit(1);
 
-      const ticketNumber = (earlierCount || 0) + 1;
+      const ticketNumber = Number(highestRows?.[0]?.ticket_number || 0) + 1;
       const ticketCode = formatTicketCode(ticketNumber);
 
       const { error: insertErr } = await serviceClient.from('vendor_registrations').insert({
